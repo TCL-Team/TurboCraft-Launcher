@@ -139,13 +139,7 @@ fun AboutInfoScreen(
                             icon = painterResource(R.drawable.img_wolf),
                             title = "Wolf",
                             text = "Owner of TCL Team",
-                            button = {
-                                Button(
-                                    onClick = { openLink(URL_STAR1XR) }
-                                ) {
-                                    Text(text = stringResource(R.string.about_launcher_project_link))
-                                }
-                            }
+                            button = {}
                         )
 
                         ButtonIconItem(
