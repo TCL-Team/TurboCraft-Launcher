@@ -1450,7 +1450,7 @@
     <string name="disclaimer_title">Report Bugs or Errors</string>
     <string name="disclaimer_content">If you encounter any errors or bugs, please let us know by reporting them on our Discord server. Your feedback helps us improve the project and fix issues faster. Thank you for your support!</string>
     <string name="disclaimer_original_repo">Join Discord</string>
-    <string name="launcher_fork_subtitle">Made in India</string>
+    <string name="launcher_fork_subtitle">Made in India 🇮🇳</string>
     <string name="settings_renderer_external_driver">External Driver</string>
     <string name="settings_renderer_download_turnip">Download Turnip Driver</string>
     <string name="settings_renderer_download_turnip_summary">Select a Turnip driver version and download it from GitHub</string>
