@@ -181,12 +181,11 @@ fun MainScreen(
     val mainScreenKey = screenBackStackModel.mainScreen.currentKey
     val inLauncherScreen = mainScreenKey == null || mainScreenKey is NormalNavKey.LauncherMain
 
-    val isBackgroundValid = LocalBackgroundViewModel.current?.isValid == true
     val launcherBackgroundOpacity = AllSettings.launcherBackgroundOpacity.state.toFloat() / 100f
 
-    val backgroundColor = if (isBackgroundValid) {
-        backgroundColor().copy(alpha = launcherBackgroundOpacity)
-    } else backgroundColor()
+    //Background() hamesha kuch na kuch dikhata hai (custom background ya default bundled video),
+    //isliye Surface ko hamesha semi-transparent rakho taaki neeche wali video/image dikhe
+    val backgroundColor = backgroundColor().copy(alpha = launcherBackgroundOpacity)
 
     Surface(
         modifier = Modifier.fillMaxSize(),
