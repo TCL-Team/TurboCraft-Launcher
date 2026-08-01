@@ -34,6 +34,6 @@ jobs:
         with:
           name: TCL-debug
           path: |
-            TurboCraft Launcher/build/outputs/apk/debug/*.apk
+            TCL/build/outputs/apk/debug/*.apk
             **/build/outputs/apk/debug/*.apk
             **/build/outputs/apk/**/*.apk
