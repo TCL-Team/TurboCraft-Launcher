@@ -127,13 +127,7 @@ fun <E> influencedByBackground(
     influenced: E,
     enabled: Boolean = true
 ): E {
-    return if (enabled) {
-        if (LocalBackgroundViewModel.current?.isValid == true) {
-            influenced
-        } else {
-            value
-        }
-    } else {
-        value
-    }
+    //Background() hamesha kuch na kuch dikhata hai (custom background ya default bundled video),
+    //isliye jab enabled ho, hamesha transparent (influenced) color use karo
+    return if (enabled) influenced else value
 }
