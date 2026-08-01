@@ -67,6 +67,7 @@ import com.movtery.zalithlauncher.path.URL_MCMOD
 import com.movtery.zalithlauncher.path.URL_PROJECT
 import com.movtery.zalithlauncher.path.URL_STAR1XR
 import com.movtery.zalithlauncher.path.URL_SUPPORT
+import com.movtery.zalithlauncher.path.URL_TCL
 import com.movtery.zalithlauncher.path.URL_WEBLATE
 import com.movtery.zalithlauncher.ui.base.BaseScreen
 import com.movtery.zalithlauncher.ui.components.AnimatedLazyColumn
@@ -155,7 +156,7 @@ fun AboutInfoScreen(
                                 Button(
                                     onClick = { openLink(URL_SUPPORT) }
                                 ) {
-                                    Text(text = Join Discord)
+                                    Text(text = "Join Discord")
                                 }
                             }
                         )
