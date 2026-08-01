@@ -24,7 +24,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build Debug APK
-        run: ./gradlew :TurboCraft Launcher:assembleDebug
+        run: ./gradlew :TCL:assembleDebug
 
       - name: Find APK
         run: find . -name "*.apk"
@@ -32,8 +32,8 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: TurboCraft Launcher-debug
+          name: TCL-debug
           path: |
-            TCL/build/outputs/apk/debug/*.apk
+            TurboCraft Launcher/build/outputs/apk/debug/*.apk
             **/build/outputs/apk/debug/*.apk
             **/build/outputs/apk/**/*.apk
