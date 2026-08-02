@@ -66,27 +66,3 @@ fun findBestRAMAllocation(context: Context): Int {
         else -> 2048 //Default RAM allocation for 64 bits
     }
 }
-
-/**
- * Turbo Mode: device ki RAM check karke automatically best
- * RAM allocation, resolution scale, aur FPS limit set karta hai.
- */
-fun applyTurboMode(context: Context) {
-    val deviceRam = getTotalMemory(context).bytesToMB()
-
-    //RAM: engine ko safe best value khud choose karne do
-    AllSettings.autoRamAllocation.save(true)
-
-    //Resolution scale: kam RAM wale device pe resolution kam karke FPS behtar karo
-    val resolution = when {
-        deviceRam < 2048 -> 50
-        deviceRam < 4096 -> 65
-        deviceRam < 6144 -> 80
-        else -> 100
-    }
-    AllSettings.resolutionRatio.save(resolution)
-
-    //FPS limit: kamzor device pe FPS cap karke heating/battery drain kam karo
-    AllSettings.fpsLimitEnabled.save(true)
-    AllSettings.fpsLimit.save(if (deviceRam < 3064) 30 else 60)
-}
