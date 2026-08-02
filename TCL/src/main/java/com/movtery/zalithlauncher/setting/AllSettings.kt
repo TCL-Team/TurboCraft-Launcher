@@ -164,6 +164,11 @@ object AllSettings : SettingsRegistry() {
     val autoRamAllocation = boolSetting("autoRamAllocation", false)
 
     /**
+     * Turbo Mode - device ke hisaab se best performance settings apply karta hai
+     */
+    val turboMode = boolSetting("turboMode", false)
+
+    /**
      * 自定义Jvm启动参数
      */
     val jvmArgs = stringSetting("jvmArgs", "")
