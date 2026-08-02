@@ -54,6 +54,8 @@ sealed interface NormalNavKey : TitledNavKey {
     @Serializable data object VersionsManager : NormalNavKey {
         @Contextual override val title: AndroidStringText = androidText(R.string.page_title_version_list)
     }
+    /** Setup Marketplace 屏幕 - community setups browse/publish */
+    @Serializable data object SetupMarketplace : NormalNavKey
     /** 文件选择屏幕 */
     @Serializable data class FileSelector(
         val startPath: String,
