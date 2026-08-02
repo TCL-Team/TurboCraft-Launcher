@@ -80,7 +80,6 @@ import com.movtery.zalithlauncher.coroutine.TaskSystem
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.path.URL_ORIGINAL_PROJECT
 import com.movtery.zalithlauncher.setting.AllSettings
-import com.movtery.zalithlauncher.setting.applyTurboMode
 import com.movtery.zalithlauncher.ui.AndroidStringText
 import com.movtery.zalithlauncher.ui.androidText
 import com.movtery.zalithlauncher.ui.components.BackgroundCard
@@ -420,8 +419,6 @@ private fun <E: TitledNavKey> TopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                TurboModeButton()
-
                 AnimatedVisibility(
                     visible = !(isTasksExpanded || taskRunning),
                     enter = slideInVertically(
@@ -494,42 +491,6 @@ private fun <E: TitledNavKey> TopBar(
                     },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun TurboModeButton(
-    modifier: Modifier = Modifier
-) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val turboEnabled = AllSettings.turboMode.state
-
-    Surface(
-        modifier = modifier,
-        shape = MaterialTheme.shapes.large,
-        color = if (turboEnabled) Color(0xFFFF6D00) else MaterialTheme.colorScheme.surfaceVariant,
-        contentColor = if (turboEnabled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-        onClick = {
-            val newValue = !turboEnabled
-            AllSettings.turboMode.save(newValue)
-            if (newValue) applyTurboMode(context)
-        }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Icon(
-                modifier = Modifier.size(20.dp),
-                painter = painterResource(R.drawable.ic_rocket_launch_filled),
-                contentDescription = "Turbo Mode"
-            )
-            Text(
-                text = if (turboEnabled) "Turbo ON" else "Turbo Mode",
-                style = MaterialTheme.typography.labelLarge
-            )
         }
     }
 }
