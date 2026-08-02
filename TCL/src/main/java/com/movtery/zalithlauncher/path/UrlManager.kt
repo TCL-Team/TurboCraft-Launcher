@@ -56,6 +56,11 @@ const val URL_TCL: String = "https://github.com/TCL-Team"
 const val URL_PROJECT_RELEASES_LATEST: String = "https://api.github.com/repos/TCL-Team/TurboCraft-Launcher/releases/latest"
 const val URL_COMMUNITY: String = "https://github.com/Star1xr/ZalithLauncher2Plus/graphs/contributors"
 const val URL_WEBLATE: String = "https://hosted.weblate.org/projects/zalithlauncher2"
+
+/** Setup Marketplace - Supabase REST API base URL */
+const val URL_SUPABASE_BASE: String = "https://qvjanukzamquosjxhxnc.supabase.co/rest/v1/"
+/** Setup Marketplace - Supabase publishable API key */
+const val SUPABASE_API_KEY: String = "sb_publishable_2dm4H_Cml5ODqj1QNQWrdw_vRNqkqjO"
 const val URL_SUPPORT: String = "https://discord.gg/bwkpJZB6NS"
 const val URL_EASYTIER: String = "https://easytier.cn/"
 const val URL_PLAYER_NOTICE: String = "https://raw.githubusercontent.com/Star1xr/ZalithLauncher2Plus/refs/heads/main/ZalithLauncher/src/main/assets/player_notice.txt"
