@@ -107,6 +107,7 @@ import com.movtery.zalithlauncher.ui.screens.content.MultiplayerScreen
 import com.movtery.zalithlauncher.ui.screens.content.SettingsScreen
 import com.movtery.zalithlauncher.ui.screens.content.VersionExportScreen
 import com.movtery.zalithlauncher.ui.screens.content.VersionSettingsScreen
+import com.movtery.zalithlauncher.ui.screens.content.SetupMarketplaceScreen
 import com.movtery.zalithlauncher.ui.screens.content.VersionsManageScreen
 import com.movtery.zalithlauncher.ui.screens.content.WebViewScreen
 import com.movtery.zalithlauncher.ui.screens.content.assetinfo.AssetInfoScreen
@@ -235,6 +236,11 @@ fun MainScreen(
                         screenKey = NormalNavKey.Recordings
                     )
                 },
+                toMarketplaceScreen = {
+                    screenBackStackModel.mainScreen.navigateTo(
+                        screenKey = NormalNavKey.SetupMarketplace
+                    )
+                },
                 changeExpandedState = {
                     changeTasksExpandedState()
                 },
@@ -285,6 +291,7 @@ private fun <E: TitledNavKey> TopBar(
     toFileManagerScreen: () -> Unit,
     toMultiplayerScreen: () -> Unit,
     toRecordingsScreen: () -> Unit,
+    toMarketplaceScreen: () -> Unit,
     changeExpandedState: () -> Unit,
 ) {
     val festivals = LocalFestivals.current
@@ -293,6 +300,7 @@ private fun <E: TitledNavKey> TopBar(
     val inMultiplayerScreen = mainScreenKey is NormalNavKey.Multiplayer
     val inRecordingsScreen = mainScreenKey is NormalNavKey.Recordings
     val inDownloadScreen = mainScreenKey is NestedNavKey.Download
+    val inMarketplaceScreen = mainScreenKey is NormalNavKey.SetupMarketplace
     val inSettingsScreen = mainScreenKey is NestedNavKey.Settings
 
     CompositionLocalProvider(
@@ -474,6 +482,15 @@ private fun <E: TitledNavKey> TopBar(
                 )
 
                 TopBarRailItem(
+                    selected = inMarketplaceScreen,
+                    painter = painterResource(R.drawable.ic_public),
+                    text = "Marketplace",
+                    onClick = {
+                        if (!inMarketplaceScreen) toMarketplaceScreen()
+                    },
+                )
+
+                TopBarRailItem(
                     selected = inDownloadScreen,
                     painter = painterResource(R.drawable.ic_download_2_filled),
                     text = stringResource(R.string.generic_download),
@@ -648,6 +665,13 @@ private fun NavigationUI(
                         navigateToExport = navigateToExport,
                         eventViewModel = eventViewModel,
                         submitError = submitError
+                    )
+                }
+                entry<NormalNavKey.SetupMarketplace> {
+                    SetupMarketplaceScreen(
+                        showToast = { text ->
+                            eventViewModel.sendToast(androidText(text))
+                        }
                     )
                 }
                 entry<NormalNavKey.FileSelector> { key ->
