@@ -178,9 +178,9 @@ fun AboutInfoScreen(
                         )
                         LinkIconItem(
                             icon = painterResource(R.drawable.img_launcher_zl2+),
-                            title = "Zalithlauncher 2+",
-                            text = stringResource(R.string.about_acknowledgements_zl2+_text, BuildKeys.LAUNCHER_SHORT_NAME),
-                            openLicense = { openLicense(R.raw.zl2+_license) },
+                            title = "Zalithlauncher 2 Plus",
+                            text = stringResource(R.string.about_acknowledgements_zl2plus_text, BuildKeys.LAUNCHER_SHORT_NAME),
+                            openLicense = { openLicense(R.raw.zl2plus_license) },
                             openLink = { openLink("https://github.com/Star1xr/ZalithLauncher2Plus") }
                         )
                         LinkIconItem(
