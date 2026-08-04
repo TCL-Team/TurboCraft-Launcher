@@ -138,7 +138,7 @@ fun AboutInfoScreen(
                         ButtonIconItem(
                             icon = painterResource(R.drawable.img_wolf),
                             title = "Wolf",
-                            text = "Owner of TCL Team",
+                            text = "Founder of TCL Team",
                             button = {}
                         )
 
@@ -175,6 +175,13 @@ fun AboutInfoScreen(
                                     Text(text = stringResource(R.string.about_sponsor))
                                 }
                             }
+                        )
+                        LinkIconItem(
+                            icon = painterResource(R.drawable.img_launcher_zl2+),
+                            title = "Zalithlauncher 2+",
+                            text = stringResource(R.string.about_acknowledgements_zl2+_text, BuildKeys.LAUNCHER_SHORT_NAME),
+                            openLicense = { openLicense(R.raw.zl2+_license) },
+                            openLink = { openLink("https://github.com/Star1xr/ZalithLauncher2Plus") }
                         )
                         LinkIconItem(
                             icon = painterResource(R.drawable.img_launcher_fcl),
