@@ -53,7 +53,7 @@ data class CurrentGameInfo(
     }
 }
 
-private fun getInfoFile() = File(getGameHome(), "zalith-game.cfg")
+private fun getInfoFile() = File(getGameHome(), "tcl-game.cfg")
 
 /**
  * 刷新并返回最新的游戏信息（自动处理旧配置迁移）
