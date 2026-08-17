@@ -87,7 +87,8 @@ fun SideBar(
     isVisible: Boolean,
     onFpsClick: () -> Unit,
     onVersionsClick: () -> Unit,
-    onInfoClick: () -> Unit
+    onInfoClick: () -> Unit,
+    onTeamClick: () -> Unit
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
 
@@ -175,6 +176,14 @@ fun SideBar(
                                 icon = painterResource(R.drawable.ic_info_outlined),
                                 label = stringResource(R.string.about_launcher_title),
                                 onClick = onInfoClick
+                            )
+                        }
+
+                        StaggeredItem(delay = 240) {
+                            SideBarShortcut(
+                                icon = painterResource(R.drawable.ic_group_filled),
+                                label = "Our Team",
+                                onClick = onTeamClick
                             )
                         }
                     }
