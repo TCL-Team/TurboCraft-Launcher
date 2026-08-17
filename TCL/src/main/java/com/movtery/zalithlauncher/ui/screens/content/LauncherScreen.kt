@@ -112,6 +112,7 @@ import com.movtery.zalithlauncher.ui.screens.content.elements.AccountAvatar
 import com.movtery.zalithlauncher.ui.screens.content.elements.CommonVersionInfoLayout
 import com.movtery.zalithlauncher.ui.screens.content.elements.AboutDialog
 import com.movtery.zalithlauncher.ui.screens.content.elements.SideBar
+import com.movtery.zalithlauncher.ui.screens.content.elements.TeamDialog
 import com.movtery.zalithlauncher.ui.screens.content.elements.VersionIconImage
 import com.movtery.zalithlauncher.ui.screens.game.elements.PerformanceSettingsDialog
 import com.movtery.zalithlauncher.ui.screens.game.elements.PerformanceSettingsOperation
@@ -142,10 +143,15 @@ fun LauncherScreen(
         currentKey = backStackViewModel.mainScreen.currentKey
     ) { isVisible ->
         var showAboutDialog by remember { mutableStateOf(false) }
+        var showTeamDialog by remember { mutableStateOf(false) }
         var performanceSettingsState by remember { mutableStateOf<PerformanceSettingsOperation>(PerformanceSettingsOperation.None) }
 
         if (showAboutDialog) {
             AboutDialog(onDismissRequest = { showAboutDialog = false })
+        }
+
+        if (showTeamDialog) {
+            TeamDialog(onDismissRequest = { showTeamDialog = false })
         }
 
         PerformanceSettingsDialog(
@@ -171,6 +177,9 @@ fun LauncherScreen(
                 },
                 onInfoClick = {
                     showAboutDialog = true
+                },
+                onTeamClick = {
+                    showTeamDialog = true
                 }
             )
 
@@ -320,8 +329,8 @@ private fun ContentMenu(
     }
 }
 
-private const val CHANGELOGS_URL = "https://raw.githubusercontent.com/Star1xr/ZalithLauncher2Plus/refs/heads/main/CHANGELOGS_UPDATE.md"
-private const val CHANGELOGS_UPDATE_TR = "https://raw.githubusercontent.com/Star1xr/ZalithLauncher2Plus/refs/heads/main/CHANGELOGS_UPDATE_TR.md"
+private const val CHANGELOGS_URL = "https://raw.githubusercontent.com/TCL-Team/TurboCraft-Launcher/refs/heads/main/CHANGELOGS_UPDATE.md"
+private const val CHANGELOGS_UPDATE_TR = "https://raw.githubusercontent.com/TCL-Team/TurboCraft-Launcher/refs/heads/main/CHANGELOGS_UPDATE_TR.md"
 
 @Composable
 private fun StatsGrid(
@@ -897,7 +906,7 @@ private fun ChangelogCard(
                 val isTablet = LocalConfiguration.current.screenWidthDp >= 600
 
                 Text(
-                    text = stringResource(R.string.stats_changelog),
+                    text = "What's New",
                     style = MaterialTheme.typography.labelMedium,
                     maxLines = 1
                 )
@@ -983,7 +992,7 @@ private fun ChangelogCard(
                 ) {
                     val dialogConfig = defaultMarkdownConfig()
                     MarkdownView(
-                        content = "# ${stringResource(R.string.stats_changelog)}\n\n${content!!}",
+                        content = "# What's New\n\n${content!!}",
                         modifier = Modifier
                             .weight(1f)
                             .verticalScroll(rememberScrollState()),
