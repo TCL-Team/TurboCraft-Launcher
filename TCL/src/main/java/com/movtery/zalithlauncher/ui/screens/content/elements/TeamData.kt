@@ -33,5 +33,5 @@ val teamMembers = listOf(
     TeamMember(name = "Spicy_Gamerz", category = "Moderator", photoRes = R.drawable.img_spicy_gamerz),
 
     // ===== Contributor =====
-    TeamMember(name = "Naam", category = "Contributor", photoRes = R.drawable.img_naam),
+    // TeamMember(name = "Naam", category = "Contributor", photoRes = R.drawable.img_naam),
 )
