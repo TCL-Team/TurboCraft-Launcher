@@ -39,7 +39,7 @@ jobs:
       - name: Grant execute permission
         run: chmod +x gradlew
 
-      - name: Build Debug & Release APK
+      - name: Build all APK variants
         env:
           GH_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
@@ -58,15 +58,15 @@ jobs:
           if-no-files-found: error
 
       # Release APK bhi artifact me rahega
-      - name: Upload Release APK
+      - name: Upload Release APK (Artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: Release-APK
+          name: Release-APKs
           path: |
             **/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
-      # GitHub Release create/update
+      # ⭐ GitHub Release - Debug ko chhodkar SABHI Release APK upload karega
       - name: Create GitHub Release
         id: release
         uses: softprops/action-gh-release@v2
@@ -76,6 +76,6 @@ jobs:
           generate_release_notes: true
           files: |
             **/build/outputs/apk/release/*.apk
+            !**/build/outputs/apk/debug/*.apk   # Debug APK ko EXCLUDE karega
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
