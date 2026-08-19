@@ -55,6 +55,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -91,6 +93,7 @@ import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
 import com.movtery.zalithlauncher.ui.screens.TitledNavKey
 import com.movtery.zalithlauncher.ui.screens.content.AccountManageScreen
+import com.movtery.zalithlauncher.ui.screens.content.elements.SocialDialog
 import com.movtery.zalithlauncher.ui.screens.content.BuiltInFileManagerScreen
 import com.movtery.zalithlauncher.ui.screens.content.DownloadScreen
 import com.movtery.zalithlauncher.ui.screens.content.FileEditorScreen
@@ -295,6 +298,11 @@ private fun <E: TitledNavKey> TopBar(
     val inDownloadScreen = mainScreenKey is NestedNavKey.Download
     val inSettingsScreen = mainScreenKey is NestedNavKey.Settings
 
+    var showSocialDialog by remember { mutableStateOf(false) }
+    if (showSocialDialog) {
+        SocialDialog(onDismissRequest = { showSocialDialog = false })
+    }
+
     CompositionLocalProvider(
         LocalContentColor provides contentColor
     ) {
@@ -470,6 +478,15 @@ private fun <E: TitledNavKey> TopBar(
                     text = stringResource(R.string.terracotta),
                     onClick = {
                         if (!inMultiplayerScreen) toMultiplayerScreen()
+                    },
+                )
+
+                TopBarRailItem(
+                    selected = showSocialDialog,
+                    painter = painterResource(R.drawable.ic_public),
+                    text = "Social",
+                    onClick = {
+                        showSocialDialog = true
                     },
                 )
 
