@@ -428,12 +428,12 @@ object AllSettings : SettingsRegistry() {
     /**
      * 启动器背景元素不透明度
      */
-    val launcherBackgroundOpacity = intSetting("launcherBackgroundOpacity", 35, 35..100)
+    val launcherBackgroundOpacity = intSetting("launcherBackgroundOpacity", 20, 20..100)
 
     /**
      * 启动器视频背景音量
      */
-    val videoBackgroundVolume = intSetting("videoBackgroundVolume", 100, 100..100)
+    val videoBackgroundVolume = intSetting("videoBackgroundVolume", 50, 50..100)
 
     /**
      * 启动器背景模糊效果
