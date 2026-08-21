@@ -29,9 +29,12 @@ val teamMembers = listOf(
     TeamMember(name = "Roller_Gaming", category = "Co-Founder", photoRes = R.drawable.img_roller_gaming),
 
     // ===== Manager =====
-    TeamMember(name = "Mythic", category = "Manager", photoRes = R.drawable.img_mythic),
+    TeamMember(name = "Unknown", category = "Manager", photoRes = R.drawable.img_unknown),
+    TeamMember(name = "ItsKing111", category = "Manager", photoRes = R.drawable.img_itsking),
     TeamMember(name = "Spicy_Gamerz", category = "Moderator", photoRes = R.drawable.img_spicy_gamerz),
-
+    TeamMember(name = "Kush", category = "Moderator", photoRes = R.drawable.img_kush),
+    
     // ===== Contributor =====
-    // TeamMember(name = "Naam", category = "Contributor", photoRes = R.drawable.img_naam),
+    TeamMember(name = "AHMAD XD", category = "Beta Testers", photoRes = R.drawable.img_amhad_xd),
+    TeamMember(name = "SkyGaming25", category = "Beta Testers", photoRes = R.drawable.img_sky_gaming),
 )
