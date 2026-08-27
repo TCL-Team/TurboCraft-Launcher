@@ -53,11 +53,6 @@ const val URL_STAR1XR: String = ""
 const val URL_PROJECT_INFO: String = "https://api.github.com/repos/TCL-Team/TurboCraft-Launcher/contents/v2"
 const val URL_ORIGINAL_PROJECT_INFO: String = "https://api.github.com/repos/TCL-Team/TurboCraft-Launcher/contents/v2"
 const val URL_TCL: String = "https://github.com/TCL-Team"
-
-/** Cloud Sync - Supabase Auth REST API base URL (email/password login-signup) */
-const val URL_SUPABASE_AUTH_BASE: String = "https://qvjanukzamquosjxhxnc.supabase.co/auth/v1/"
-/** Cloud Sync - Supabase publishable API key */
-const val SUPABASE_API_KEY: String = "sb_publishable_2dm4H_Cml5ODqj1QNQWrdw_vRNqkqjO"
 const val URL_PROJECT_RELEASES_LATEST: String = "https://api.github.com/repos/TCL-Team/TurboCraft-Launcher/releases/latest"
 const val URL_COMMUNITY: String = "https://github.com/Star1xr/ZalithLauncher2Plus/graphs/contributors"
 const val URL_WEBLATE: String = "https://hosted.weblate.org/projects/zalithlauncher2"
