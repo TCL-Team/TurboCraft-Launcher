@@ -26,7 +26,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,8 +51,6 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialExpressiveTheme
@@ -114,7 +111,6 @@ import com.movtery.zalithlauncher.ui.screens.navigateTo
 import com.movtery.zalithlauncher.ui.screens.content.elements.AccountOperation
 import com.movtery.zalithlauncher.ui.screens.content.elements.AccountSkinOperation
 import com.movtery.zalithlauncher.ui.screens.content.elements.ChangeSkinDialog
-import com.movtery.zalithlauncher.ui.screens.content.elements.CloudSyncDialog
 import com.movtery.zalithlauncher.ui.screens.content.elements.LocalLoginDialog
 import com.movtery.zalithlauncher.ui.screens.content.elements.LocalLoginOperation
 import com.movtery.zalithlauncher.ui.screens.content.elements.LoginMenuDialog
@@ -290,11 +286,6 @@ private fun AccountManageContent(
     }
     val playerSkin = remember { PlayerSkin(context) }
     var pageFinished by remember { mutableStateOf(false) }
-    var showCloudSyncDialog by remember { mutableStateOf(false) }
-
-    if (showCloudSyncDialog) {
-        CloudSyncDialog(onDismissRequest = { showCloudSyncDialog = false })
-    }
 
     DisposableEffect(Unit) {
         onDispose { playerSkin.destroy() }
@@ -413,43 +404,6 @@ private fun AccountManageContent(
                 }
             ) {
                 MarqueeText(text = stringResource(R.string.account_add_new_account))
-            }
-
-            // Featured Cloud Sync button - stands out from the Minecraft account button above
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(Color(0xFF6A3DE8), Color(0xFF9C6BFF))
-                        ),
-                        shape = MaterialTheme.shapes.large
-                    )
-                    .clickable {
-                        showCloudSyncDialog = true
-                    },
-                color = Color.Transparent,
-                shape = MaterialTheme.shapes.large
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        modifier = Modifier.size(20.dp),
-                        painter = painterResource(R.drawable.ic_public),
-                        contentDescription = null,
-                        tint = Color.White
-                    )
-                    Text(
-                        text = "Cloud Sync",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
             }
 
             // Import/Export buttons
