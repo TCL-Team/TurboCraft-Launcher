@@ -598,6 +598,21 @@ object AllSettings : SettingsRegistry() {
     val enableTerracottaNodes = boolSetting("enableTerracottaNodes", false)
 
     /**
+     * Cloud Sync - logged-in user ka email (khaali matlab logged out hai)
+     */
+    val cloudSyncEmail = stringSetting("cloudSyncEmail", "")
+
+    /**
+     * Cloud Sync - Supabase session access token
+     */
+    val cloudSyncAccessToken = stringSetting("cloudSyncAccessToken", "")
+
+    /**
+     * Cloud Sync - Supabase session refresh token
+     */
+    val cloudSyncRefreshToken = stringSetting("cloudSyncRefreshToken", "")
+
+    /**
      * 陶瓦联机：自定义 EasyTier 服务器节点
      */
     val terracottaNodes = stringSetting("terracottaNodes", "")
