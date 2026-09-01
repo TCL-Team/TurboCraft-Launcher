@@ -2,8 +2,6 @@ import com.android.build.api.variant.FilterConfiguration.FilterType.ABI
 import com.android.build.api.variant.impl.VariantOutputImpl
 import com.android.build.gradle.tasks.MergeSourceSetFolders
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-import java.net.URL
-import java.util.zip.ZipFile
 
 plugins {
     alias(libs.plugins.android.application)
@@ -48,10 +46,10 @@ android {
 
     signingConfigs {
         create("releaseBuild") {
-            storeFile = file("zalith_launcher_debug.jks")
-            storePassword = defaultStorePassword
-            keyAlias = "movtery_zalith_debug"
-            keyPassword = defaultKeyPassword
+            storeFile = file("zalith_launcher.jks")
+            storePassword = getKeyFromLocal("STORE_PASSWORD", ".store_password.txt")
+            keyAlias = "movtery_zalith"
+            keyPassword = getKeyFromLocal("KEY_PASSWORD", ".key_password.txt")
         }
         create("debugBuild") {
             storeFile = file("zalith_launcher_debug.jks")
@@ -62,8 +60,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.tcl"
-        applicationIdSuffix = ".mc"
+        applicationId = zalithPackageName
+        applicationIdSuffix = ".v2"
         minSdk = 26
         targetSdk = 34
         versionCode = launcherVersionCode
@@ -114,11 +112,13 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
-            pickFirsts += listOf("**/libbytehook.so", "**/libopenal.so")
+            pickFirsts += listOf("**/libbytehook.so")
         }
     }
 
     compileOptions {
+        // sora-editor language-textmate
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -130,6 +130,8 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            //让 android.util.Log 等框架方法在本地单测中返回默认值而非抛出异常
+            isReturnDefaultValues = true
         }
     }
 }
@@ -141,17 +143,43 @@ androidComponents {
                 val variantName = variant.name.replaceFirstChar { it.uppercaseChar() }
                 afterEvaluate {
                     val task = tasks.named("merge${variantName}Assets").get() as MergeSourceSetFolders
+                    task.inputs.property("lwjglArch", projectArch)
                     task.doLast {
                         val assetsDir = task.outputDir.get().asFile
-                        val jreList = listOf("jre-8", "jre-17", "jre-21", "jre-25")
                         val tag = "JREAssetsCleanup"
                         logger.lifecycle("[$tag] arch: $projectArch")
+                        val jreList = listOf("jre-8", "jre-17", "jre-21", "jre-25")
                         jreList.forEach { jreVersion ->
                             val runtimeDir = File("$assetsDir/runtimes/$jreVersion")
                             logger.lifecycle("[$tag] runtimeDir: ${runtimeDir.absolutePath}")
                             runtimeDir.listFiles()?.forEach {
                                 if (projectArch != "all" && it.name != "version" && !it.name.contains("universal") && it.name != "bin-$projectArch.tar.xz") {
                                     logger.lifecycle("[$tag] delete: $it : ${it.delete()}")
+                                }
+                            }
+                        }
+
+                        if (projectArch == "all") return@doLast
+                        val abi = when (projectArch) {
+                            "arm" -> "armeabi-v7a"
+                            "arm64" -> "arm64-v8a"
+                            "x86" -> "x86"
+                            "x86_64" -> "x86_64"
+                            else -> return@doLast
+                        }
+                        val lwjglVersions = file("libs").listFiles { f ->
+                            f.name.matches(Regex("lwjgl-\\d+\\.\\d+\\.\\d+-natives-release\\.aar"))
+                        }
+                            ?.map { Regex("lwjgl-(\\d+\\.\\d+\\.\\d+)-natives-release\\.aar").find(it.name)!!.groupValues[1] }
+                            ?: emptyList()
+                        lwjglVersions.forEach { version ->
+                            val nativesDir = File(assetsDir, "app_runtime/lwjgl/$version/natives")
+                            if (nativesDir.isDirectory) {
+                                nativesDir.listFiles()?.forEach { dir ->
+                                    if (dir.isDirectory && dir.name != abi) {
+                                        logger.lifecycle("Removing non-target-arch natives: $dir")
+                                        dir.deleteRecursively()
+                                    }
                                 }
                             }
                         }
@@ -168,152 +196,11 @@ androidComponents {
 }
 
 
-val mobileGluesLibs by tasks.registering {
-    val abis = setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
-    doLast {
-        val jniLibsDir = file("src/main/jniLibs")
-
-        val apiUrl = URL("https://api.github.com/repos/MobileGL-Dev/MobileGlues-release/releases/latest")
-        val releaseJson = retryWithBackoff(maxRetries = 5, initialDelayMs = 2000) { attempt ->
-            val conn = apiUrl.openConnection() as java.net.HttpURLConnection
-            conn.setRequestProperty("Accept", "application/json")
-            val responseCode = conn.responseCode
-            if (responseCode == 200) {
-                val body = conn.inputStream.readAllBytes().decodeToString()
-                conn.disconnect()
-                body
-            } else {
-                val errorBody = conn.errorStream?.readAllBytes()?.decodeToString() ?: "no body"
-                conn.disconnect()
-                if (responseCode == 403) {
-                    logger.warn("MobileGlues API rate limited (attempt $attempt), retrying...")
-                    null
-                } else {
-                    throw GradleException("MobileGlues API request failed (HTTP $responseCode): $errorBody")
-                }
-            }
-        } ?: throw GradleException("MobileGlues API request failed after retries — rate limited.")
-
-        val assetUrl = Regex("\"browser_download_url\":\"([^\"]+\\.apk)\"").find(releaseJson)?.groupValues?.get(1)
-            ?: throw GradleException("No APK asset found in latest MobileGlues release")
-
-        val apkFile = layout.buildDirectory.file("tmp/mobileglues.apk").get().asFile
-        apkFile.parentFile.mkdirs()
-
-        logger.lifecycle("Downloading MobileGlues from $assetUrl")
-        val downloadConn = URL(assetUrl).openConnection() as java.net.HttpURLConnection
-        val downloadCode = downloadConn.responseCode
-        if (downloadCode != 200) {
-            val errorBody = downloadConn.errorStream?.readAllBytes()?.decodeToString() ?: "no body"
-            throw GradleException("MobileGlues download failed (HTTP $downloadCode): $errorBody")
-        }
-        downloadConn.inputStream.use { input ->
-            apkFile.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
-
-        var extractedCount = 0
-        ZipFile(apkFile).use { zip ->
-            abis.forEach { abi ->
-                val outDir = file("$jniLibsDir/$abi")
-                outDir.mkdirs()
-
-                listOf(
-                    "libmobileglues.so" to "libMobileGlues.so",
-                    "libmobileglues_info_getter.so" to "libmobileglues_info_getter.so",
-                ).forEach { (apkName, outName) ->
-                    val entry = zip.getEntry("lib/$abi/$apkName")
-                    if (entry != null) {
-                        zip.getInputStream(entry).use { input ->
-                            File(outDir, outName).outputStream().use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-                        extractedCount++
-                        logger.lifecycle("Extracted lib/$abi/$apkName -> $outName")
-                    } else {
-                        throw GradleException("Required entry lib/$abi/$apkName not found in MobileGlues APK")
-                    }
-                }
-            }
-        }
-        apkFile.delete()
-
-        if (extractedCount == 0) {
-            throw GradleException("MobileGlues: no libraries were extracted — build cannot continue")
-        }
-    }
-}
-
-fun retryWithBackoff(
-    maxRetries: Int,
-    initialDelayMs: Long,
-    action: (attempt: Int) -> String?
-): String? {
-    var delay = initialDelayMs
-    for (attempt in 1..maxRetries) {
-        val result = action(attempt)
-        if (result != null) return result
-        if (attempt < maxRetries) {
-            Thread.sleep(delay)
-            delay *= 2
-        }
-    }
-    return null
-}
-
-val nativeLibPluginLibs by tasks.registering {
-    val abis = setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
-    doLast {
-        val jniLibsDir = file("src/main/jniLibs")
-        val allExist = abis.all { file("$jniLibsDir/$it/libimgui-java.so").exists() }
-        if (allExist) return@doLast
-
-        val apkUrl = "https://github.com/ZalithLauncher/NativeLibPlugin/releases/download/v1.86.12_Patched/app-release.apk"
-        val apkFile = layout.buildDirectory.file("tmp/nativelibplugin.apk").get().asFile
-        apkFile.parentFile.mkdirs()
-
-        logger.lifecycle("Downloading NativeLibPlugin from $apkUrl")
-        URL(apkUrl).openStream().use { input ->
-            apkFile.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
-
-        ZipFile(apkFile).use { zip ->
-            abis.forEach { abi ->
-                val outDir = file("$jniLibsDir/$abi")
-                outDir.mkdirs()
-
-                val entry = zip.getEntry("lib/$abi/libimgui-java.so")
-                if (entry != null) {
-                    zip.getInputStream(entry).use { input ->
-                        File(outDir, "libimgui-java.so").outputStream().use { output ->
-                            input.copyTo(output)
-                        }
-                    }
-                    logger.lifecycle("Extracted lib/$abi/libimgui-java.so")
-                } else {
-                    logger.warn("lib/$abi/libimgui-java.so not found in APK")
-                }
-            }
-        }
-        apkFile.delete()
-    }
-}
-
-tasks.named("preBuild") {
-    dependsOn(mobileGluesLibs)
-    dependsOn(nativeLibPluginLibs)
-}
-
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
         optIn.addAll(
             "androidx.compose.material3.ExperimentalMaterial3Api",
-            "androidx.compose.material3.ExperimentalMaterial3ExpressiveApi",
         )
     }
 }
@@ -342,7 +229,6 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     debugImplementation(libs.androidx.ui.tooling)
     implementation(libs.androidx.material3)
-    implementation("androidx.compose.material:material-icons-extended")
     implementation(libs.androidx.constraintlayout.compose)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
@@ -350,6 +236,7 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.webkit)
+    implementation(libs.documentfile)
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
     implementation(libs.coil.svg)
@@ -359,20 +246,28 @@ dependencies {
     implementation(libs.material.color.utilities)
     implementation(libs.materialKolor)
     implementation(libs.reorderable)
-    implementation(libs.compose.markdown)
+    implementation(libs.richtext.commonmark)
+    implementation(libs.richtext.ui)
+    implementation(libs.richtext.ui.material3)
     implementation(platform(libs.editor.bom))
     implementation(libs.editor)
+    implementation(libs.editor.language.textmate)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation(libs.dev.haze)
     implementation(libs.dev.haze.blur)
+    //Project
     implementation(project(":LayerController"))
     implementation(project(":ColorPicker"))
     implementation(project(":Terracotta"))
+    implementation(project(":InputMap"))
+    //Utils
     implementation(libs.bytehook)
     implementation(libs.gson)
     implementation(libs.commons.io)
     implementation(libs.commons.codec)
     implementation(libs.commons.compress)
     implementation(libs.xz)
+    implementation(libs.zip4j)
     implementation(libs.okio)
     implementation(libs.okhttp)
     implementation(libs.ktor.http)
@@ -391,15 +286,20 @@ dependencies {
     implementation(libs.process.phoenix)
     implementation(libs.lunarcalendar)
     implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar", "*.aar"))))
+    //Safe
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.sqlcipher.android)
     ksp(libs.androidx.room.compiler)
+    //Support
     implementation(libs.proxy.client.android)
+    //Hilt
     implementation(libs.dagger.hilt.android)
     ksp(libs.dagger.hilt.android.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
+    //Test
     testImplementation(libs.junit)
+    testImplementation(libs.mockwebserver3)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
