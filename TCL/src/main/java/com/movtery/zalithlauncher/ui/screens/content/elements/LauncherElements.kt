@@ -18,21 +18,34 @@
 
 package com.movtery.zalithlauncher.ui.screens.content.elements
 
-import android.Manifest
 import android.app.Activity
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Parcelable
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
@@ -41,13 +54,21 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil3.ImageLoader
 import coil3.compose.AsyncImage
+import coil3.gif.GifDecoder
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import coil3.request.crossfade
 import com.movtery.zalithlauncher.R
+import com.movtery.zalithlauncher.game.account.Account
 import com.movtery.zalithlauncher.game.account.AccountsManager
-import com.movtery.zalithlauncher.game.launch.LaunchGame
+import com.movtery.zalithlauncher.game.account.accountErrorText
+import com.movtery.zalithlauncher.game.account.auth_server.AuthServerHelper
+import com.movtery.zalithlauncher.game.account.isMicrosoftAccount
+import com.movtery.zalithlauncher.game.account.microsoftLogin
 import com.movtery.zalithlauncher.game.plugin.ApkPlugin
 import com.movtery.zalithlauncher.game.plugin.natives.NativePluginManager
 import com.movtery.zalithlauncher.game.plugin.renderer.RendererPluginManager
@@ -55,12 +76,16 @@ import com.movtery.zalithlauncher.game.renderer.RendererInterface
 import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.setting.AllSettings
-import com.movtery.zalithlauncher.setting.launcherMMKV
 import com.movtery.zalithlauncher.setting.enums.BackgroundBlur
+import com.movtery.zalithlauncher.ui.AndroidStringText
 import com.movtery.zalithlauncher.ui.androidText
+import com.movtery.zalithlauncher.ui.components.MarqueeText
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.VideoPlayer
+import com.movtery.zalithlauncher.ui.components.rememberDialogMaxHeight
 import com.movtery.zalithlauncher.ui.screens.content.FirstLoginMenu
+import com.movtery.zalithlauncher.ui.theme.cardColor
+import com.movtery.zalithlauncher.ui.theme.onCardColor
 import com.movtery.zalithlauncher.utils.canHandlePermission
 import com.movtery.zalithlauncher.utils.checkStoragePermissions
 import com.movtery.zalithlauncher.utils.file.InvalidFilenameException
@@ -71,13 +96,14 @@ import com.movtery.zalithlauncher.utils.string.isLowerTo
 import com.movtery.zalithlauncher.viewmodel.BackgroundViewModel
 import com.movtery.zalithlauncher.viewmodel.ErrorViewModel
 import com.movtery.zalithlauncher.viewmodel.EventViewModel
+import com.movtery.zalithlauncher.viewmodel.LaunchGameViewModel
 import com.movtery.zalithlauncher.viewmodel.LocalBackgroundViewModel
 import com.movtery.zalithlauncher.viewmodel.sendToast
-import dev.chrisbanes.haze.HazeInputScale
+import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.blur.HazeBlurStyle
 import dev.chrisbanes.haze.blur.HazeColorEffect
-import dev.chrisbanes.haze.blur.blurEffect
-import dev.chrisbanes.haze.hazeEffect
+import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -132,8 +158,19 @@ sealed interface LaunchGameOperation {
         val quickPlay: QuickPlay? = null
     ) : LaunchGameOperation
 
-    /** 需要请求麦克风权限 */
-    data class MicrophonePermission(
+    /** 账号凭据已被服务端拒绝，需要重新登录 */
+    data class AccountRelogin(
+        val account: Account,
+        val version: Version,
+        val quickPlay: QuickPlay?,
+        val logging: Boolean = false,
+        val error: Throwable? = null
+    ) : LaunchGameOperation
+
+    /** 账号刷新失败，可选择跳过刷新继续启动 */
+    data class AccountRefreshFailed(
+        val account: Account,
+        val error: Throwable,
         val version: Version,
         val quickPlay: QuickPlay?
     ) : LaunchGameOperation
@@ -141,7 +178,8 @@ sealed interface LaunchGameOperation {
     /** 正式启动 */
     data class RealLaunch(
         val version: Version,
-        val quickPlay: QuickPlay?
+        val quickPlay: QuickPlay?,
+        val skipAccountRefresh: Boolean = false
     ) : LaunchGameOperation
 }
 
@@ -149,31 +187,35 @@ sealed interface LaunchGameOperation {
 fun LaunchGameOperation(
     activity: Activity,
     eventViewModel: EventViewModel,
-    launchGameOperation: LaunchGameOperation,
-    updateOperation: (LaunchGameOperation) -> Unit,
+    launchGameViewModel: LaunchGameViewModel,
     exitActivity: () -> Unit,
     waitForVulkanChecker: suspend () -> Unit,
     submitError: (ErrorViewModel.ThrowableMessage) -> Unit,
     toAccountManageScreen: (FirstLoginMenu) -> Unit = {},
-    toVersionManageScreen: () -> Unit = {}
+    toVersionManageScreen: () -> Unit = {},
+    navigateToWeb: (String) -> Unit = {},
+    backToMain: () -> Unit = {},
+    checkIfInWebScreen: () -> Boolean = { false }
 ) {
-    when (launchGameOperation) {
+    val launchGameOperation by launchGameViewModel.launchGameOperation.collectAsStateWithLifecycle()
+
+    when (val operation = launchGameOperation) {
         is LaunchGameOperation.None -> {}
         is LaunchGameOperation.NoVersion -> {
             LaunchedEffect(Unit) {
                 eventViewModel.sendToast(androidText(R.string.game_launch_no_version))
                 toVersionManageScreen()
-                updateOperation(LaunchGameOperation.None)
+                launchGameViewModel.updateOperation(LaunchGameOperation.None)
             }
         }
         is LaunchGameOperation.InvalidVersionName -> {
-            val th = launchGameOperation.th
+            val th = operation.th
             SimpleAlertDialog(
                 title = stringResource(R.string.versions_manage_invalid),
                 text = th.getInvalidSummary(),
                 confirmText = stringResource(R.string.generic_cancel),
                 onDismiss = {
-                    updateOperation(LaunchGameOperation.None)
+                    launchGameViewModel.updateOperation(LaunchGameOperation.None)
                 }
             )
         }
@@ -185,14 +227,14 @@ fun LaunchGameOperation(
                     if (isOffline) FirstLoginMenu.MICROSOFT
                     else FirstLoginMenu.NORMAL
                 )
-                updateOperation(LaunchGameOperation.None)
+                launchGameViewModel.updateOperation(LaunchGameOperation.None)
             }
         }
         is LaunchGameOperation.RendererNoStoragePermission -> {
             LaunchedEffect(Unit) {
-                val renderer = launchGameOperation.renderer
-                val version = launchGameOperation.version
-                val quickPlay = launchGameOperation.quickPlay
+                val renderer = operation.renderer
+                val version = operation.version
+                val quickPlay = operation.quickPlay
                 withContext(Dispatchers.Main) {
                     checkStoragePermissions(
                         activity = activity,
@@ -200,93 +242,63 @@ fun LaunchGameOperation(
                         messageSdk30 = activity.getString(R.string.renderer_version_storage_permissions_sdk30, renderer.getRendererName()),
                         onDialogCancel = {
                             //用户拒绝授权，但仍然允许启动（不过这会导致配置无法读取）
-                            updateOperation(LaunchGameOperation.RealLaunch(version, quickPlay))
+                            launchGameViewModel.updateOperation(LaunchGameOperation.RealLaunch(version, quickPlay))
                         }
                     )
                 }
-                updateOperation(LaunchGameOperation.None)
+                launchGameViewModel.updateOperation(LaunchGameOperation.None)
             }
         }
         is LaunchGameOperation.UnsupportedRenderer -> {
-            val renderer = launchGameOperation.renderer
-            val version = launchGameOperation.version
-            val quickPlay = launchGameOperation.quickPlay
+            val renderer = operation.renderer
+            val version = operation.version
+            val quickPlay = operation.quickPlay
             SimpleAlertDialog(
                 title = stringResource(R.string.generic_warning),
                 text = stringResource(R.string.renderer_version_unsupported_warning, renderer.getRendererName()),
                 confirmText = stringResource(R.string.generic_anyway),
                 onConfirm = {
-                    updateOperation(LaunchGameOperation.RealLaunch(version, quickPlay))
+                    launchGameViewModel.updateOperation(LaunchGameOperation.RealLaunch(version, quickPlay))
                 },
                 onDismiss = {
-                    updateOperation(LaunchGameOperation.None)
+                    launchGameViewModel.updateOperation(LaunchGameOperation.None)
                 }
             )
         }
         is LaunchGameOperation.UnsupportedPlugins -> {
-            val plugins = launchGameOperation.plugins
-            val version = launchGameOperation.version
-            val quickPlay = launchGameOperation.quickPlay
+            val plugins = operation.plugins
+            val version = operation.version
+            val quickPlay = operation.quickPlay
             SimpleAlertDialog(
                 title = stringResource(R.string.generic_warning),
                 text = stringResource(R.string.plugin_unsupported_warning, plugins.joinToString(", ") { it.appName }),
                 confirmText = stringResource(R.string.generic_anyway),
                 onConfirm = {
-                    updateOperation(LaunchGameOperation.RealLaunch(version, quickPlay))
+                    launchGameViewModel.updateOperation(LaunchGameOperation.RealLaunch(version, quickPlay))
                 },
                 onDismiss = {
-                    updateOperation(LaunchGameOperation.None)
-                }
-            )
-        }
-        is LaunchGameOperation.MicrophonePermission -> {
-            val version = launchGameOperation.version
-            val quickPlay = launchGameOperation.quickPlay
-
-            val requestPermissionLauncher =
-                rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-                    launcherMMKV().putBoolean("microphone_asked", true)
-                    updateOperation(LaunchGameOperation.RealLaunch(version, quickPlay))
-                }
-
-            SimpleAlertDialog(
-                title = stringResource(R.string.microphone_check_title),
-                text = activity.getString(R.string.microphone_launch_dialog),
-                confirmText = stringResource(R.string.microphone_allow),
-                dismissText = stringResource(R.string.microphone_skip_ask),
-                dismissByDialog = false,
-                onConfirm = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    } else {
-                        launcherMMKV().putBoolean("microphone_asked", true)
-                        updateOperation(LaunchGameOperation.RealLaunch(version, quickPlay))
-                    }
-                },
-                onDismiss = {
-                    launcherMMKV().putBoolean("microphone_asked", true)
-                    updateOperation(LaunchGameOperation.RealLaunch(version, quickPlay))
+                    launchGameViewModel.updateOperation(LaunchGameOperation.None)
                 }
             )
         }
         is LaunchGameOperation.TryLaunch -> {
             LaunchedEffect(Unit) {
-                val version = launchGameOperation.version ?: run {
-                    updateOperation(LaunchGameOperation.NoVersion)
+                val version = operation.version ?: run {
+                    launchGameViewModel.updateOperation(LaunchGameOperation.NoVersion)
                     return@LaunchedEffect
                 }
 
                 try {
                     checkFilenameValidity(version.getVersionName())
                 } catch (th: InvalidFilenameException) {
-                    updateOperation(LaunchGameOperation.InvalidVersionName(th))
+                    launchGameViewModel.updateOperation(LaunchGameOperation.InvalidVersionName(th))
                     return@LaunchedEffect
                 }
 
-                val quickPlay = launchGameOperation.quickPlay
+                val quickPlay = operation.quickPlay
 
                 AccountsManager.currentAccountFlow.value ?: run {
-                    updateOperation(LaunchGameOperation.NoAccount)
+                    launchGameViewModel.updateOperation(LaunchGameOperation.NoAccount)
                     return@LaunchedEffect
                 }
 
@@ -303,7 +315,7 @@ fun LaunchGameOperation(
                             (rendererMaxVer?.let { mcVer.isBiggerTo(it) } ?: false)
 
                 if (isRendererUnsupported) {
-                    updateOperation(LaunchGameOperation.UnsupportedRenderer(currentRenderer, version, quickPlay))
+                    launchGameViewModel.updateOperation(LaunchGameOperation.UnsupportedRenderer(currentRenderer, version, quickPlay))
                     return@LaunchedEffect
                 }
 
@@ -312,7 +324,7 @@ fun LaunchGameOperation(
                             (plugin.maxMCVer?.let { mcVer.isBiggerTo(it) } ?: false)
                 }
                 if (unsupportedPlugins.isNotEmpty()) {
-                    updateOperation(LaunchGameOperation.UnsupportedPlugins(unsupportedPlugins, version, quickPlay))
+                    launchGameViewModel.updateOperation(LaunchGameOperation.UnsupportedPlugins(unsupportedPlugins, version, quickPlay))
                     return@LaunchedEffect
                 }
 
@@ -322,38 +334,203 @@ fun LaunchGameOperation(
                     canHandlePermission &&  !hasStoragePermission &&
                     RendererPluginManager.isConfigurablePlugin(version.getRenderer())
                 ) {
-                    updateOperation(LaunchGameOperation.RendererNoStoragePermission(currentRenderer, version, quickPlay))
-                    return@LaunchedEffect
-                }
-
-                //首次启动时请求麦克风权限（Simple Voice Chat等mod需要）
-                if (!launcherMMKV().getBoolean("microphone_asked", false) &&
-                    ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    updateOperation(LaunchGameOperation.MicrophonePermission(version, quickPlay))
+                    launchGameViewModel.updateOperation(LaunchGameOperation.RendererNoStoragePermission(currentRenderer, version, quickPlay))
                     return@LaunchedEffect
                 }
 
                 //正式启动游戏
-                updateOperation(LaunchGameOperation.RealLaunch(version, quickPlay))
+                launchGameViewModel.updateOperation(LaunchGameOperation.RealLaunch(version, quickPlay))
             }
+        }
+        is LaunchGameOperation.AccountRelogin -> {
+            if (operation.account.isMicrosoftAccount()) {
+                MicrosoftReloginDialog(
+                    onDismissRequest = {
+                        launchGameViewModel.updateOperation(LaunchGameOperation.None)
+                    },
+                    onConfirm = {
+                        launchGameViewModel.updateOperation(LaunchGameOperation.None)
+                        microsoftLogin(
+                            context = activity,
+                            toWeb = navigateToWeb,
+                            backToMain = backToMain,
+                            checkIfInWebScreen = checkIfInWebScreen,
+                            updateOperation = {},
+                            showToast = { text, duration -> eventViewModel.sendToast(text, duration) },
+                            submitError = submitError
+                        ) {
+                            activity.runOnUiThread {
+                                launchGameViewModel.updateOperation(
+                                    LaunchGameOperation.RealLaunch(
+                                        operation.version,
+                                        operation.quickPlay
+                                    )
+                                )
+                            }
+                        }
+                    }
+                )
+            } else {
+                OtherAccountReloginDialog(
+                    account = operation.account,
+                    logging = operation.logging,
+                    error = operation.error,
+                    onDismissRequest = {
+                        launchGameViewModel.updateOperation(LaunchGameOperation.None)
+                    },
+                    onConfirm = { password ->
+                        launchGameViewModel.updateOperation(operation.copy(logging = true, error = null))
+                        AuthServerHelper(
+                            baseUrl = operation.account.otherBaseUrl!!,
+                            serverName = operation.account.accountType!!,
+                            email = operation.account.otherAccount!!,
+                            password = password,
+                            onSuccess = { acc, _ ->
+                                AccountsManager.markSessionValidated(acc)
+                                AccountsManager.suspendSaveAccount(acc)
+                                activity.runOnUiThread {
+                                    launchGameViewModel.updateOperation(
+                                        LaunchGameOperation.RealLaunch(
+                                            operation.version,
+                                            operation.quickPlay)
+                                    )
+                                }
+                            },
+                            onFailed = { th ->
+                                activity.runOnUiThread {
+                                    launchGameViewModel.updateOperation(
+                                        operation.copy(
+                                            logging = false,
+                                            error = th
+                                        ))
+                                }
+                            }
+                        ).justLogin(activity, operation.account)
+                    }
+                )
+            }
+        }
+        is LaunchGameOperation.AccountRefreshFailed -> {
+            val state = operation
+            AccountRefreshFailedDialog(
+                error = state.error,
+                onSkip = {
+                    launchGameViewModel.updateOperation(
+                        LaunchGameOperation.RealLaunch(
+                            state.version,
+                            state.quickPlay,
+                            skipAccountRefresh = true
+                        )
+                    )
+                },
+                onRetry = {
+                    launchGameViewModel.updateOperation(LaunchGameOperation.RealLaunch(state.version, state.quickPlay))
+                },
+                onCancel = {
+                    launchGameViewModel.updateOperation(LaunchGameOperation.None)
+                }
+            )
         }
         is LaunchGameOperation.RealLaunch -> {
             LaunchedEffect(Unit) {
-                val version = launchGameOperation.version
-                val quickPlay = launchGameOperation.quickPlay
+                val version = operation.version
+                val quickPlay = operation.quickPlay
                 version.apply {
                     offlineAccountLogin = false
                     quickPlaySingle = quickPlay
                 }
-                LaunchGame.launchGame(
-                    context = activity,
+                launchGameViewModel.start(
+                    activity = activity,
                     version = version,
                     exitActivity = exitActivity,
                     waitForVulkanChecker = waitForVulkanChecker,
-                    submitError = submitError
+                    submitError = submitError,
+                    quickPlay = quickPlay,
+                    skipAccountRefresh = operation.skipAccountRefresh
                 )
-                updateOperation(LaunchGameOperation.None)
+                launchGameViewModel.updateOperation(LaunchGameOperation.None)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AccountRefreshFailedDialog(
+    error: Throwable,
+    onSkip: () -> Unit,
+    onRetry: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onCancel
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .heightIn(max = rememberDialogMaxHeight())
+                .fillMaxHeight(),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                modifier = Modifier
+                    .padding(all = 6.dp)
+                    .heightIn(max = (maxHeight - 12.dp).coerceAtMost(rememberDialogMaxHeight()))
+                    .wrapContentHeight(),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = cardColor(false),
+                contentColor = onCardColor(),
+                shadowElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.account_refresh_failed_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.size(12.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState())
+                            .fillMaxWidth()
+                    ) {
+                        AndroidStringText(
+                            text = accountErrorText(error),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.size(8.dp))
+                        Text(
+                            text = stringResource(R.string.account_refresh_failed_skip_message),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    Spacer(modifier = Modifier.size(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        FilledTonalButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = onCancel
+                        ) {
+                            MarqueeText(text = stringResource(R.string.generic_cancel))
+                        }
+                        FilledTonalButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = onRetry
+                        ) {
+                            MarqueeText(text = stringResource(R.string.account_refresh_failed_retry))
+                        }
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            onClick = onSkip
+                        ) {
+                            MarqueeText(text = stringResource(R.string.account_refresh_failed_skip))
+                        }
+                    }
+                }
             }
         }
     }
@@ -368,8 +545,6 @@ fun Background(
     modifier: Modifier = Modifier,
     allowVideo: Boolean = true
 ) {
-    val context = LocalContext.current
-
     Box(
         modifier = modifier.backgroundBlur(
             blur = AllSettings.backgroundBlur.state,
@@ -394,13 +569,6 @@ fun Background(
                     )
                 }
             }
-        } else if (allowVideo) {
-            //user ne koi custom background set nahi ki hai, isliye app ke andar bundled default video dikhao
-            VideoPlayer(
-                videoUri = Uri.parse("android.resource://${context.packageName}/${R.raw.default_background}"),
-                modifier = Modifier.fillMaxSize(),
-                volume = AllSettings.videoBackgroundVolume.state / 100f
-            )
         }
     }
 }
@@ -447,14 +615,6 @@ private fun Modifier.glass(
         (blur / 80f).coerceIn(0f, 1f)
     }
 
-    val inputScale = remember(t) {
-        val scale = lerp(
-            start = 0.66f,
-            stop = 0.8f,
-            fraction = sqrt(t)
-        )
-        HazeInputScale.Fixed(scale)
-    }
     val noiseFactor = remember(t) {
         lerp(
             start = 0.3f,
@@ -476,16 +636,18 @@ private fun Modifier.glass(
         }
     }
 
-    return this
-        .hazeEffect(hazeState) {
-            this.inputScale = inputScale
-            blurEffect {
-                this.blurEnabled = true
-                this.blurRadius = blur.dp
-                this.noiseFactor = noiseFactor
-                this.colorEffects = colorEffects
-            }
+    // null 表示没有外部模糊源（背景模式），直接模糊自身内容
+    val input = if (hazeState != null) HazeInput.Sources(hazeState) else HazeInput.Content
+
+    return this.hazeBlur(
+        input = input,
+        style = HazeBlurStyle {
+            blurEnabled(true)
+            blurRadius(blur.dp)
+            noiseFactor(noiseFactor)
+            colorEffects(colorEffects)
         }
+    )
 }
 
 @Composable
@@ -496,7 +658,12 @@ private fun BackgroundImage(
 ) {
     val context = LocalContext.current
 
-    val request = remember(refreshTrigger, imageFile) {
+    val imageLoader = remember(refreshTrigger) {
+        ImageLoader.Builder(context)
+            .components { add(GifDecoder.Factory()) }
+            .build()
+    }
+    val request = remember(refreshTrigger) {
         ImageRequest.Builder(context)
             .data(imageFile)
             .allowHardware(false)
@@ -507,6 +674,7 @@ private fun BackgroundImage(
     AsyncImage(
         modifier = modifier,
         model = request,
+        imageLoader = imageLoader,
         contentDescription = null,
         contentScale = ContentScale.Crop
     )
