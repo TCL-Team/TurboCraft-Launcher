@@ -31,36 +31,31 @@
  */
 package org.lwjgl.util.mapped;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+/** <code>MappedSet</code> implementation for four <code>MappedObject</code>s. */
+public class MappedSet4 {
 
-/**
- * When this annotation is used on a field, automatic cache-line-sized padding
- * will be inserted around the field. This is useful in multi-threaded algorithms
- * to avoid cache line false sharing. The annotation defaults to padding after
- * the field, but can be changed to before or both before and after. It can be
- * applied to both mapped object fields and POJO primitive fields.
- *
- * @author Spasi
- */
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.FIELD)
-public @interface CacheLinePad {
+	private final MappedObject a, b, c, d;
 
-	/**
-	 * When true, cache-line padding will be inserted before the field.
-	 *
-	 * @return true if cache-line padding will be inserted before the field
-	 */
-	boolean before() default false;
+	MappedSet4(MappedObject a, MappedObject b, MappedObject c, MappedObject d) {
+		this.a = a;
+		this.b = b;
+		this.c = c;
+		this.d = d;
+	}
 
-	/**
-	 * When true, cache-line padding will be inserted after the field.
-	 *
-	 * @return true if cache-line padding will be inserted after the field
-	 */
-	boolean after() default true;
+	public int view;
 
+	void view(int view) {
+		a.setViewAddress(a.getViewAddress(view));
+		b.setViewAddress(b.getViewAddress(view));
+		c.setViewAddress(c.getViewAddress(view));
+		d.setViewAddress(d.getViewAddress(view));
+	}
+
+	public void next() {
+		this.a.next();
+		this.b.next();
+		this.c.next();
+		this.d.next();
+	}
 }
