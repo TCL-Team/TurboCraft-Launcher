@@ -1,7 +1,5 @@
 package com.movtery.zalithlauncher;
 
-import org.lwjgl.glfw.GLFW;
-
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -12,10 +10,12 @@ public class CursorRegistry {
 
     private static final AtomicLong NEXT_ID = new AtomicLong(4L);
 
+    public static final int GLFW_ARROW_CURSOR = 0x00036001;
+
     public static final long DEFAULT_CURSOR;
 
     static {
-        DEFAULT_CURSOR = registerCursor(GLFW.GLFW_ARROW_CURSOR);
+        DEFAULT_CURSOR = registerCursor(GLFW_ARROW_CURSOR);
     }
 
     public static long registerCursor(int glfwShape) {
@@ -30,7 +30,7 @@ public class CursorRegistry {
     }
 
     public static int getShape(long cursor) {
-        return CURSOR_MAP.getOrDefault(cursor, GLFW.GLFW_ARROW_CURSOR);
+        return CURSOR_MAP.getOrDefault(cursor, GLFW_ARROW_CURSOR);
     }
 
     public static long getDefaultCursor() {
