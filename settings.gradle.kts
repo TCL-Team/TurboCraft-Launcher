@@ -24,8 +24,8 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "TCL"
-include(":TCL")
+rootProject.name = "ZalithLauncher"
+include(":ZalithLauncher")
 include(":LWJGL")
 include(":LWJGL:patches")
 project(":LWJGL:patches").projectDir = file("LWJGL/patches")
@@ -36,3 +36,4 @@ project(":LWJGL:lwjgl-3.4.1").projectDir = file("LWJGL/3.4.1")
 include(":LayerController")
 include(":ColorPicker")
 include(":Terracotta")
+include(":InputMap")
