@@ -35,16 +35,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.iffly.compose.markdown.config.MarkdownRenderConfig
-import com.vladsch.flexmark.util.ast.Node
+import com.halilibo.richtext.markdown.node.AstNode
+import com.halilibo.richtext.ui.RichTextStyle
 import com.movtery.zalithlauncher.ui.components.MarkdownView
-import com.movtery.zalithlauncher.ui.components.defaultMarkdownConfig
+import com.movtery.zalithlauncher.ui.components.defaultRichTextStyle
 import com.movtery.zalithlauncher.ui.theme.itemColor
 import kotlin.random.Random
 
 fun LazyListScope.customHomePage(
     blocks: List<MarkdownBlock>,
-    config: MarkdownRenderConfig,
+    richTextStyle: RichTextStyle,
     onEvent: (MarkdownBlock.Button.Event) -> Unit = {}
 ) {
     itemsIndexed(
@@ -54,7 +54,7 @@ fun LazyListScope.customHomePage(
     ) { _, block ->
         BlockItem(
             block = block,
-            config = config,
+            richTextStyle = richTextStyle,
             onEvent = onEvent
         )
     }
@@ -64,7 +64,7 @@ fun LazyListScope.customHomePage(
 private fun MarkdownInnerRenderer(
     blocks: List<MarkdownBlock>,
     modifier: Modifier = Modifier,
-    config: MarkdownRenderConfig = defaultMarkdownConfig(),
+    richTextStyle: RichTextStyle = defaultRichTextStyle(),
     onEvent: (MarkdownBlock.Button.Event) -> Unit
 ) {
     Column(
@@ -74,7 +74,7 @@ private fun MarkdownInnerRenderer(
             key("${block.stableKey}_$index") {
                 BlockItem(
                     block = block,
-                    config = config,
+                    richTextStyle = richTextStyle,
                     onEvent = onEvent
                 )
             }
@@ -87,7 +87,7 @@ private fun BlockItem(
     block: MarkdownBlock,
     modifier: Modifier = Modifier,
     isInsideFlex: Boolean = false,
-    config: MarkdownRenderConfig = defaultMarkdownConfig(),
+    richTextStyle: RichTextStyle = defaultRichTextStyle(),
     onEvent: (MarkdownBlock.Button.Event) -> Unit
 ) {
     val weight = block.weight
@@ -112,9 +112,9 @@ private fun BlockItem(
     when (block) {
         is MarkdownBlock.Normal -> {
             MarkdownView(
-                node = block.node,
+                node = block.astNode,
                 modifier = finalModifier,
-                config = config
+                richTextStyle = richTextStyle
             )
         }
         is MarkdownBlock.Card -> {
@@ -126,7 +126,7 @@ private fun BlockItem(
             ) {
                 MarkdownInnerRenderer(
                     blocks = block.content,
-                    config = defaultMarkdownConfig(
+                    richTextStyle = defaultRichTextStyle(
                         influencedByBackground = false,
                         codeBackground = itemColor(false)
                     ),
@@ -168,7 +168,7 @@ private fun BlockItem(
                         block = child,
                         modifier = childModifier,
                         isInsideFlex = true,
-                        config = config,
+                        richTextStyle = richTextStyle,
                         onEvent = onEvent
                     )
                 }
@@ -184,7 +184,7 @@ private fun BlockItem(
                     BlockItem(
                         block = child,
                         isInsideFlex = true,
-                        config = config,
+                        richTextStyle = richTextStyle,
                         onEvent = onEvent
                     )
                 }
@@ -208,8 +208,8 @@ sealed interface MarkdownBlock {
     /**
      * 普通的Markdown内容
      */
-    data class Normal(val node: Node) : MarkdownBlock {
-        override val stableKey: Any get() = node.hashCode()
+    data class Normal(val astNode: AstNode) : MarkdownBlock {
+        override val stableKey: Any get() = astNode.hashCode()
         override val params: String get() = ""
         override val width: Width? = null
         override val weight: Pair<Float, Boolean>? = null
@@ -362,7 +362,7 @@ private val blockPattern = Regex(
  */
 fun parseMarkdownBlocks(
     content: String,
-    parseMarkdown: (String) -> Node,
+    parseMarkdown: (String) -> AstNode,
 ): List<MarkdownBlock> {
     var inCodeBlock = false
     val cleaned = content.lineSequence()
@@ -389,7 +389,7 @@ fun parseMarkdownBlocks(
 private val titleRegex = Regex("""title\s*=\s*"([^"]*)"""")
 private fun parseMarkdownBlocksInternal(
     cleared: String,
-    parseMarkdown: (String) -> Node,
+    parseMarkdown: (String) -> AstNode,
     allowCard: Boolean = true,
 ): List<MarkdownBlock> {
     val blocks = mutableListOf<MarkdownBlock>()
@@ -402,7 +402,7 @@ private fun parseMarkdownBlocksInternal(
             val remaining = cleared.substring(lastIndex).trim('\n')
             val processedRemaining = processRandomBlocksInText(remaining)
             if (processedRemaining.isNotEmpty()) {
-                blocks.add(MarkdownBlock.Normal(node = parseMarkdown(processedRemaining)))
+                blocks.add(MarkdownBlock.Normal(astNode = parseMarkdown(processedRemaining)))
             }
             break
         }
@@ -412,7 +412,7 @@ private fun parseMarkdownBlocksInternal(
             val text = cleared.substring(lastIndex, match.range.first).trim('\n')
             val processedText = processRandomBlocksInText(text)
             if (processedText.isNotEmpty()) {
-                blocks.add(MarkdownBlock.Normal(node = parseMarkdown(processedText)))
+                blocks.add(MarkdownBlock.Normal(astNode = parseMarkdown(processedText)))
             }
         }
 
@@ -454,7 +454,7 @@ private fun parseMarkdownBlocksInternal(
                     //如果没找到匹配的结束标记，则将此开始标记视为Markdown
                     blocks.add(
                         MarkdownBlock.Normal(
-                            node = parseMarkdown(match.value)
+                            astNode = parseMarkdown(match.value)
                         )
                     )
                     lastIndex = match.range.last + 1
@@ -496,7 +496,7 @@ private fun parseMarkdownBlocksInternal(
                 } else {
                     blocks.add(
                         MarkdownBlock.Normal(
-                            node = parseMarkdown(match.value)
+                            astNode = parseMarkdown(match.value)
                         )
                     )
                     lastIndex = match.range.last + 1
@@ -534,7 +534,7 @@ private fun parseMarkdownBlocksInternal(
                 } else {
                     blocks.add(
                         MarkdownBlock.Normal(
-                            node = parseMarkdown(match.value)
+                            astNode = parseMarkdown(match.value)
                         )
                     )
                     lastIndex = match.range.last + 1
@@ -563,7 +563,7 @@ private fun parseMarkdownBlocksInternal(
                 //如果是标记但当前上下文不允许（比如卡片嵌套），则视为普通Markdown
                 blocks.add(
                     MarkdownBlock.Normal(
-                        node = parseMarkdown(match.value)
+                        astNode = parseMarkdown(match.value)
                     )
                 )
                 lastIndex = match.range.last + 1
