@@ -25,8 +25,9 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.vladsch.flexmark.util.ast.Node
-import com.vladsch.flexmark.parser.Parser
+import com.halilibo.richtext.commonmark.CommonMarkdownParseOptions
+import com.halilibo.richtext.commonmark.CommonmarkAstNodeParser
+import com.halilibo.richtext.markdown.node.AstNode
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.context.copyAssetFile
 import com.movtery.zalithlauncher.path.PathManager
@@ -57,8 +58,10 @@ import java.util.concurrent.TimeUnit
 private const val TAG = "HomePageVM"
 
 class HomePageViewModel : ViewModel() {
-    private val nodeParser = Parser.builder().build()
-    private fun parseMarkdown(content: String): Node {
+    private val nodeParser = CommonmarkAstNodeParser(
+        options = CommonMarkdownParseOptions.Default
+    )
+    private fun parseMarkdown(content: String): AstNode {
         return nodeParser.parse(content)
     }
 
