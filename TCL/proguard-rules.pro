@@ -1,5 +1,6 @@
 -dontwarn org.slf4j.impl.StaticLoggerBinder
 -dontwarn com.github.luben.zstd.**
+-dontwarn org.brotli.dec.**
 -dontwarn java.lang.management.**
 -dontwarn io.ktor.util.debug.**
 
@@ -11,6 +12,9 @@
     @androidx.room.* <fields>;
     @androidx.room.* <methods>;
 }
+
+# SDL
+-keep class org.libsdl.app.** { *; }
 
 # Launcher
 -keep class org.lwjgl.glfw.CallbackBridge {
@@ -50,27 +54,8 @@
     *;
 }
 
-# ComposeMarkdown - core library classes
--keep class com.iffly.compose.markdown.** { *; }
-
-# Flexmark packages used by ComposeMarkdown (keep enums intact)
--keep class com.vladsch.flexmark.ast.** { *; }
--keep class com.vladsch.flexmark.util.ast.** { *; }
--keep class com.vladsch.flexmark.parser.** { *; }
--keep class com.vladsch.flexmark.html.** { *; }
--keep class com.vladsch.flexmark.html2md.converter.** { *; }
--keep class com.vladsch.flexmark.ext.gfm.strikethrough.** { *; }
--keep class com.vladsch.flexmark.util.data.** { *; }
--keep class com.vladsch.flexmark.util.misc.Extension { *; }
--keep class com.vladsch.flexmark.util.html.CellAlignment { *; }
--keep class com.vladsch.flexmark.util.sequence.** { *; }
-
-# Flexmark desktop AWT/Swing (not used on Android, warn instead of error)
--dontwarn java.awt.**
--dontwarn javax.imageio.**
--dontwarn javax.swing.**
--dontwarn com.vladsch.flexmark.util.misc.ImageUtils
--dontwarn com.vladsch.flexmark.util.html.ui.**
-
 # Libraries
 -keep class com.github.steveice10.opennbt.** { *; }
+
+# SoraEditor language-textmate
+-keep class org.jcodings.** { *; }
