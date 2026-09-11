@@ -154,7 +154,7 @@ class LaunchArgs(
     }
 
     private fun getLWJGL3ClassPath(): String =
-        File(PathManager.DIR_COMPONENTS, "lwjgl3")
+        File(PathManager.DIR_COMPONENTS, "lwjgl/${lwjglVersionDir(detectLwjglVersion(gameManifest))}")
             .listFiles { file -> file.name.endsWith(".jar") }
             ?.joinToString(":") { it.absolutePath }
             ?: ""
@@ -393,3 +393,31 @@ class LaunchArgs(
         return list.toTypedArray()
     }
 }
+
+/**
+ * Version manifest se zaroori LWJGL major version detect karta hai
+ * (jaise `org.lwjgl:lwjgl:3.4.1` -> 341). Detect nahi ho paaya to 0 return karta hai
+ * (default = LWJGL 3.3.3 treat hoga)
+ */
+fun detectLwjglVersion(manifest: GameManifest): Int {
+    for (lib in manifest.libraries) {
+        val name = lib.name ?: continue
+        val versionPrefix = when {
+            name.startsWith("org.lwjgl.lwjgl:lwjgl:") -> "org.lwjgl.lwjgl:lwjgl:"
+            name.startsWith("org.lwjgl:lwjgl:") -> "org.lwjgl:lwjgl:"
+            else -> continue
+        }
+        val intVersion = name.substring(versionPrefix.length)
+            .takeWhile { it.isDigit() || it == '.' }
+            .filter { it != '.' }
+            .toIntOrNull()
+        if (intVersion != null && intVersion in 200..999) return intVersion
+    }
+    return 0
+}
+
+/**
+ * LWJGL version-integer ko component-folder-naam mein convert karta hai.
+ * 3.4.1 ya usse naya -> "3.4.1" component; baaki sab (2.x bridge sameत) -> "3.3.3" component
+ */
+fun lwjglVersionDir(lwjglVersion: Int): String = if (lwjglVersion >= 341) "3.4.1" else "3.3.3"
