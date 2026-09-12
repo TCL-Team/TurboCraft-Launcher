@@ -37,30 +37,29 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * When this annotation is used on a field, automatic cache-line-sized padding
- * will be inserted around the field. This is useful in multi-threaded algorithms
- * to avoid cache line false sharing. The annotation defaults to padding after
- * the field, but can be changed to before or both before and after. It can be
- * applied to both mapped object fields and POJO primitive fields.
+ * This annotation can be used on fields of {@link MappedObject} subclasses,
+ * to manually specify byte offsets and lengths. This is useful when the
+ * mapped fields require custom alignment. {@link java.nio.ByteBuffer}
+ * fields are required to have this annotation with a hardcoded byte length.
  *
- * @author Spasi
+ * @author Riven
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
-public @interface CacheLinePad {
+public @interface MappedField {
 
 	/**
-	 * When true, cache-line padding will be inserted before the field.
+	 * Specifies the field byte offset within the mapped object.
 	 *
-	 * @return true if cache-line padding will be inserted before the field
+	 * @return the field byte offset
 	 */
-	boolean before() default false;
+	long byteOffset() default -1;
 
 	/**
-	 * When true, cache-line padding will be inserted after the field.
+	 * Specifies the field byte length. Required for {@link java.nio.ByteBuffer} fields.
 	 *
-	 * @return true if cache-line padding will be inserted after the field
+	 * @return the field byte length
 	 */
-	boolean after() default true;
+	long byteLength() default -1;
 
 }

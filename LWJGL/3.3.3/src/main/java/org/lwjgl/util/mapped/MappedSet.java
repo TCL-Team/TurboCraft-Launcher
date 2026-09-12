@@ -31,36 +31,39 @@
  */
 package org.lwjgl.util.mapped;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-
 /**
- * When this annotation is used on a field, automatic cache-line-sized padding
- * will be inserted around the field. This is useful in multi-threaded algorithms
- * to avoid cache line false sharing. The annotation defaults to padding after
- * the field, but can be changed to before or both before and after. It can be
- * applied to both mapped object fields and POJO primitive fields.
- *
- * @author Spasi
+ * Factory for mapped sets. A mapped set can be used as a Structure of Arrays by
+ * linking together the view of two or more mapped objects. Changing the view
+ * of the mapped set, changes the corresponding view of all the mapped objects in
+ * the set.
  */
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.FIELD)
-public @interface CacheLinePad {
+public class MappedSet {
 
 	/**
-	 * When true, cache-line padding will be inserted before the field.
+	 * Creates a <code>MappedSet</code> by linking the specified <code>MappedObject</code>s.
 	 *
-	 * @return true if cache-line padding will be inserted before the field
+	 * @return the mapped set.
 	 */
-	boolean before() default false;
+	public static MappedSet2 create(MappedObject a, MappedObject b) {
+		return new MappedSet2(a, b);
+	}
 
 	/**
-	 * When true, cache-line padding will be inserted after the field.
+	 * Creates a <code>MappedSet</code> by linking the specified <code>MappedObject</code>s.
 	 *
-	 * @return true if cache-line padding will be inserted after the field
+	 * @return the mapped set.
 	 */
-	boolean after() default true;
+	public static MappedSet3 create(MappedObject a, MappedObject b, MappedObject c) {
+		return new MappedSet3(a, b, c);
+	}
+
+	/**
+	 * Creates a <code>MappedSet</code> by linking the specified <code>MappedObject</code>s.
+	 *
+	 * @return the mapped set.
+	 */
+	public static MappedSet4 create(MappedObject a, MappedObject b, MappedObject c, MappedObject d) {
+		return new MappedSet4(a, b, c, d);
+	}
 
 }

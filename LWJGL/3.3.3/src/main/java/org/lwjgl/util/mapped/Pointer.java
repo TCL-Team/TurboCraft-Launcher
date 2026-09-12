@@ -37,30 +37,14 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * When this annotation is used on a field, automatic cache-line-sized padding
- * will be inserted around the field. This is useful in multi-threaded algorithms
- * to avoid cache line false sharing. The annotation defaults to padding after
- * the field, but can be changed to before or both before and after. It can be
- * applied to both mapped object fields and POJO primitive fields.
+ * This annotation can be used on long fields of {@link MappedObject} subclasses,
+ * to specify that the long value should be interpreted as a pointer. This
+ * will determine the actual byte size of the field at runtime (4 or 8 bytes).
  *
  * @author Spasi
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
-public @interface CacheLinePad {
-
-	/**
-	 * When true, cache-line padding will be inserted before the field.
-	 *
-	 * @return true if cache-line padding will be inserted before the field
-	 */
-	boolean before() default false;
-
-	/**
-	 * When true, cache-line padding will be inserted after the field.
-	 *
-	 * @return true if cache-line padding will be inserted after the field
-	 */
-	boolean after() default true;
+public @interface Pointer {
 
 }
