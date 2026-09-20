@@ -54,6 +54,7 @@ open class JvmLauncher(
 
     override suspend fun launch(screenSize: IntSize): Int {
         generateLauncherProfiles(jvmLaunchInfo.userHome)
+        initLwjglComponent(context, 0)
         val (runtime, argList) = getStartupNeeded(screenSize)
 
         this.runtime = runtime

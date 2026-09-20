@@ -29,6 +29,8 @@ import com.movtery.zalithlauncher.BuildKeys
 import com.movtery.zalithlauncher.bridge.LoggerBridge
 import com.movtery.zalithlauncher.bridge.ZLBridge
 import com.movtery.zalithlauncher.bridge.ZLNativeInvoker
+import com.movtery.zalithlauncher.components.Components
+import com.movtery.zalithlauncher.components.UnpackComponentsTask
 import com.movtery.zalithlauncher.game.multirt.Runtime
 import com.movtery.zalithlauncher.game.multirt.RuntimesManager
 import com.movtery.zalithlauncher.game.path.getGameHome
@@ -46,6 +48,8 @@ import com.movtery.zalithlauncher.utils.device.Architecture.is64BitsDevice
 import com.movtery.zalithlauncher.utils.logging.Logger
 import com.movtery.zalithlauncher.utils.string.splitPreservingQuotes
 import com.oracle.dalvik.VMLauncher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.apache.commons.io.FileUtils
 import java.io.File
 import java.io.IOException
@@ -60,6 +64,58 @@ abstract class Launcher(
 ) {
     lateinit var runtime: Runtime
         protected set
+
+    /** 当前启动版本要求的 LWJGL 版本（见 [detectLwjglVersion]），0 = 未探测/默认 */
+    protected var lwjglVersion: Int = 0
+        private set
+
+    /**
+     * 当前启动版本的 LWJGL natives 目录
+     */
+    protected lateinit var lwjglNativesDir: String
+        private set
+
+    /**
+     * 初始化 LWJGL 组件
+     */
+    protected suspend fun initLwjglComponent(context: Context, version: Int) {
+        check(!::lwjglNativesDir.isInitialized) { "LWJGL component has already been initialized" }
+        lwjglVersion = version
+        lwjglNativesDir = File(
+            PathManager.DIR_COMPONENTS,
+            "lwjgl/${lwjglVersionDir(version)}/natives/${Architecture.archAsStringAndroid(Architecture.getDeviceArchitecture())}"
+        ).absolutePath
+        verifyLwjglNatives(context)
+    }
+
+    private suspend fun verifyLwjglNatives(context: Context) {
+        val versionDir = lwjglVersionDir(lwjglVersion)
+        val coreLib = File(lwjglNativesDir, "liblwjgl.so")
+
+        if (coreLib.isFile) {
+            LoggerBridge.appendInfo("LWJGL: LWJGL $versionDir natives check passed: path=$lwjglNativesDir (liblwjgl.so found)")
+            return
+        }
+
+        LoggerBridge.appendInfo("LWJGL: LWJGL natives check failed: liblwjgl.so not found in $lwjglNativesDir, re-unpacking the LWJGL component now")
+
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val component = Components.entries.firstOrNull {
+                    it.component == "lwjgl/$versionDir"
+                } ?: error("Unrecognized LWJGL component: lwjgl/$versionDir")
+                UnpackComponentsTask(context, component).run()
+            }.onFailure { e ->
+                LoggerBridge.appendInfo("LWJGL: Failed to re-unpack the LWJGL component: ${e.message ?: e.toString()}")
+            }
+        }
+
+        if (coreLib.isFile) {
+            LoggerBridge.appendInfo("LWJGL: LWJGL $versionDir natives check passed after re-unpack: path=$lwjglNativesDir (liblwjgl.so found)")
+        } else {
+            LoggerBridge.appendInfo("LWJGL: LWJGL natives are still missing after re-unpack: liblwjgl.so not found in $lwjglNativesDir, the game may fail to launch")
+        }
+    }
 
     private val runtimeHome: String by lazy {
         RuntimesManager.getRuntimeHome(runtime.name).absolutePath
@@ -279,7 +335,9 @@ abstract class Launcher(
 
         // Force LWJGL to use the Freetype library intended for it, instead of using the one
         // that we ship with Java (since it may be older than what's needed)
-        args.add("-Dorg.lwjgl.freetype.libname=${PathManager.DIR_NATIVE_LIB}/libfreetype.so")
+        // Hamesha LWJGL component ke natives folder wali library use karo, global libs folder pe fallback mat karo
+        // (usme LWJGL-specific system libraries nahi hoti)
+        args.add("-Dorg.lwjgl.freetype.libname=${File(lwjglNativesDir, "libfreetype.so").absolutePath}")
 
         // Our spirv-cross is compiled shared, so it gets named shared.
         args.add("-Dorg.lwjgl.spvc.libname=spirv-cross-c-shared")

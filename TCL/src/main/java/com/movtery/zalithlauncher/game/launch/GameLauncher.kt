@@ -135,6 +135,8 @@ class GameLauncher(
             javaRuntime = javaRuntime,
         )
 
+        initLwjglComponent(activity, detectLwjglVersion(gameManifest))
+
         return launchGame(
             screenSize = screenSize,
             clientJar = clientJar,
