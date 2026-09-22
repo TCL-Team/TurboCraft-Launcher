@@ -73,4 +73,17 @@ object Architecture {
         ARCH_X86 -> "x86"
         else -> "UNSUPPORTED_ARCH"
     }
+
+    /**
+     * Android ke standard jniLibs/natives ABI-folder naam return karta hai
+     * (jaise "arm64-v8a", "armeabi-v7a") - archAsString() ke alag,
+     * jo sirf display/JVM-arg ke liye chhote naam deta hai
+     */
+    fun archAsStringAndroid(arch: Int): String = when (arch) {
+        ARCH_ARM64 -> "arm64-v8a"
+        ARCH_ARM -> "armeabi-v7a"
+        ARCH_X86_64 -> "x86_64"
+        ARCH_X86 -> "x86"
+        else -> "UNSUPPORTED_ARCH"
+    }
 }
