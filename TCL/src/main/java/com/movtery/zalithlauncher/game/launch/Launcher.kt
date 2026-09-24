@@ -110,11 +110,50 @@ abstract class Launcher(
             }
         }
 
+        if (!coreLib.isFile) {
+            // Component assets only ship JARs. The .so files live in the APK nativeLibraryDir
+            // (from lwjgl3-natives-release.aar). Copy them so Library / freetype path work.
+            copyLwjglNativesFromApk()
+        }
+
         if (coreLib.isFile) {
             LoggerBridge.appendInfo("LWJGL: LWJGL $versionDir natives check passed after re-unpack: path=$lwjglNativesDir (liblwjgl.so found)")
         } else {
             LoggerBridge.appendInfo("LWJGL: LWJGL natives are still missing after re-unpack: liblwjgl.so not found in $lwjglNativesDir, the game may fail to launch")
         }
+    }
+
+    private fun copyLwjglNativesFromApk() {
+        val srcDir = File(PathManager.DIR_NATIVE_LIB)
+        val destDir = File(lwjglNativesDir)
+        if (!srcDir.isDirectory) {
+            LoggerBridge.appendInfo("LWJGL: APK nativeLibraryDir missing, cannot copy natives: ${srcDir.absolutePath}")
+            return
+        }
+        destDir.mkdirs()
+        val names = listOf(
+            "liblwjgl.so",
+            "liblwjgl_opengl.so",
+            "liblwjgl_stb.so",
+            "liblwjgl_tinyfd.so",
+            "liblwjgl_nanovg.so",
+            "liblwjgl_vma.so",
+            "libfreetype.so",
+            "libshaderc.so"
+        )
+        var copied = 0
+        names.forEach { name ->
+            val src = File(srcDir, name)
+            if (src.isFile) {
+                runCatching {
+                    src.copyTo(File(destDir, name), overwrite = true)
+                    copied++
+                }.onFailure { e ->
+                    LoggerBridge.appendInfo("LWJGL: Failed to copy $name: ${e.message}")
+                }
+            }
+        }
+        LoggerBridge.appendInfo("LWJGL: Copied $copied native libs from ${srcDir.absolutePath} to $lwjglNativesDir")
     }
 
     private val runtimeHome: String by lazy {

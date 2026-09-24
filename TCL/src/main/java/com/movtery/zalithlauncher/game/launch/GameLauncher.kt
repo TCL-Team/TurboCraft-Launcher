@@ -232,10 +232,14 @@ class GameLauncher(
             args.add("-Djava.library.path=${PathManager.DIR_NATIVE_LIB}")
         }
 
-        val mcVer = version.getVersionInfo()?.minecraftVersion
-        if (mcVer != null && isPre16Version(mcVer)) {
+        // MC 26.2+ NativeLibrariesBootstrap / LWJGL 3.4.1 Library.loadSystem looks here first.
+        // Always point at the APK native dir (contains liblwjgl.so from the AAR).
+        if (args.none { it.startsWith("-Dorg.lwjgl.librarypath=") }) {
             args.add("-Dorg.lwjgl.librarypath=${PathManager.DIR_NATIVE_LIB}")
-        } else {
+        }
+
+        val mcVer = version.getVersionInfo()?.minecraftVersion
+        if (mcVer == null || !isPre16Version(mcVer)) {
             args.add("-Dorg.lwjgl.openal.libname=${PathManager.DIR_NATIVE_LIB}/libopenal.so")
         }
     }
