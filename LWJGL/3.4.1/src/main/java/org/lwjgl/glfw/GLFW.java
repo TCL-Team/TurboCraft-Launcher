@@ -1355,6 +1355,12 @@ public class GLFW
     @SuppressWarnings("unused") // Used by pojavexec
     public static void internalWindowSizeChanged(long window) {
         try {
+            GLFWWindowProperties win = internalGetWindow(window);
+            if (win.lastDispatchedWidth == mGLFWWindowWidth && win.lastDispatchedHeight == mGLFWWindowHeight) {
+                return;
+            }
+            win.lastDispatchedWidth = mGLFWWindowWidth;
+            win.lastDispatchedHeight = mGLFWWindowHeight;
             glfwSetWindowSize(window, mGLFWWindowWidth, mGLFWWindowHeight);
             if(mGLFWFramebufferSizeCallbackI != null) mGLFWFramebufferSizeCallbackI.invoke(window, mGLFWWindowWidth, mGLFWWindowHeight);
             if(mGLFWWindowSizeCallbackI != null) mGLFWWindowSizeCallbackI.invoke(window, mGLFWWindowWidth, mGLFWWindowHeight);
