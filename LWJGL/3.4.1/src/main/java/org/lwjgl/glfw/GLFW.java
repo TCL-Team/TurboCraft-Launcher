@@ -565,11 +565,26 @@ public class GLFW
 
     public static long mainContext = 0;
 
+    private static final String PROP_WINDOW_WIDTH = "glfwstub.windowWidth";
+    private static final String PROP_WINDOW_HEIGHT = "glfwstub.windowHeight";
+
     private static native void nativeInitializeGLFWNativeBridge();
     static {
+        String windowWidth = System.getProperty(PROP_WINDOW_WIDTH);
+        String windowHeight = System.getProperty(PROP_WINDOW_HEIGHT);
+        if (windowWidth == null || windowHeight == null) {
+            System.err.println("Warning: Property " + PROP_WINDOW_WIDTH + " or " + PROP_WINDOW_HEIGHT + " not set, defaulting to 1280 and 720");
+            mGLFWWindowWidth = 1280;
+            mGLFWWindowHeight = 720;
+        } else {
+            mGLFWWindowWidth = Integer.parseInt(windowWidth);
+            mGLFWWindowHeight = Integer.parseInt(windowHeight);
+        }
+
         try {
             // Mods like LWJGL3ify have more of a chance of overriding the other classes so
             // lets just load it here again just to be safe.
+            // nativeInitializeGLFWNativeBridge MUST run after loadLibrary returns, never from JNI_OnLoad.
             System.loadLibrary("pojavexec");
             nativeInitializeGLFWNativeBridge();
         } catch (UnsatisfiedLinkError e) {
