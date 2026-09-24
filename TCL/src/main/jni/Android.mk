@@ -35,7 +35,8 @@ LOCAL_SRC_FILES := \
     stdio_is.c \
     java_exec_hooks.c \
     lwjgl_dlopen_hook.c \
-    framegen/fps_limit.c
+    framegen/fps_limit.c \
+    gl32_sync_jni.c
 
 ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
 LOCAL_CFLAGS += -DADRENO_POSSIBLE
