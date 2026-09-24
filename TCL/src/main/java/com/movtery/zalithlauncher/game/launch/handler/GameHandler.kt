@@ -49,8 +49,11 @@ import com.movtery.zalithlauncher.viewmodel.ErrorViewModel
 import com.movtery.zalithlauncher.viewmodel.EventViewModel
 import com.movtery.zalithlauncher.viewmodel.GamepadViewModel
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import org.lwjgl.glfw.CallbackBridge
 
 class GameHandler(
@@ -130,6 +133,22 @@ class GameHandler(
         }
 
         super.execute(surface, screenSize, scope)
+
+        // Hide launcher loading overlay once frames start, or after a timeout.
+        // MC 26.2 can play title audio before the first pojavSwapBuffers callback.
+        scope.launch(Dispatchers.Default) {
+            repeat(20) {
+                delay(1_000)
+                if (isGameRendering) return@launch
+                runCatching {
+                    if (CallbackBridge.getCurrentFps() > 0) {
+                        onGraphicOutput()
+                        return@launch
+                    }
+                }
+            }
+            if (!isGameRendering) onGraphicOutput()
+        }
     }
 
     override fun onPause() {
