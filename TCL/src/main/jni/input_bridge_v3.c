@@ -168,6 +168,18 @@ ADD_CALLBACK_WWIN(WindowSize)
 
 #undef ADD_CALLBACK_WWIN
 
+void updateMonitorSize(int width, int height) {
+    if (pojav_environ->glfwThreadVmEnv == NULL || pojav_environ->vmGlfwClass == NULL) {
+        LOG_TO_E("<%s> %s", "Native", "updateMonitorSize: GLFW bridge is not initialized, skipped");
+        return;
+    }
+    if (pojav_environ->method_internalChangeMonitorSize != NULL) {
+        (*pojav_environ->glfwThreadVmEnv)->CallStaticVoidMethod(
+                pojav_environ->glfwThreadVmEnv, pojav_environ->vmGlfwClass,
+                pojav_environ->method_internalChangeMonitorSize, width, height);
+    }
+}
+
 void handleFramebufferSizeJava(long window, int w, int h) {
     JNIEnv *env = pojav_environ->glfwThreadVmEnv;
     if (env == NULL) env = pojav_environ->runtimeJNIEnvPtr_JRE;

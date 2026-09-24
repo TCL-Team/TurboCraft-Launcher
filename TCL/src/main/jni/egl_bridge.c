@@ -45,8 +45,12 @@
 EGLConfig config;
 struct PotatoBridge potatoBridge;
 
+static int lastSwapInterval = -1;
+
 void* loadTurnipVulkan(const char* driver_path, const char* native_dir, const char* cache_dir);
 void calculateFPS();
+void updateMonitorSize(int width, int height);
+void setNativeWindowSwapInterval(struct ANativeWindow* nativeWindow, int swapInterval);
 
 EXTERNAL_API void pojavTerminate() {
     printf("EGLBridge: Terminating\n");
@@ -72,7 +76,12 @@ EXTERNAL_API void pojavTerminate() {
 }
 
 JNIEXPORT void JNICALL Java_com_movtery_zalithlauncher_bridge_ZLBridge_setupBridgeWindow(JNIEnv* env, ABI_COMPAT jclass clazz, jobject surface) {
+    bool windowRecreated = pojav_environ->pojavWindow != NULL;
     pojav_environ->pojavWindow = ANativeWindow_fromSurface(env, surface);
+    if (windowRecreated && pojav_environ->config_renderer != RENDERER_VULKAN) {
+        if (lastSwapInterval >= 0) setNativeWindowSwapInterval(pojav_environ->pojavWindow, lastSwapInterval);
+        else if (!getenv("POJAV_VSYNC_IN_ZINK")) setNativeWindowSwapInterval(pojav_environ->pojavWindow, 0);
+    }
     if (br_setup_window) br_setup_window();
 }
 
@@ -113,7 +122,7 @@ void load_vulkan() {
     }
 
     printf("OSMDroid: Loading Vulkan regularly...\n");
-    void* vulkanPtr = dlopen("libvulkan.so", RTLD_LAZY | RTLD_GLOBAL);
+    void* vulkanPtr = dlopen("libvulkan.so", RTLD_LAZY | RTLD_LOCAL);
     printf("OSMDroid: Loaded Vulkan, ptr=%p\n", vulkanPtr);
     set_vulkan_ptr(vulkanPtr);
 }
@@ -184,11 +193,19 @@ int pojavInitOpenGL() {
 }
 
 EXTERNAL_API int pojavInit() {
+    if (pojav_environ->pojavWindow == NULL) {
+        printf("EGLBridge: pojavInit skipped, native window is NULL\n");
+        return 0;
+    }
     ANativeWindow_acquire(pojav_environ->pojavWindow);
     pojav_environ->savedWidth = ANativeWindow_getWidth(pojav_environ->pojavWindow);
     pojav_environ->savedHeight = ANativeWindow_getHeight(pojav_environ->pojavWindow);
     ANativeWindow_setBuffersGeometry(pojav_environ->pojavWindow,pojav_environ->savedWidth,pojav_environ->savedHeight,AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM);
+    updateMonitorSize(pojav_environ->savedWidth, pojav_environ->savedHeight);
     pojavInitOpenGL();
+    if (pojav_environ->config_renderer != RENDERER_VULKAN && !getenv("POJAV_VSYNC_IN_ZINK")) {
+        setNativeWindowSwapInterval(pojav_environ->pojavWindow, 0);
+    }
     return 1;
 }
 
@@ -282,10 +299,17 @@ void calculateFPS() {
     if (!pojav_environ->hasGraphicOutput && pojav_environ->dalvikJavaVMPtr && pojav_environ->bridgeClazz && pojav_environ->method_onGraphicOutput) {
         pojav_environ->hasGraphicOutput = true;
 
-        JNIEnv *dalvikEnv;
-        (*pojav_environ->dalvikJavaVMPtr)->AttachCurrentThread(pojav_environ->dalvikJavaVMPtr, &dalvikEnv, NULL);
-        (*dalvikEnv)->CallStaticVoidMethod(dalvikEnv, pojav_environ->bridgeClazz, pojav_environ->method_onGraphicOutput);
-        (*pojav_environ->dalvikJavaVMPtr)->DetachCurrentThread(pojav_environ->dalvikJavaVMPtr);
+        JNIEnv *dalvikEnv = NULL;
+        jboolean detachedBefore = (*pojav_environ->dalvikJavaVMPtr)->GetEnv(pojav_environ->dalvikJavaVMPtr, (void **) &dalvikEnv, JNI_VERSION_1_4) == JNI_EDETACHED;
+        if (detachedBefore) {
+            (*pojav_environ->dalvikJavaVMPtr)->AttachCurrentThread(pojav_environ->dalvikJavaVMPtr, &dalvikEnv, NULL);
+        }
+        if (dalvikEnv != NULL) {
+            (*dalvikEnv)->CallStaticVoidMethod(dalvikEnv, pojav_environ->bridgeClazz, pojav_environ->method_onGraphicOutput);
+            if (detachedBefore) {
+                (*pojav_environ->dalvikJavaVMPtr)->DetachCurrentThread(pojav_environ->dalvikJavaVMPtr);
+            }
+        }
     }
 }
 
@@ -306,6 +330,7 @@ Java_org_lwjgl_vulkan_VK_getVulkanDriverHandle(ABI_COMPAT JNIEnv *env, ABI_COMPA
 }
 
 EXTERNAL_API void pojavSwapInterval(int interval) {
+    lastSwapInterval = interval;
     if (pojav_environ->config_renderer == RENDERER_VK_ZINK
      || pojav_environ->config_renderer == RENDERER_GL4ES)
     {
