@@ -35,9 +35,66 @@ SDL_Window *SDL_CreateWindowWithProperties(uint32_t props);
 void SDL_DestroyWindow(SDL_Window *window);
 void *SDL_EGL_GetProcAddress(const char *proc);
 
+/* ZL2 utils.h pieces that TCL does not ship. Must be function-POINTER typedefs
+ * because BYTEHOOK_CALL_PREV casts bytehook_get_prev_func() to func_sig. */
 #ifndef DECL_DLSYM
-#define DECL_DLSYM(fn) typedef typeof(fn) fn##_t;
+#define DECL_DLSYM(fn) typedef typeof(&fn) fn##_t;
 #endif
+#ifndef NOTIF_TYPE_SDL
+#define NOTIF_TYPE_SDL 0
+#define ACTION_INIT_LAUNCHER_INTEGRATION 0
+#define ACTION_SEND_TEXTBOX_RECT 1
+#endif
+#ifndef SET_DLSYM_PTR
+#define SET_DLSYM_PTR(handle, fn)                     \
+    fn##_t fn##_p;                                   \
+    do {                                             \
+        dlerror();                                   \
+        void *_p = dlsym((handle), #fn);             \
+        const char *_e = dlerror();                  \
+        if (_e || !_p) {                             \
+            LOG_TO_E("<%s> %s", "Native", "dlsym(" #fn ") failed: %s", _e ? _e : "unknown error"); \
+        }                                            \
+        fn##_p = (fn##_t)_p;                         \
+    } while (0)
+#endif
+#ifndef TRY_ATTACH_ENV
+#define TRY_ATTACH_ENV(env_name, vm, error_message, then) JNIEnv* env_name;\
+do {                                                                       \
+    env_name = tcl_get_attached_env(vm);                                   \
+    if(env_name == NULL) {                                                 \
+        printf(error_message);                                             \
+        then                                                               \
+    }                                                                      \
+} while(0)
+#endif
+
+static JNIEnv* tcl_get_attached_env(JavaVM* jvm) {
+    if (jvm == NULL) return NULL;
+    JNIEnv *env = NULL;
+    jint status = (*jvm)->GetEnv(jvm, (void**)&env, JNI_VERSION_1_4);
+    if (status == JNI_OK) return env;
+    if (status == JNI_EDETACHED) {
+        if ((*jvm)->AttachCurrentThread(jvm, &env, NULL) == JNI_OK) return env;
+    }
+    return NULL;
+}
+
+static bool notifyLauncher(JNIEnv *dvm_env, int type, int actions[], int len) {
+    if (dvm_env == NULL || pojav_environ == NULL || pojav_environ->bridgeClazz == NULL) return false;
+    jclass cls = pojav_environ->bridgeClazz;
+    jmethodID mid = (*dvm_env)->GetStaticMethodID(dvm_env, cls, "notifyLauncher", "(I[I)Z");
+    if (mid == NULL) {
+        if ((*dvm_env)->ExceptionCheck(dvm_env)) (*dvm_env)->ExceptionClear(dvm_env);
+        return true; /* older TCL CallbackBridge: skip, do not block SDL */
+    }
+    jintArray actionArray = (*dvm_env)->NewIntArray(dvm_env, len);
+    if (actionArray == NULL) return false;
+    (*dvm_env)->SetIntArrayRegion(dvm_env, actionArray, 0, len, actions);
+    jboolean ok = (*dvm_env)->CallStaticBooleanMethod(dvm_env, cls, mid, type, actionArray);
+    (*dvm_env)->DeleteLocalRef(dvm_env, actionArray);
+    return ok == JNI_TRUE;
+}
 
 // egl_bridge.c（libpojavexec.so），SDL 路径下经 EGL 交换代理计帧
 void calculateFPS(void);
