@@ -23,6 +23,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -712,10 +713,20 @@ fun GameScreen(
             )
         }
 
+        // 26.2/26.3: title audio start ho jata hai lekin pehla glfwSwapBuffers
+        // late aata hai, isliye overlay onGraphicOutput ka wait karti rehti hai.
+        LaunchedEffect(showGameInfo) {
+            if (showGameInfo) {
+                delay(8_000)
+                onInfoBoxClose()
+            }
+        }
+
         GameInfoBox(
             modifier = Modifier
                 .align(Alignment.Center)
-                .padding(all = 16.dp),
+                .padding(all = 16.dp)
+                .clickable(enabled = showGameInfo, onClick = onInfoBoxClose),
             versionName = version.getVersionName(),
             versionInfo = version.getVersionInfo()?.getInfoString(),
             visible = showGameInfo && !AllSettings.disableLoadingPopup.state
