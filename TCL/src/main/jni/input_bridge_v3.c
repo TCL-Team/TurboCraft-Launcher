@@ -33,6 +33,84 @@
 #define EVENT_TYPE_WINDOW_SIZE 1008
 
 static void registerFunctions(JNIEnv *env);
+static jboolean ensureGlfwNativeBridgeInitialized(JNIEnv *env);
+
+/**
+ * Resolve GLFW bridge class/method IDs after libpojavexec is loaded.
+ *
+ * MUST NOT run from JNI_OnLoad. FindClass("org/lwjgl/glfw/GLFW") during
+ * JNI_OnLoad re-enters GLFW.<clinit>, which calls System.loadLibrary("pojavexec")
+ * again and crashes the JVM with SIGSEGV (MC 26.2 / 26.3 + LWJGL 3.4.1).
+ */
+static jboolean ensureGlfwNativeBridgeInitialized(JNIEnv *env) {
+    if (pojav_environ->vmGlfwClass != NULL) {
+        return JNI_TRUE;
+    }
+    if (env == NULL && pojav_environ->runtimeJavaVMPtr != NULL) {
+        (*pojav_environ->runtimeJavaVMPtr)->GetEnv(
+                pojav_environ->runtimeJavaVMPtr, (void **) &env, JNI_VERSION_1_4);
+    }
+    if (env == NULL) {
+        LOG_TO_E("<%s> %s", "Native", "nativeInitializeGLFWNativeBridge: no game JVM environ available!");
+        return JNI_FALSE;
+    }
+
+    jclass glfwClass = (*env)->FindClass(env, "org/lwjgl/glfw/GLFW");
+    if (glfwClass == NULL) {
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        LOG_TO_E("<%s> %s", "Native", "nativeInitializeGLFWNativeBridge: failed to find org.lwjgl.glfw.GLFW");
+        return JNI_FALSE;
+    }
+
+    jmethodID method_glftSetWindowAttrib = (*env)->GetStaticMethodID(env, glfwClass, "glfwSetWindowAttrib", "(JII)V");
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+
+    /* LWJGL 3.4.1 stub: internalWindowSizeChanged(long) */
+    jboolean sizeTakesWH = JNI_FALSE;
+    jmethodID method_internalWindowSizeChanged = (*env)->GetStaticMethodID(env, glfwClass, "internalWindowSizeChanged", "(J)V");
+    if ((*env)->ExceptionCheck(env) || method_internalWindowSizeChanged == NULL) {
+        (*env)->ExceptionClear(env);
+        /* LWJGL 3.3.3 stub: internalWindowSizeChanged(long, int, int) */
+        method_internalWindowSizeChanged = (*env)->GetStaticMethodID(env, glfwClass, "internalWindowSizeChanged", "(JII)V");
+        sizeTakesWH = JNI_TRUE;
+    }
+
+    jmethodID method_internalChangeMonitorSize = (*env)->GetStaticMethodID(env, glfwClass, "internalChangeMonitorSize", "(II)V");
+    if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+
+    jfieldID field_keyDownBuffer = (*env)->GetStaticFieldID(env, glfwClass, "keyDownBuffer", "Ljava/nio/ByteBuffer;");
+    jfieldID field_mouseDownBuffer = (*env)->GetStaticFieldID(env, glfwClass, "mouseDownBuffer", "Ljava/nio/ByteBuffer;");
+    if ((*env)->ExceptionCheck(env) || method_glftSetWindowAttrib == NULL || method_internalWindowSizeChanged == NULL
+        || field_keyDownBuffer == NULL || field_mouseDownBuffer == NULL) {
+        LOG_TO_E("<%s> %s", "Native", "nativeInitializeGLFWNativeBridge: failed to resolve GLFW bridge members");
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        (*env)->DeleteLocalRef(env, glfwClass);
+        return JNI_FALSE;
+    }
+
+    jobject keyDownBufferJ = (*env)->GetStaticObjectField(env, glfwClass, field_keyDownBuffer);
+    jobject mouseDownBufferJ = (*env)->GetStaticObjectField(env, glfwClass, field_mouseDownBuffer);
+    jbyte *keyDownBuffer = (*env)->GetDirectBufferAddress(env, keyDownBufferJ);
+    jbyte *mouseDownBuffer = (*env)->GetDirectBufferAddress(env, mouseDownBufferJ);
+    (*env)->DeleteLocalRef(env, keyDownBufferJ);
+    (*env)->DeleteLocalRef(env, mouseDownBufferJ);
+
+    pojav_environ->vmGlfwClass = (*env)->NewGlobalRef(env, glfwClass);
+    (*env)->DeleteLocalRef(env, glfwClass);
+    pojav_environ->method_glftSetWindowAttrib = method_glftSetWindowAttrib;
+    pojav_environ->method_internalWindowSizeChanged = method_internalWindowSizeChanged;
+    pojav_environ->method_internalChangeMonitorSize = method_internalChangeMonitorSize;
+    pojav_environ->glfwWindowSizeTakesWH = sizeTakesWH;
+    pojav_environ->keyDownBuffer = keyDownBuffer;
+    pojav_environ->mouseDownBuffer = mouseDownBuffer;
+    pojav_environ->glfwThreadVmEnv = env;
+    LOG_TO_I("<%s> %s", "Native", "GLFW native bridge initialized");
+    return JNI_TRUE;
+}
+
+JNIEXPORT void JNICALL Java_org_lwjgl_glfw_GLFW_nativeInitializeGLFWNativeBridge(JNIEnv* env, __attribute__((unused)) jclass clazz) {
+    ensureGlfwNativeBridgeInitialized(env);
+}
 
 jint JNI_OnLoad(JavaVM* vm, __attribute__((unused)) void* reserved) {
     if (pojav_environ->dalvikJavaVMPtr == NULL) {
@@ -50,15 +128,8 @@ jint JNI_OnLoad(JavaVM* vm, __attribute__((unused)) void* reserved) {
         LOG_TO_I("<%s> %s", "Native", "Saving JVM environ...");
         pojav_environ->runtimeJavaVMPtr = vm;
         (*vm)->GetEnv(vm, (void**) &pojav_environ->runtimeJNIEnvPtr_JRE, JNI_VERSION_1_4);
-        pojav_environ->vmGlfwClass = (*pojav_environ->runtimeJNIEnvPtr_JRE)->NewGlobalRef(pojav_environ->runtimeJNIEnvPtr_JRE, (*pojav_environ->runtimeJNIEnvPtr_JRE)->FindClass(pojav_environ->runtimeJNIEnvPtr_JRE, "org/lwjgl/glfw/GLFW"));
-        pojav_environ->method_glftSetWindowAttrib = (*pojav_environ->runtimeJNIEnvPtr_JRE)->GetStaticMethodID(pojav_environ->runtimeJNIEnvPtr_JRE, pojav_environ->vmGlfwClass, "glfwSetWindowAttrib", "(JII)V");
-        pojav_environ->method_internalWindowSizeChanged = (*pojav_environ->runtimeJNIEnvPtr_JRE)->GetStaticMethodID(pojav_environ->runtimeJNIEnvPtr_JRE, pojav_environ->vmGlfwClass, "internalWindowSizeChanged", "(JII)V");
-        jfieldID field_keyDownBuffer = (*pojav_environ->runtimeJNIEnvPtr_JRE)->GetStaticFieldID(pojav_environ->runtimeJNIEnvPtr_JRE, pojav_environ->vmGlfwClass, "keyDownBuffer", "Ljava/nio/ByteBuffer;");
-        jobject keyDownBufferJ = (*pojav_environ->runtimeJNIEnvPtr_JRE)->GetStaticObjectField(pojav_environ->runtimeJNIEnvPtr_JRE, pojav_environ->vmGlfwClass, field_keyDownBuffer);
-        pojav_environ->keyDownBuffer = (*pojav_environ->runtimeJNIEnvPtr_JRE)->GetDirectBufferAddress(pojav_environ->runtimeJNIEnvPtr_JRE, keyDownBufferJ);
-        jfieldID field_mouseDownBuffer = (*pojav_environ->runtimeJNIEnvPtr_JRE)->GetStaticFieldID(pojav_environ->runtimeJNIEnvPtr_JRE, pojav_environ->vmGlfwClass, "mouseDownBuffer", "Ljava/nio/ByteBuffer;");
-        jobject mouseDownBufferJ = (*pojav_environ->runtimeJNIEnvPtr_JRE)->GetStaticObjectField(pojav_environ->runtimeJNIEnvPtr_JRE, pojav_environ->vmGlfwClass, field_mouseDownBuffer);
-        pojav_environ->mouseDownBuffer = (*pojav_environ->runtimeJNIEnvPtr_JRE)->GetDirectBufferAddress(pojav_environ->runtimeJNIEnvPtr_JRE, mouseDownBufferJ);
+        /* Do NOT FindClass(GLFW) here — that re-enters GLFW.<clinit> and SIGSEGVs the JRE.
+         * GLFW.<clinit> calls nativeInitializeGLFWNativeBridge() after loadLibrary returns. */
         hookExec();
         installLwjglDlopenHook();
         installEMUIIteratorMititgation();
@@ -95,7 +166,23 @@ ADD_CALLBACK_WWIN(WindowSize)
 #undef ADD_CALLBACK_WWIN
 
 void handleFramebufferSizeJava(long window, int w, int h) {
-    (*pojav_environ->runtimeJNIEnvPtr_JRE)->CallStaticVoidMethod(pojav_environ->runtimeJNIEnvPtr_JRE, pojav_environ->vmGlfwClass, pojav_environ->method_internalWindowSizeChanged, (long)window, w, h);
+    JNIEnv *env = pojav_environ->glfwThreadVmEnv;
+    if (env == NULL) env = pojav_environ->runtimeJNIEnvPtr_JRE;
+    if (env == NULL || pojav_environ->vmGlfwClass == NULL || pojav_environ->method_internalWindowSizeChanged == NULL) {
+        LOG_TO_E("<%s> %s", "Native", "handleFramebufferSizeJava: GLFW bridge is not initialized, skipped");
+        return;
+    }
+    if (pojav_environ->method_internalChangeMonitorSize != NULL) {
+        (*env)->CallStaticVoidMethod(env, pojav_environ->vmGlfwClass,
+                                     pojav_environ->method_internalChangeMonitorSize, w, h);
+    }
+    if (pojav_environ->glfwWindowSizeTakesWH) {
+        (*env)->CallStaticVoidMethod(env, pojav_environ->vmGlfwClass,
+                                     pojav_environ->method_internalWindowSizeChanged, (jlong) window, w, h);
+    } else {
+        (*env)->CallStaticVoidMethod(env, pojav_environ->vmGlfwClass,
+                                     pojav_environ->method_internalWindowSizeChanged, (jlong) window);
+    }
 }
 
 void pojavPumpEvents(void* window) {
