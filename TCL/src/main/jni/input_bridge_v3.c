@@ -34,6 +34,7 @@
 
 static void registerFunctions(JNIEnv *env);
 static jboolean ensureGlfwNativeBridgeInitialized(JNIEnv *env);
+void installGlSyncHook(void);
 
 /**
  * Resolve GLFW bridge class/method IDs after libpojavexec is loaded.
@@ -124,6 +125,7 @@ jint JNI_OnLoad(JavaVM* vm, __attribute__((unused)) void* reserved) {
         pojav_environ->method_onCursorShapeChanged = (*pojav_environ->dalvikJNIEnvPtr_ANDROID)->GetStaticMethodID(pojav_environ->dalvikJNIEnvPtr_ANDROID, pojav_environ->bridgeClazz, "onCursorShapeChanged", "(I)V");
         pojav_environ->method_onGraphicOutput = (*pojav_environ->dalvikJNIEnvPtr_ANDROID)->GetStaticMethodID(pojav_environ->dalvikJNIEnvPtr_ANDROID, pojav_environ->bridgeClazz, "onGraphicOutput", "()V");
         pojav_environ->isUseStackQueueCall = JNI_FALSE;
+        installGlSyncHook();
     } else if (pojav_environ->dalvikJavaVMPtr != vm) {
         LOG_TO_I("<%s> %s", "Native", "Saving JVM environ...");
         pojav_environ->runtimeJavaVMPtr = vm;
@@ -133,6 +135,7 @@ jint JNI_OnLoad(JavaVM* vm, __attribute__((unused)) void* reserved) {
         hookExec();
         installLwjglDlopenHook();
         installEMUIIteratorMititgation();
+        installGlSyncHook();
     }
 
     if(pojav_environ->dalvikJavaVMPtr == vm) {

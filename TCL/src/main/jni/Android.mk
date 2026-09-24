@@ -15,7 +15,7 @@ LOCAL_PATH := $(HERE_PATH)
 include $(CLEAR_VARS)
 LOCAL_LDLIBS := -ldl -llog -landroid
 LOCAL_MODULE := pojavexec
-LOCAL_SHARED_LIBRARIES := driver_helper
+LOCAL_SHARED_LIBRARIES := driver_helper bytehook
 LOCAL_CFLAGS += -rdynamic
 LOCAL_SRC_FILES := \
     bigcoreaffinity.c \
@@ -36,7 +36,8 @@ LOCAL_SRC_FILES := \
     java_exec_hooks.c \
     lwjgl_dlopen_hook.c \
     framegen/fps_limit.c \
-    gl32_sync_jni.c
+    gl32_sync_jni.c \
+    gl_sync_hook.c
 
 ifeq ($(TARGET_ARCH_ABI),arm64-v8a)
 LOCAL_CFLAGS += -DADRENO_POSSIBLE
