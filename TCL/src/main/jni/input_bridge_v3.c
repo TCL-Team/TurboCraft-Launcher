@@ -673,3 +673,14 @@ static void registerFunctions(JNIEnv *env) {
                             use_critical_cc ? critical_fcns : noncritical_fcns,
                             sizeof(critical_fcns) / sizeof(critical_fcns[0]));
 }
+
+
+/* Used by sdl_hook.c (libexithook.so). Stores the SDL3 primary window so the
+ * text-input / IME path can tell GLFW vs SDL. Safe no-op if never queried. */
+static void *sSdlPrimaryWindow = NULL;
+void sdlBridgeSetPrimaryWindow(void *window) {
+    sSdlPrimaryWindow = window;
+}
+void *sdlBridgeGetPrimaryWindow(void) {
+    return sSdlPrimaryWindow;
+}

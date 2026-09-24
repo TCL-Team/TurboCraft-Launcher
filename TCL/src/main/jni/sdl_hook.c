@@ -35,6 +35,10 @@ SDL_Window *SDL_CreateWindowWithProperties(uint32_t props);
 void SDL_DestroyWindow(SDL_Window *window);
 void *SDL_EGL_GetProcAddress(const char *proc);
 
+#ifndef DECL_DLSYM
+#define DECL_DLSYM(fn) typedef typeof(fn) fn##_t;
+#endif
+
 // egl_bridge.c（libpojavexec.so），SDL 路径下经 EGL 交换代理计帧
 void calculateFPS(void);
 
