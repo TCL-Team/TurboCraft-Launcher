@@ -98,33 +98,24 @@ Java_org_lwjgl_opengl_GL32C_nglIsSync(JNIEnv *env, jclass clazz, jlong sync) {
     return fn((GLsync) (intptr_t) sync) ? JNI_TRUE : JNI_FALSE;
 }
 
+/* Never block: MobileGlues/Adreno glClientWaitSync can hang forever,
+ * which looks like a black launcher loading screen after title music starts. */
 JNIEXPORT jint JNICALL
 Java_org_lwjgl_opengl_GL32C_nglClientWaitSync(JNIEnv *env, jclass clazz, jlong sync, jint flags, jlong timeout) {
-    static GLenum (*fn)(GLsync, GLbitfield, uint64_t) = NULL;
-    static int once = 0;
     (void) env;
     (void) clazz;
-    if (!once) {
-        once = 1;
-        fn = (GLenum (*)(GLsync, GLbitfield, uint64_t)) resolve_gl("glClientWaitSync");
-    }
-    if (fn == NULL || sync == 0) return 0x911A; /* GL_TIMEOUT_EXPIRED */
-    return (jint) fn((GLsync) (intptr_t) sync, (GLbitfield) flags, (uint64_t) timeout);
+    (void) flags;
+    (void) timeout;
+    return sync != 0 ? 0x911C /* GL_ALREADY_SIGNALED */ : 0x911A /* GL_TIMEOUT_EXPIRED */;
 }
 
 JNIEXPORT void JNICALL
 Java_org_lwjgl_opengl_GL32C_nglWaitSync(JNIEnv *env, jclass clazz, jlong sync, jint flags, jlong timeout) {
-    static void (*fn)(GLsync, GLbitfield, uint64_t) = NULL;
-    static int once = 0;
     (void) env;
     (void) clazz;
-    if (!once) {
-        once = 1;
-        fn = (void (*)(GLsync, GLbitfield, uint64_t)) resolve_gl("glWaitSync");
-    }
-    if (fn != NULL && sync != 0) {
-        fn((GLsync) (intptr_t) sync, (GLbitfield) flags, (uint64_t) timeout);
-    }
+    (void) sync;
+    (void) flags;
+    (void) timeout;
 }
 
 JNIEXPORT void JNICALL
