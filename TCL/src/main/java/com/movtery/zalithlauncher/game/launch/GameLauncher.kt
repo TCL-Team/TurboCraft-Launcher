@@ -44,6 +44,7 @@ import com.movtery.zalithlauncher.game.plugin.renderer.RendererPluginManager
 import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.renderer.renderers.GL4ESRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.NGGL4ESRenderer
+import com.movtery.zalithlauncher.game.renderer.renderers.MobileGluesRenderer
 import com.movtery.zalithlauncher.game.support.touch_controller.ControllerProxy
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionInfoParser
@@ -408,6 +409,9 @@ private fun setRendererEnv(envMap: MutableMap<String, String>) {
     val renderer = Renderers.getCurrentRenderer()
     val rendererId = renderer.getRendererId()
 
+    // SDL3 (Minecraft 26.3+) needs the same renderer name the GLFW path uses.
+    envMap["SDL_OPENGL_LIBRARY"] = rendererId
+
     if (rendererId.startsWith("opengles2")) {
         envMap["LIBGL_ES"] = "2"
         envMap["LIBGL_MIPMAP"] = "3"
@@ -420,13 +424,17 @@ private fun setRendererEnv(envMap: MutableMap<String, String>) {
 
     renderer.getRendererEGL()?.let { eglName ->
         envMap["POJAVEXEC_EGL"] = eglName
+        val nativeLibPath = PathManager.DIR_NATIVE_LIB
+        envMap["SDL_EGL_LIBRARY"] = "$nativeLibPath/$eglName"
     }
 
     envMap["POJAV_RENDERER"] = rendererId
 
     if (RendererPluginManager.selectedRendererPlugin != null) return
 
-    if (renderer != GL4ESRenderer && renderer != NGGL4ESRenderer) {
+    // Built-in MobileGlues is GLES translation, not Mesa/Zink. Zink env here caused
+    // black screens on 26.2 (Adreno) while official ZL2 stayed on plugin/opengles path.
+    if (renderer != GL4ESRenderer && renderer != NGGL4ESRenderer && renderer != MobileGluesRenderer) {
         envMap["MESA_LOADER_DRIVER_OVERRIDE"] = "zink"
         envMap["MESA_GLSL_CACHE_DIR"] = PathManager.DIR_CACHE.absolutePath
         envMap["MESA_GL_VERSION_OVERRIDE"] = "4.6"
