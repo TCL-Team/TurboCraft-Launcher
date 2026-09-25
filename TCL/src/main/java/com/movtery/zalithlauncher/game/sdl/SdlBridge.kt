@@ -45,7 +45,11 @@ object SdlBridge {
     @Synchronized
     fun setupJNI(): Boolean {
         if (jniReady) return true
-        SDL.setupJNI()
+        try {
+            SDL.setupJNI()
+        } catch (t: Throwable) {
+            android.util.Log.w("SdlBridge", "SDL.setupJNI: ${t.message}")
+        }
         activityRef?.get()?.let { SDL.setContext(it) }
         jniReady = true
         return true
