@@ -20,6 +20,7 @@ typedef struct SDL_Window SDL_Window;
 typedef struct SDL_Rect { int x, y, w, h; } SDL_Rect;
 
 bool SDL_InitSubSystem(SDL_InitFlags flags);
+void SDL_SetMainReady(void);
 bool SDL_SetHint(const char *name, const char *value);
 bool SDL_SetTextInputArea(SDL_Window *window, const SDL_Rect *rect, int cursor);
 void SDL_SetError(const char *fmt, ...);
@@ -103,6 +104,7 @@ void calculateFPS(void);
 void sdlBridgeSetPrimaryWindow(struct SDL_Window *window);
 
 DECL_DLSYM(SDL_InitSubSystem)
+DECL_DLSYM(SDL_SetMainReady)
 DECL_DLSYM(SDL_SetHint);
 DECL_DLSYM(SDL_SetTextInputArea);
 DECL_DLSYM(SDL_SetError);
@@ -441,6 +443,16 @@ static bool sdlInitSubSystemPrepare(SDL_InitFlags flags) {
     } else safeFlags = (jint)flags;
 
     notifyLauncher(dvm_env, NOTIF_TYPE_SDL, (int[]){ACTION_INIT_LAUNCHER_INTEGRATION, safeFlags}, 2);
+
+    /* MC / LWJGL call SDL_Init from Java, not SDL_main. Without this SDL3
+       returns: "Application didn't initialize properly, did you include SDL_main.h" */
+    {
+        void *sdl = dlopen("libSDL3.so", RTLD_NOLOAD);
+        SET_DLSYM_PTR(sdl, SDL_SetMainReady);
+        if (SDL_SetMainReady_p) {
+            SDL_SetMainReady_p();
+        }
+    }
 
     // This is the normal for the launcher, the default in SDL is false.
     SET_DLSYM_PTR(dlopen("libSDL3.so", RTLD_NOLOAD), SDL_SetHint);
