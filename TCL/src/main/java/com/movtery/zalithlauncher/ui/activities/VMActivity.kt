@@ -434,6 +434,14 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
         if (!logFile.exists() && !logFile.createNewFile()) throw IOException("Failed to create a new log file")
         LoggerBridge.start(logFile.absolutePath)
 
+        try {
+            System.loadLibrary("SDL3")
+            SdlBridge.setupJNI()
+            LoggerBridge.append("TCL: SDL3 preloaded on main thread")
+        } catch (t: Throwable) {
+            LoggerBridge.append("TCL: SDL3 preload failed: ${t.message}")
+        }
+
         //错误信息展示
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
