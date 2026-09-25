@@ -32,6 +32,8 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.TextureView
 import android.view.TextureView.SurfaceTextureListener
+import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
@@ -88,6 +90,7 @@ import com.movtery.zalithlauncher.game.multirt.RuntimesManager
 import com.movtery.zalithlauncher.game.plugin.PluginLoader
 import com.movtery.zalithlauncher.game.recorder.GameSurfaceRegistry
 import com.movtery.zalithlauncher.game.renderer.Renderers
+import com.movtery.zalithlauncher.game.sdl.SdlBridge
 import com.movtery.zalithlauncher.game.renderer.renderers.KopperZinkRenderer
 import com.movtery.zalithlauncher.game.version.installed.PlayTimeRepository
 import com.movtery.zalithlauncher.game.version.installed.Version
@@ -354,6 +357,12 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
 
     private var applySizeToSurface: ((width: Int, height: Int) -> Unit)? = null
 
+    /** Host view that owns the game Surface / Texture — SDL binds through its parent layout. */
+    private var gameSurfaceView: View? = null
+
+    /** Last ANativeWindow Surface handed to SDL / GLFW. */
+    private var lastNativeSurface: Surface? = null
+
     private inline fun <T> withHandler(block: AbstractHandler.() -> T): T {
         return vmViewModel.session.handler.block()
     }
@@ -591,6 +600,7 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
     }
 
     override fun onDestroy() {
+        SdlBridge.reset()
         GameSurfaceRegistry.unregister()
         stopAllService()
         withHandler { onDestroy() }
@@ -659,8 +669,16 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
     }
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+        val nativeSurface = Surface(surface)
+        lastNativeSurface = nativeSurface
+        SdlBridge.prepareSurface(
+            this,
+            nativeSurface,
+            gameSurfaceView?.parent as? ViewGroup,
+            surface
+        )
         if (vmViewModel.isRunning) {
-            ZLBridge.setupBridgeWindow(Surface(surface))
+            ZLBridge.setupBridgeWindow(nativeSurface)
             return
         }
         vmViewModel.isRunning = true
@@ -673,7 +691,7 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
             }
             withHandler {
                 execute(
-                    surface = Surface(surface),
+                    surface = nativeSurface,
                     screenSize = currentSize,
                     scope = lifecycleScope
                 )
@@ -685,6 +703,10 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
     }
 
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+        if (SdlBridge.beginSurfaceDestroy(surface, lastNativeSurface)) {
+            SdlBridge.unregisterSurface(lastNativeSurface)
+        }
+        lastNativeSurface = null
         withHandler { mIsSurfaceDestroyed = true }
         return true
     }
@@ -701,6 +723,13 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
     override fun surfaceCreated(holder: SurfaceHolder) {
         surfaceGeneration++
         pendingNewSurface?.complete(holder.surface)
+        lastNativeSurface = holder.surface
+        SdlBridge.prepareSurface(
+            this,
+            holder.surface,
+            gameSurfaceView?.parent as? ViewGroup,
+            holder
+        )
         if (vmViewModel.isRunning) {
             ZLBridge.setupBridgeWindow(holder.surface)
             return
@@ -728,6 +757,13 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
                     newSurface ?: holder.surface
                 }
             }
+            lastNativeSurface = finalSurface
+            SdlBridge.prepareSurface(
+                this@VMActivity,
+                finalSurface,
+                gameSurfaceView?.parent as? ViewGroup,
+                holder
+            )
             withHandler {
                 execute(
                     surface = finalSurface,
@@ -739,6 +775,10 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        if (SdlBridge.beginSurfaceDestroy(holder, lastNativeSurface)) {
+            SdlBridge.unregisterSurface(lastNativeSurface)
+        }
+        lastNativeSurface = null
         withHandler { mIsSurfaceDestroyed = true }
     }
 
@@ -784,6 +824,7 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
                         SurfaceView(context).apply {
                             holder.addCallback(this@VMActivity)
                         }.also { view ->
+                            gameSurfaceView = view
                             GameSurfaceRegistry.register(view)
                             applySizeToSurface = { width, height ->
                                 view.holder.setFixedSize(width, height)
@@ -796,6 +837,7 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
 
                             surfaceTextureListener = this@VMActivity
                         }.also { view ->
+                            gameSurfaceView = view
                             GameSurfaceRegistry.register(view)
                             applySizeToSurface = { width, height ->
                                 view.surfaceTexture?.setDefaultBufferSize(width, height)
