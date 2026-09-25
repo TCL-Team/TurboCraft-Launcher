@@ -233,10 +233,12 @@ class GameLauncher(
             args.add("-Djava.library.path=${PathManager.DIR_NATIVE_LIB}")
         }
 
-        // MC 26.2+ NativeLibrariesBootstrap / LWJGL 3.4.1 Library.loadSystem looks here first.
-        // Always point at the APK native dir (contains liblwjgl.so from the AAR).
+        // MUST be the per-version natives dir (3.3.3 vs 3.4.1), never the APK jniLibs
+        // folder. AGP merges both AARs into one liblwjgl.so (usually 3.4.1), so pointing
+        // 1.21.x at DIR_NATIVE_LIB loads 3.4.1 natives against 3.3.3 Java and crashes
+        // with UnsatisfiedLinkError: ThreadLocalUtil.nsetupEnvData.
         if (args.none { it.startsWith("-Dorg.lwjgl.librarypath=") }) {
-            args.add("-Dorg.lwjgl.librarypath=${PathManager.DIR_NATIVE_LIB}")
+            args.add("-Dorg.lwjgl.librarypath=$lwjglNativesDir")
         }
 
         val mcVer = version.getVersionInfo()?.minecraftVersion

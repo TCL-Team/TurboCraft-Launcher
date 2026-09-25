@@ -111,9 +111,13 @@ abstract class Launcher(
         }
 
         if (!coreLib.isFile) {
-            // Component assets only ship JARs. The .so files live in the APK nativeLibraryDir
-            // (from lwjgl3-natives-release.aar). Copy them so Library / freetype path work.
-            copyLwjglNativesFromApk()
+            // Only the 3.4.1 APK jniLibs match 3.4.1 Java. Never copy them into 3.3.3 —
+            // that is what made 1.21.x call nsetupEnvData against a 3.4.1 liblwjgl.so.
+            if (versionDir != "3.3.3") {
+                copyLwjglNativesFromApk()
+            } else {
+                LoggerBridge.appendInfo("LWJGL: refusing to copy APK natives into 3.3.3 (they are 3.4.1). Unpack the 3.3.3 component natives instead.")
+            }
         }
 
         if (coreLib.isFile) {
