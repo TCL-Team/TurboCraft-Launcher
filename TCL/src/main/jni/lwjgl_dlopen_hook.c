@@ -8,6 +8,7 @@
 
 #include <environ/environ.h>
 
+#include <bytehook.h>
 #include <dlfcn.h>
 #include <string.h>
 #include <stdlib.h>
@@ -86,12 +87,52 @@ static jlong ndlsym_compat(__attribute__((unused)) JNIEnv *env,
     return 0;
 }
 
+static void *resolve_openal_soft_event(const char *name) {
+    if (name == NULL) return NULL;
+    if (strcmp(name, "alcEventIsSupportedSOFT") == 0) {
+        return (void *) alcEventIsSupportedSOFT_stub;
+    }
+    if (strcmp(name, "alcEventControlSOFT") == 0) {
+        return (void *) alcEventControlSOFT_stub;
+    }
+    if (strcmp(name, "alcEventCallbackSOFT") == 0) {
+        return (void *) alcEventCallbackSOFT_stub;
+    }
+    return NULL;
+}
+
+/* LWJGL 3.4.1 uses FFM SymbolLookup (dlsym), not DynamicLinkLoader.ndlsym. */
+static void *hook_dlsym(void *handle, const char *name) {
+    void *r = BYTEHOOK_CALL_PREV(hook_dlsym, typeof(&dlsym), handle, name);
+    if (r == NULL) {
+        void *stub = resolve_openal_soft_event(name);
+        if (stub != NULL) r = stub;
+    }
+    BYTEHOOK_POP_STACK();
+    return r;
+}
+
+static void *hook_alcGetProcAddress(void *device, const char *name) {
+    typedef void *(*fn_t)(void *, const char *);
+    void *r = BYTEHOOK_CALL_PREV(hook_alcGetProcAddress, fn_t, device, name);
+    if (r == NULL) {
+        void *stub = resolve_openal_soft_event(name);
+        if (stub != NULL) r = stub;
+    }
+    BYTEHOOK_POP_STACK();
+    return r;
+}
+
 /**
  * Install the LWJGL dlopen hook. This allows us to mitigate linker bugs and add custom library overrides.
  */
 void installLwjglDlopenHook() {
-    __android_log_print(ANDROID_LOG_INFO, "LwjglLinkerHook", "Installing LWJGL dlopen() hook");
-    JNIEnv* env = pojav_environ->runtimeJNIEnvPtr_JRE;
+    __android_log_print(ANDROID_LOG_INFO, "LwjglLinkerHook", "Installing LWJGL dlopen() + OpenAL SOFT stubs");
+    bytehook_hook_all(NULL, "dlsym", (void *) hook_dlsym, NULL, NULL);
+    bytehook_hook_all(NULL, "alcGetProcAddress", (void *) hook_alcGetProcAddress, NULL, NULL);
+
+    JNIEnv* env = pojav_environ != NULL ? pojav_environ->runtimeJNIEnvPtr_JRE : NULL;
+    if (env == NULL) return;
     jclass dynamicLinkLoader = (*env)->FindClass(env, "org/lwjgl/system/linux/DynamicLinkLoader");
     if(dynamicLinkLoader == NULL) {
         __android_log_print(ANDROID_LOG_ERROR, "LwjglLinkerHook", "Failed to find the target class");
