@@ -332,8 +332,9 @@ public class CallbackBridge {
             return true;
         }
         try {
-            LoggerBridge.append("TCL: loading SDL3");
-            System.loadLibrary("SDL3");
+            // Do NOT System.loadLibrary("SDL3") here. This runs on the game
+            // render thread attached to the Dalvik VM and SIGSEGVs libart.
+            // VMActivity preloads SDL3 on the main thread.
             LoggerBridge.append("TCL: setting up SDL JNI");
             SdlBridge.setupJNI();
             LoggerBridge.append("TCL: binding SDL surface");
