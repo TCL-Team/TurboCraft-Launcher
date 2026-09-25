@@ -36,7 +36,7 @@ import java.util.List;
 public class SDLControllerManager
 {
 
-    static native void nativeSetupJNI();
+    static native int nativeSetupJNI();
 
     static native void nativeAddJoystick(int device_id, String name, String desc,
                                                 int vendor_id, int product_id,
