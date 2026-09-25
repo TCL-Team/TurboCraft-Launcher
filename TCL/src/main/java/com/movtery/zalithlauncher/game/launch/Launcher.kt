@@ -123,7 +123,10 @@ abstract class Launcher(
         if (coreLib.isFile) {
             LoggerBridge.appendInfo("LWJGL: LWJGL $versionDir natives check passed after re-unpack: path=$lwjglNativesDir (liblwjgl.so found)")
         } else {
-            LoggerBridge.appendInfo("LWJGL: LWJGL natives are still missing after re-unpack: liblwjgl.so not found in $lwjglNativesDir, the game may fail to launch")
+            LoggerBridge.appendInfo("LWJGL: LWJGL natives are still missing after re-unpack: liblwjgl.so not found in $lwjglNativesDir")
+            if (versionDir == "3.3.3") {
+                error("LWJGL 3.3.3 natives missing. Put lwjgl-3.3.3-natives-release.aar in TCL/libs and rebuild, or copy natives into components/lwjgl/3.3.3/natives/arm64-v8a/. Do NOT copy APK 3.4.1 liblwjgl.so here.")
+            }
         }
     }
 
