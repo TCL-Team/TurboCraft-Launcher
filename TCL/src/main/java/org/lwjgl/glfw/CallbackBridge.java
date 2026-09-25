@@ -23,6 +23,14 @@ import com.movtery.zalithlauncher.game.keycodes.LwjglGlfwKeycode;
 import java.util.function.Consumer;
 
 import dalvik.annotation.optimization.CriticalNative;
+import com.movtery.zalithlauncher.bridge.LoggerBridge;
+import com.movtery.zalithlauncher.game.sdl.SdlBridge;
+import org.libsdl.app.SDLActivity;
+import org.libsdl.app.SDLSurface;
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
+
 
 @Keep
 public class CallbackBridge {
@@ -295,6 +303,59 @@ public class CallbackBridge {
     @Keep @CriticalNative private static native void nativeSendScreenSize(int width, int height);
     @Keep public static native void nativeSetWindowAttrib(int attrib, int value);
     @Keep public static native int getCurrentFps();
+
+
+    public static final int NOTIF_TYPE_SDL = 0;
+    public static final int ACTION_INIT_LAUNCHER_INTEGRATION = 0;
+    public static final int ACTION_SEND_TEXTBOX_RECT = 1;
+    public static final int SDL = NOTIF_TYPE_SDL;
+    public static final int INIT = ACTION_INIT_LAUNCHER_INTEGRATION;
+
+    @Keep
+    public static void clearSdlBridgeState() {
+        // no extra GLFW-side SDL state in TCL
+    }
+
+    /**
+     * Called from sdl_hook.c on the Dalvik VM when the game calls SDL_InitSubSystem.
+     * Loads SDL and binds the existing game Surface so SDL3 can create a window.
+     */
+    @Keep
+    public static boolean notifyLauncher(int type, int... action) {
+        if (action == null || action.length == 0) {
+            LoggerBridge.append("TCL: SDL notification has no action");
+            return false;
+        }
+        if (type != NOTIF_TYPE_SDL) return true;
+        if (action[0] != ACTION_INIT_LAUNCHER_INTEGRATION) return true;
+        if (!SdlBridge.markSdlInitialized()) {
+            return true;
+        }
+        try {
+            LoggerBridge.append("TCL: loading SDL3");
+            System.loadLibrary("SDL3");
+            LoggerBridge.append("TCL: setting up SDL JNI");
+            SdlBridge.setupJNI();
+            LoggerBridge.append("TCL: binding SDL surface");
+            SdlBridge.setSdlEnabled(true);
+            SDLSurface surface = SDLActivity.getSDLSurface();
+            if (surface != null) {
+                surface.surfaceChanged();
+                if (windowWidth > 0 && windowHeight > 0) {
+                    surface.nativeResize(windowWidth, windowHeight);
+                }
+            }
+            LoggerBridge.append("TCL: SDL support enabled");
+            return true;
+        } catch (Throwable e) {
+            SdlBridge.setSdlEnabled(false);
+            SdlBridge.clearSdlInitialized();
+            StringWriter sw = new StringWriter();
+            e.printStackTrace(new PrintWriter(sw));
+            LoggerBridge.append("TCL: SDL launcher integration failed:\n" + sw);
+            return false;
+        }
+    }
 
     static {
         NativeLibraryLoader.loadPojavLib();
