@@ -24,16 +24,9 @@ object SdlBridge {
     private var jniReady = false
     private var sdlInitialized = false
 
+    /** Java callers use SdlBridge.getSdlEnabled() / setSdlEnabled() from this property. */
     @JvmStatic
     var sdlEnabled: Boolean = false
-
-    @JvmStatic
-    fun getSdlEnabled(): Boolean = sdlEnabled
-
-    @JvmStatic
-    fun setSdlEnabled(value: Boolean) {
-        sdlEnabled = value
-    }
 
     @JvmStatic
     @Synchronized
