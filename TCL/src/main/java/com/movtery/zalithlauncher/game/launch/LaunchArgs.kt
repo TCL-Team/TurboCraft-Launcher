@@ -153,11 +153,20 @@ class LaunchArgs(
         }
     }
 
-    private fun getLWJGL3ClassPath(): String =
-        File(PathManager.DIR_COMPONENTS, "lwjgl/${lwjglVersionDir(detectLwjglVersion(gameManifest))}")
-            .listFiles { file -> file.name.endsWith(".jar") }
-            ?.joinToString(":") { it.absolutePath }
-            ?: ""
+    private fun getLWJGL3ClassPath(): String {
+        val dir = File(
+            PathManager.DIR_COMPONENTS,
+            "lwjgl/${lwjglVersionDir(detectLwjglVersion(gameManifest))}"
+        )
+        val jars = dir.listFiles { file -> file.name.endsWith(".jar") }?.toMutableList()
+            ?: return ""
+        // Android OpenAL has no ALC_SOFT_system_events. Stub must load
+        // before lwjgl-openal.jar or 26.1.x NPEs in alcEventIsSupportedSOFT.
+        jars.sortBy { file ->
+            if (file.name.startsWith("tcl-openal-events-stub")) 0 else 1
+        }
+        return jars.joinToString(":") { it.absolutePath }
+    }
 
     private fun getJavaArgs(): List<String> {
         val argsList: MutableList<String> = ArrayList()
