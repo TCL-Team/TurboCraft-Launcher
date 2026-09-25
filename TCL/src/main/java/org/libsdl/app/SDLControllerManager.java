@@ -825,7 +825,7 @@ class SDLGenericMotionListener_API14 implements View.OnGenericMotionListener {
                             buttons |= 0x08;
                         }
 
-                        SDLActivity.onNativePen(event.getPointerId(i), getPenDeviceType(event.getDevice()), buttons, action, x, y, p);
+                        SDLActivity.onNativePen(event.getPointerId(i), buttons, action, x, y, p);
                         consumed = true;
                         break;
                 }
