@@ -15,6 +15,30 @@
 extern void* maybe_load_vulkan();
 
 /**
+ * Minecraft 26.1+ probes ALC_SOFT_system_events through LWJGL.
+ * Android OpenAL Soft shipped in the APK does not export those symbols,
+ * so LWJGL leaves the pointer NULL and Checks.check() NPEs.
+ * Report "not supported" instead of crashing.
+ */
+static int alcEventIsSupportedSOFT_stub(int eventType, int deviceType) {
+    (void)eventType;
+    (void)deviceType;
+    return 0; /* ALC_FALSE */
+}
+
+static int alcEventControlSOFT_stub(int count, const int *types, int enable) {
+    (void)count;
+    (void)types;
+    (void)enable;
+    return 0;
+}
+
+static void alcEventCallbackSOFT_stub(void *callback, void *user) {
+    (void)callback;
+    (void)user;
+}
+
+/**
  * Basically a verbatim implementation of ndlopen(), found at
  * https://github.com/PojavLauncherTeam/lwjgl3/blob/3.3.1/modules/lwjgl/core/src/generated/c/linux/org_lwjgl_system_linux_DynamicLinkLoader.c#L11
  * but with our own additions for stuff like vulkanmod.
@@ -42,6 +66,26 @@ static jlong ndlopen_bugfix(__attribute__((unused)) JNIEnv *env,
     return (jlong) dlopen(filename, mode);
 }
 
+static jlong ndlsym_compat(__attribute__((unused)) JNIEnv *env,
+                           __attribute__((unused)) jclass class,
+                           jlong handle,
+                           jlong name_ptr) {
+    const char *name = (const char *) name_ptr;
+    void *real = dlsym((void *) handle, name);
+    if (real != NULL) return (jlong) real;
+    if (name == NULL) return 0;
+    if (strcmp(name, "alcEventIsSupportedSOFT") == 0) {
+        return (jlong) (void *) alcEventIsSupportedSOFT_stub;
+    }
+    if (strcmp(name, "alcEventControlSOFT") == 0) {
+        return (jlong) (void *) alcEventControlSOFT_stub;
+    }
+    if (strcmp(name, "alcEventCallbackSOFT") == 0) {
+        return (jlong) (void *) alcEventCallbackSOFT_stub;
+    }
+    return 0;
+}
+
 /**
  * Install the LWJGL dlopen hook. This allows us to mitigate linker bugs and add custom library overrides.
  */
@@ -54,10 +98,11 @@ void installLwjglDlopenHook() {
         (*env)->ExceptionClear(env);
         return;
     }
-    JNINativeMethod ndlopenMethod[] = {
-            {"ndlopen", "(JI)J", &ndlopen_bugfix}
+    JNINativeMethod methods[] = {
+            {"ndlopen", "(JI)J", &ndlopen_bugfix},
+            {"ndlsym", "(JJ)J", &ndlsym_compat}
     };
-    if((*env)->RegisterNatives(env, dynamicLinkLoader, ndlopenMethod, 1) != 0) {
+    if((*env)->RegisterNatives(env, dynamicLinkLoader, methods, 2) != 0) {
         __android_log_print(ANDROID_LOG_ERROR, "LwjglLinkerHook", "Failed to register the hooked method");
         (*env)->ExceptionClear(env);
     }
