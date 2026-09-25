@@ -31,14 +31,14 @@ class SDLAudioManager {
                 @Override
                 public void onAudioDevicesAdded(AudioDeviceInfo[] addedDevices) {
                     for (AudioDeviceInfo deviceInfo : addedDevices) {
-                        nativeAddAudioDevice(deviceInfo.isSink(), deviceInfo.getProductName().toString(), deviceInfo.getId());
+                        addAudioDevice(deviceInfo.isSink(), deviceInfo.getProductName().toString(), deviceInfo.getId());
                     }
                 }
 
                 @Override
                 public void onAudioDevicesRemoved(AudioDeviceInfo[] removedDevices) {
                     for (AudioDeviceInfo deviceInfo : removedDevices) {
-                        nativeRemoveAudioDevice(deviceInfo.isSink(), deviceInfo.getId());
+                        removeAudioDevice(deviceInfo.isSink(), deviceInfo.getId());
                     }
                 }
             };
@@ -87,10 +87,10 @@ class SDLAudioManager {
                 if (dev.getType() == AudioDeviceInfo.TYPE_TELEPHONY) {
                     continue;  // Device cannot be opened
                 }
-                nativeAddAudioDevice(dev.isSink(), dev.getProductName().toString(), dev.getId());
+                addAudioDevice(dev.isSink(), dev.getProductName().toString(), dev.getId());
             }
             for (AudioDeviceInfo dev : audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)) {
-                nativeAddAudioDevice(dev.isSink(), dev.getProductName().toString(), dev.getId());
+                addAudioDevice(dev.isSink(), dev.getProductName().toString(), dev.getId());
             }
             audioManager.registerAudioDeviceCallback(mAudioDeviceCallback, null);
         }
@@ -124,8 +124,8 @@ class SDLAudioManager {
 
     static native int nativeSetupJNI();
 
-    static native void nativeRemoveAudioDevice(boolean recording, int deviceId);
+    static native void removeAudioDevice(boolean recording, int deviceId);
 
-    static native void nativeAddAudioDevice(boolean recording, String name, int deviceId);
+    static native void addAudioDevice(boolean recording, String name, int deviceId);
 
 }
