@@ -13,8 +13,41 @@
 #include <jni.h>
 #include <stdlib.h>
 #include <string.h>
+#include <EGL/egl.h>
 
-// --- 最小 SDL3 声明（仅 hook 所需；完整 headers 由 lwjgl-sdl 绑定侧提供） ---
+#ifndef DECL_DLSYM
+#define DECL_DLSYM(fn) typedef typeof(&fn) fn##_t;
+#endif
+#ifndef SET_DLSYM_PTR
+#define SET_DLSYM_PTR(handle, fn)                     \
+    fn##_t fn##_p;                                   \
+    do {                                             \
+        dlerror();                                   \
+        void *_p = dlsym((handle), #fn);             \
+        const char *_e = dlerror();                  \
+        if (_e || !_p) {                             \
+            LOG_TO_E("<%s> %s", "Native", "dlsym(" #fn ") failed: %s", _e ? _e : "unknown error"); \
+        }                                            \
+        fn##_p = (fn##_t)_p;                         \
+    } while (0)
+#endif
+#ifndef TRY_ATTACH_ENV
+#define TRY_ATTACH_ENV(env_name, vm, error_message, then) JNIEnv* env_name;\
+do {                                                                       \
+    env_name = get_attached_env(vm);                                       \
+    if(env_name == NULL) {                                                 \
+        printf(error_message);                                             \
+        then                                                               \
+    }                                                                      \
+} while(0)
+#endif
+#ifndef NOTIF_TYPE_SDL
+#define NOTIF_TYPE_SDL 0
+#define ACTION_INIT_LAUNCHER_INTEGRATION 0
+#define ACTION_SEND_TEXTBOX_RECT 1
+#endif
+
+// --- minimal SDL3 decls (full headers live in LWJGL bindings) ---
 typedef uint32_t SDL_InitFlags;
 typedef struct SDL_Window SDL_Window;
 typedef struct SDL_Rect { int x, y, w, h; } SDL_Rect;
