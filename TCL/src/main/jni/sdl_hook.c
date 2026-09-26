@@ -122,9 +122,9 @@ static JNIEnv* get_attached_env(JavaVM* jvm) {
 }
 
 static bool notifyLauncher(JNIEnv *dvm_env, int type, int actions[], int len) {
-    jclass cls = (*dvm_env)->FindClass(dvm_env, "org/lwjgl/glfw/CallbackBridge");
+    jclass cls = (pojav_environ != NULL) ? pojav_environ->bridgeClazz : NULL;
     if (cls == NULL) {
-        LOG_TO_E("SDL_Hook: CallbackBridge class not found");
+        LOG_TO_E("SDL_Hook: bridgeClazz is null");
         return false;
     }
     jmethodID mid = (*dvm_env)->GetStaticMethodID(dvm_env, cls, "notifyLauncher", "(I[I)Z");
