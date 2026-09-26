@@ -107,6 +107,36 @@ typedef EGLBoolean (*eglSwapBuffers_t)(EGLDisplay dpy, void *surface);
 #define EGL_OPENGL_ES2_BIT    0x0004
 #define EGL_OPENGL_ES3_BIT    0x0040
 #define EGL_CONTEXT_CLIENT_VERSION    0x3098
+
+static JNIEnv* get_attached_env(JavaVM* jvm) {
+    if (jvm == NULL) return NULL;
+    JNIEnv *env = NULL;
+    jint status = (*jvm)->GetEnv(jvm, (void**)&env, JNI_VERSION_1_4);
+    if (status == JNI_OK) return env;
+    if (status == JNI_EDETACHED) {
+        if ((*jvm)->AttachCurrentThread(jvm, (void**)&env, NULL) == JNI_OK) {
+            return env;
+        }
+    }
+    return NULL;
+}
+
+static bool notifyLauncher(JNIEnv *dvm_env, int type, int actions[], int len) {
+    jclass cls = (*dvm_env)->FindClass(dvm_env, "org/lwjgl/glfw/CallbackBridge");
+    if (cls == NULL) {
+        LOG_TO_E("SDL_Hook: CallbackBridge class not found");
+        return false;
+    }
+    jmethodID mid = (*dvm_env)->GetStaticMethodID(dvm_env, cls, "notifyLauncher", "(I[I)Z");
+    if (mid == NULL) {
+        LOG_TO_E("SDL_Hook: notifyLauncher method not found");
+        return false;
+    }
+    jintArray actionArray = (*dvm_env)->NewIntArray(dvm_env, len);
+    (*dvm_env)->SetIntArrayRegion(dvm_env, actionArray, 0, len, actions);
+    return (*dvm_env)->CallStaticBooleanMethod(dvm_env, cls, mid, type, actionArray);
+}
+
 #define EGL_CONTEXT_MAJOR_VERSION_KHR 0x30FB
 #define EGL_CONTEXT_MINOR_VERSION_KHR 0x30FC
 
