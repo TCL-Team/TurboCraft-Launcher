@@ -122,7 +122,7 @@ class SDLAudioManager {
         }
     }
 
-    static native int nativeSetupJNI();
+    static native void nativeSetupJNI();
 
     static native void removeAudioDevice(boolean recording, int deviceId);
 
