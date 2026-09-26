@@ -20,7 +20,6 @@ typedef struct SDL_Window SDL_Window;
 typedef struct SDL_Rect { int x, y, w, h; } SDL_Rect;
 
 bool SDL_InitSubSystem(SDL_InitFlags flags);
-bool SDL_Init(SDL_InitFlags flags);
 void SDL_SetMainReady(void);
 bool SDL_SetHint(const char *name, const char *value);
 bool SDL_SetTextInputArea(SDL_Window *window, const SDL_Rect *rect, int cursor);
@@ -37,67 +36,6 @@ SDL_Window *SDL_CreateWindowWithProperties(uint32_t props);
 void SDL_DestroyWindow(SDL_Window *window);
 void *SDL_EGL_GetProcAddress(const char *proc);
 
-/* ZL2 utils.h pieces that TCL does not ship. Must be function-POINTER typedefs
- * because BYTEHOOK_CALL_PREV casts bytehook_get_prev_func() to func_sig. */
-#ifndef DECL_DLSYM
-#define DECL_DLSYM(fn) typedef typeof(&fn) fn##_t;
-#endif
-#ifndef NOTIF_TYPE_SDL
-#define NOTIF_TYPE_SDL 0
-#define ACTION_INIT_LAUNCHER_INTEGRATION 0
-#define ACTION_SEND_TEXTBOX_RECT 1
-#endif
-#ifndef SET_DLSYM_PTR
-#define SET_DLSYM_PTR(handle, fn)                     \
-    fn##_t fn##_p;                                   \
-    do {                                             \
-        dlerror();                                   \
-        void *_p = dlsym((handle), #fn);             \
-        const char *_e = dlerror();                  \
-        if (_e || !_p) {                             \
-            LOG_TO_E("<%s> %s", "Native", "dlsym(" #fn ") failed: %s", _e ? _e : "unknown error"); \
-        }                                            \
-        fn##_p = (fn##_t)_p;                         \
-    } while (0)
-#endif
-#ifndef TRY_ATTACH_ENV
-#define TRY_ATTACH_ENV(env_name, vm, error_message, then) JNIEnv* env_name;\
-do {                                                                       \
-    env_name = tcl_get_attached_env(vm);                                   \
-    if(env_name == NULL) {                                                 \
-        printf(error_message);                                             \
-        then                                                               \
-    }                                                                      \
-} while(0)
-#endif
-
-static JNIEnv* tcl_get_attached_env(JavaVM* jvm) {
-    if (jvm == NULL) return NULL;
-    JNIEnv *env = NULL;
-    jint status = (*jvm)->GetEnv(jvm, (void**)&env, JNI_VERSION_1_4);
-    if (status == JNI_OK) return env;
-    if (status == JNI_EDETACHED) {
-        if ((*jvm)->AttachCurrentThread(jvm, &env, NULL) == JNI_OK) return env;
-    }
-    return NULL;
-}
-
-static bool notifyLauncher(JNIEnv *dvm_env, int type, int actions[], int len) {
-    if (dvm_env == NULL || pojav_environ == NULL || pojav_environ->bridgeClazz == NULL) return false;
-    jclass cls = pojav_environ->bridgeClazz;
-    jmethodID mid = (*dvm_env)->GetStaticMethodID(dvm_env, cls, "notifyLauncher", "(I[I)Z");
-    if (mid == NULL) {
-        if ((*dvm_env)->ExceptionCheck(dvm_env)) (*dvm_env)->ExceptionClear(dvm_env);
-        return true; /* older TCL CallbackBridge: skip, do not block SDL */
-    }
-    jintArray actionArray = (*dvm_env)->NewIntArray(dvm_env, len);
-    if (actionArray == NULL) return false;
-    (*dvm_env)->SetIntArrayRegion(dvm_env, actionArray, 0, len, actions);
-    jboolean ok = (*dvm_env)->CallStaticBooleanMethod(dvm_env, cls, mid, type, actionArray);
-    (*dvm_env)->DeleteLocalRef(dvm_env, actionArray);
-    return ok == JNI_TRUE;
-}
-
 // egl_bridge.c（libpojavexec.so），SDL 路径下经 EGL 交换代理计帧
 void calculateFPS(void);
 
@@ -105,7 +43,6 @@ void calculateFPS(void);
 void sdlBridgeSetPrimaryWindow(struct SDL_Window *window);
 
 DECL_DLSYM(SDL_InitSubSystem)
-DECL_DLSYM(SDL_Init)
 DECL_DLSYM(SDL_SetMainReady)
 DECL_DLSYM(SDL_SetHint);
 DECL_DLSYM(SDL_SetTextInputArea);
@@ -446,14 +383,11 @@ static bool sdlInitSubSystemPrepare(SDL_InitFlags flags) {
 
     notifyLauncher(dvm_env, NOTIF_TYPE_SDL, (int[]){ACTION_INIT_LAUNCHER_INTEGRATION, safeFlags}, 2);
 
-    /* MC / LWJGL call SDL_Init from Java, not SDL_main. Without this SDL3
-       returns: "Application didn't initialize properly, did you include SDL_main.h" */
+    /* MC/LWJGL call SDL_Init from Java, not SDL_main. */
     {
         void *sdl = dlopen("libSDL3.so", RTLD_NOLOAD);
         SET_DLSYM_PTR(sdl, SDL_SetMainReady);
-        if (SDL_SetMainReady_p) {
-            SDL_SetMainReady_p();
-        }
+        if (SDL_SetMainReady_p) SDL_SetMainReady_p();
     }
 
     // This is the normal for the launcher, the default in SDL is false.
@@ -472,19 +406,15 @@ static bool sdlInitSubSystemPrepare(SDL_InitFlags flags) {
 
 static bool custom_SDL_InitSubSystem_Func(SDL_InitFlags flags) {
     if (!sdlInitSubSystemPrepare(flags)) return false;
-    /* Real SDL_InitSubSystem waits forever for an SDLActivity on Android.
-       26.3 then freezes ~70s and the JVM dumps. Prepare already called
-       SDL_SetMainReady + notifyLauncher. Window creation is hooked. */
-    LOG_TO_I("SDL_Hook: skip real SDL_InitSubSystem (flags=%u)", (unsigned) flags);
-    BYTEHOOK_POP_STACK();
-    return true;
-}
 
-static bool custom_SDL_Init_Func(SDL_InitFlags flags) {
-    if (!sdlInitSubSystemPrepare(flags)) return false;
-    LOG_TO_I("SDL_Hook: skip real SDL_Init (flags=%u)", (unsigned) flags);
+    // Call original func after doing all the needed setup
+    bool r = BYTEHOOK_CALL_PREV(custom_SDL_InitSubSystem_Func, SDL_InitSubSystem_t, flags);
+    if (!r){
+        SET_DLSYM_PTR(dlopen("libSDL3.so", RTLD_NOLOAD), SDL_GetError);
+        LOG_TO_E("SDL_Hook: SDL_InitSubsystem Error: %s", SDL_GetError_p());
+    }
     BYTEHOOK_POP_STACK();
-    return true;
+    return r;
 }
 
 // 移动渲染器均为 OpenGL ES 实现，而游戏按桌面 GL 惯例初始化 SDL，
@@ -579,14 +509,12 @@ static sdlUnloadObject_t realSdlUnloadObject = NULL;
 
 static bool proxy_SDL_InitSubSystem(SDL_InitFlags flags) {
     if (!sdlInitSubSystemPrepare(flags)) return false;
-    LOG_TO_I("SDL_Hook: skip real SDL_InitSubSystem via dlsym proxy (flags=%u)", (unsigned) flags);
-    return true;
-}
-
-static bool proxy_SDL_Init(SDL_InitFlags flags) {
-    if (!sdlInitSubSystemPrepare(flags)) return false;
-    LOG_TO_I("SDL_Hook: skip real SDL_Init via dlsym proxy (flags=%u)", (unsigned) flags);
-    return true;
+    bool r = realSdlInitSubSystem(flags);
+    if (!r) {
+        SET_DLSYM_PTR(dlopen("libSDL3.so", RTLD_NOLOAD), SDL_GetError);
+        LOG_TO_E("SDL_Hook: SDL_InitSubsystem Error: %s", SDL_GetError_p());
+    }
+    return r;
 }
 
 static SDL_Window *proxy_SDL_CreateWindow(const char *title, int w, int h, uint32_t flags) {
@@ -665,7 +593,6 @@ void create_sdl_hooks(bytehook_stub_t (*bytehook_hook_all_p)(const char *callee_
                                                              bytehook_hooked_t hooked, void *hooked_arg)) {
     // Don't set callee_path_name to anything besides NULL or else it won't be able to find the symbol
     bytehook_stub_t stub_SDL_InitSubSystem = bytehook_hook_all_p(NULL, "SDL_InitSubSystem", &custom_SDL_InitSubSystem_Func, NULL, NULL);
-    bytehook_stub_t stub_SDL_Init = bytehook_hook_all_p(NULL, "SDL_Init", &custom_SDL_Init_Func, NULL, NULL);
     bytehook_stub_t stub_SDL_GetWindowFromEvent = bytehook_hook_all_p(NULL, "SDL_GetWindowFromEvent", &custom_SDL_GetWindowFromEvent_Func, NULL, NULL);
     bytehook_stub_t stub_SDL_GetWindowFromID = bytehook_hook_all_p(NULL, "SDL_GetWindowFromID", &custom_SDL_GetWindowFromID_Func, NULL, NULL);
     // 窗口创建前强制 ES profile（覆盖 SDL3 的两种窗口创建入口）
@@ -687,12 +614,7 @@ void create_sdl_hooks(bytehook_stub_t (*bytehook_hook_all_p)(const char *callee_
 void *sdlDlsymProxy(const char *symbol, void *real) {
     if (strcmp(symbol, "SDL_InitSubSystem") == 0) {
         if (realSdlInitSubSystem == NULL) realSdlInitSubSystem = (sdlInitSubSystem_t) real;
-        LOG_TO_I("SDL_Hook: dlsym proxy for SDL_InitSubSystem");
         return (void *) proxy_SDL_InitSubSystem;
-    }
-    if (strcmp(symbol, "SDL_Init") == 0) {
-        LOG_TO_I("SDL_Hook: dlsym proxy for SDL_Init");
-        return (void *) proxy_SDL_Init;
     }
     if (strcmp(symbol, "SDL_CreateWindow") == 0) {
         if (realSdlCreateWindow == NULL) realSdlCreateWindow = (sdlCreateWindow_t) real;
