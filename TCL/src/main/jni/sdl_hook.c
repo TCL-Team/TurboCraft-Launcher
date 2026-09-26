@@ -20,6 +20,7 @@ typedef struct SDL_Window SDL_Window;
 typedef struct SDL_Rect { int x, y, w, h; } SDL_Rect;
 
 bool SDL_InitSubSystem(SDL_InitFlags flags);
+bool SDL_Init(SDL_InitFlags flags);
 void SDL_SetMainReady(void);
 bool SDL_SetHint(const char *name, const char *value);
 bool SDL_SetTextInputArea(SDL_Window *window, const SDL_Rect *rect, int cursor);
@@ -104,6 +105,7 @@ void calculateFPS(void);
 void sdlBridgeSetPrimaryWindow(struct SDL_Window *window);
 
 DECL_DLSYM(SDL_InitSubSystem)
+DECL_DLSYM(SDL_Init)
 DECL_DLSYM(SDL_SetMainReady)
 DECL_DLSYM(SDL_SetHint);
 DECL_DLSYM(SDL_SetTextInputArea);
@@ -470,15 +472,19 @@ static bool sdlInitSubSystemPrepare(SDL_InitFlags flags) {
 
 static bool custom_SDL_InitSubSystem_Func(SDL_InitFlags flags) {
     if (!sdlInitSubSystemPrepare(flags)) return false;
-
-    // Call original func after doing all the needed setup
-    bool r = BYTEHOOK_CALL_PREV(custom_SDL_InitSubSystem_Func, SDL_InitSubSystem_t, flags);
-    if (!r){
-        SET_DLSYM_PTR(dlopen("libSDL3.so", RTLD_NOLOAD), SDL_GetError);
-        LOG_TO_E("SDL_Hook: SDL_InitSubsystem Error: %s", SDL_GetError_p());
-    }
+    /* Real SDL_InitSubSystem waits forever for an SDLActivity on Android.
+       26.3 then freezes ~70s and the JVM dumps. Prepare already called
+       SDL_SetMainReady + notifyLauncher. Window creation is hooked. */
+    LOG_TO_I("SDL_Hook: skip real SDL_InitSubSystem (flags=%u)", (unsigned) flags);
     BYTEHOOK_POP_STACK();
-    return r;
+    return true;
+}
+
+static bool custom_SDL_Init_Func(SDL_InitFlags flags) {
+    if (!sdlInitSubSystemPrepare(flags)) return false;
+    LOG_TO_I("SDL_Hook: skip real SDL_Init (flags=%u)", (unsigned) flags);
+    BYTEHOOK_POP_STACK();
+    return true;
 }
 
 // 移动渲染器均为 OpenGL ES 实现，而游戏按桌面 GL 惯例初始化 SDL，
@@ -573,12 +579,14 @@ static sdlUnloadObject_t realSdlUnloadObject = NULL;
 
 static bool proxy_SDL_InitSubSystem(SDL_InitFlags flags) {
     if (!sdlInitSubSystemPrepare(flags)) return false;
-    bool r = realSdlInitSubSystem(flags);
-    if (!r) {
-        SET_DLSYM_PTR(dlopen("libSDL3.so", RTLD_NOLOAD), SDL_GetError);
-        LOG_TO_E("SDL_Hook: SDL_InitSubsystem Error: %s", SDL_GetError_p());
-    }
-    return r;
+    LOG_TO_I("SDL_Hook: skip real SDL_InitSubSystem via dlsym proxy (flags=%u)", (unsigned) flags);
+    return true;
+}
+
+static bool proxy_SDL_Init(SDL_InitFlags flags) {
+    if (!sdlInitSubSystemPrepare(flags)) return false;
+    LOG_TO_I("SDL_Hook: skip real SDL_Init via dlsym proxy (flags=%u)", (unsigned) flags);
+    return true;
 }
 
 static SDL_Window *proxy_SDL_CreateWindow(const char *title, int w, int h, uint32_t flags) {
@@ -657,6 +665,7 @@ void create_sdl_hooks(bytehook_stub_t (*bytehook_hook_all_p)(const char *callee_
                                                              bytehook_hooked_t hooked, void *hooked_arg)) {
     // Don't set callee_path_name to anything besides NULL or else it won't be able to find the symbol
     bytehook_stub_t stub_SDL_InitSubSystem = bytehook_hook_all_p(NULL, "SDL_InitSubSystem", &custom_SDL_InitSubSystem_Func, NULL, NULL);
+    bytehook_stub_t stub_SDL_Init = bytehook_hook_all_p(NULL, "SDL_Init", &custom_SDL_Init_Func, NULL, NULL);
     bytehook_stub_t stub_SDL_GetWindowFromEvent = bytehook_hook_all_p(NULL, "SDL_GetWindowFromEvent", &custom_SDL_GetWindowFromEvent_Func, NULL, NULL);
     bytehook_stub_t stub_SDL_GetWindowFromID = bytehook_hook_all_p(NULL, "SDL_GetWindowFromID", &custom_SDL_GetWindowFromID_Func, NULL, NULL);
     // 窗口创建前强制 ES profile（覆盖 SDL3 的两种窗口创建入口）
@@ -678,7 +687,12 @@ void create_sdl_hooks(bytehook_stub_t (*bytehook_hook_all_p)(const char *callee_
 void *sdlDlsymProxy(const char *symbol, void *real) {
     if (strcmp(symbol, "SDL_InitSubSystem") == 0) {
         if (realSdlInitSubSystem == NULL) realSdlInitSubSystem = (sdlInitSubSystem_t) real;
+        LOG_TO_I("SDL_Hook: dlsym proxy for SDL_InitSubSystem");
         return (void *) proxy_SDL_InitSubSystem;
+    }
+    if (strcmp(symbol, "SDL_Init") == 0) {
+        LOG_TO_I("SDL_Hook: dlsym proxy for SDL_Init");
+        return (void *) proxy_SDL_Init;
     }
     if (strcmp(symbol, "SDL_CreateWindow") == 0) {
         if (realSdlCreateWindow == NULL) realSdlCreateWindow = (sdlCreateWindow_t) real;
