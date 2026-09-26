@@ -337,7 +337,11 @@ public class CallbackBridge {
             // Dalvik; nativeSetupJNI / HIDDeviceRegisterCallback SIGSEGV
             // libart. VMActivity already loaded libSDL3 on the UI thread.
             // sdl_hook.c stubs SDL_InitSubSystem + CreateWindow.
-            LoggerBridge.append("TCL: skip setupJNI on game thread");
+            // ZL2 path: setupJNI on the Dalvik-attached thread after
+            // SDL.initialize()+externalInitialize already ran on UI.
+            try { System.loadLibrary("SDL2"); } catch (Throwable ignored) {}
+            LoggerBridge.append("TCL: setting up SDL JNI");
+            SdlBridge.setupJNI();
             LoggerBridge.append("TCL: binding SDL surface");
             SdlBridge.setSdlEnabled(true);
             SDLSurface surface = SDLActivity.getSDLSurface();
