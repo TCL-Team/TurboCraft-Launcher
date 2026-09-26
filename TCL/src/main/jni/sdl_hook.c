@@ -13,7 +13,6 @@
 #include <jni.h>
 #include <stdlib.h>
 #include <string.h>
-#include <EGL/egl.h>
 
 #ifndef DECL_DLSYM
 #define DECL_DLSYM(fn) typedef typeof(&fn) fn##_t;
