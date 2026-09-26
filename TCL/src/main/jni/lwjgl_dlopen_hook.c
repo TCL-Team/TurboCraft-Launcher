@@ -11,6 +11,7 @@
 #include <bytehook.h>
 #include <dlfcn.h>
 #include <string.h>
+#include <stdint.h>
 #include <stdlib.h>
 
 extern void* maybe_load_vulkan();
@@ -87,6 +88,50 @@ static jlong ndlsym_compat(__attribute__((unused)) JNIEnv *env,
     return 0;
 }
 
+/* LWJGL 3.4.1 SDLVideo requires newer SDL3 symbols than TCL's libSDL3. */
+static int sdl_stub_true(void) { return 1; }
+static int sdl_stub_zero(void) { return 0; }
+static void sdl_stub_void(void) {}
+static void *sdl_stub_null(void) { return NULL; }
+static float sdl_stub_onef(void) { return 1.0f; }
+static const char *sdl_stub_dummy(void) { return "dummy"; }
+static const char *sdl_stub_android(void) { return "Android"; }
+static uint32_t sdl_stub_display_ids[2] = {1, 0};
+static uint32_t *sdl_stub_get_displays(int *count) {
+    if (count) *count = 1;
+    return sdl_stub_display_ids;
+}
+static uint32_t sdl_stub_primary_display(void) { return 1; }
+static int sdl_stub_display_bounds(uint32_t id, int *rect) {
+    (void)id;
+    if (rect) { rect[0] = 0; rect[1] = 0; rect[2] = 1688; rect[3] = 756; }
+    return 1;
+}
+
+static void *resolve_missing_sdl(const char *name) {
+    if (name == NULL || strncmp(name, "SDL_", 4) != 0) return NULL;
+    if (strcmp(name, "SDL_SetWindowFillDocument") == 0) return (void *)sdl_stub_true;
+    if (strcmp(name, "SDL_GetDisplays") == 0) return (void *)sdl_stub_get_displays;
+    if (strcmp(name, "SDL_GetPrimaryDisplay") == 0) return (void *)sdl_stub_primary_display;
+    if (strcmp(name, "SDL_GetDisplayBounds") == 0) return (void *)sdl_stub_display_bounds;
+    if (strcmp(name, "SDL_GetDisplayUsableBounds") == 0) return (void *)sdl_stub_display_bounds;
+    if (strcmp(name, "SDL_GetNumVideoDrivers") == 0) return (void *)sdl_stub_true;
+    if (strcmp(name, "SDL_GetVideoDriver") == 0) return (void *)sdl_stub_dummy;
+    if (strcmp(name, "SDL_GetCurrentVideoDriver") == 0) return (void *)sdl_stub_dummy;
+    if (strcmp(name, "SDL_GetDisplayName") == 0) return (void *)sdl_stub_android;
+    if (strcmp(name, "SDL_GetDisplayContentScale") == 0) return (void *)sdl_stub_onef;
+    if (strcmp(name, "SDL_GetSystemTheme") == 0) return (void *)sdl_stub_zero;
+    /* Generic fallback so SDLVideo.<clinit> can finish. */
+    if (strncmp(name, "SDL_Set", 7) == 0) return (void *)sdl_stub_true;
+    if (strncmp(name, "SDL_Show", 8) == 0) return (void *)sdl_stub_true;
+    if (strncmp(name, "SDL_Hide", 8) == 0) return (void *)sdl_stub_true;
+    if (strncmp(name, "SDL_Raise", 9) == 0) return (void *)sdl_stub_true;
+    if (strncmp(name, "SDL_Flash", 9) == 0) return (void *)sdl_stub_true;
+    if (strncmp(name, "SDL_Sync", 8) == 0) return (void *)sdl_stub_true;
+    if (strncmp(name, "SDL_Destroy", 11) == 0) return (void *)sdl_stub_void;
+    return (void *)sdl_stub_true;
+}
+
 static void *resolve_openal_soft_event(const char *name) {
     if (name == NULL) return NULL;
     if (strcmp(name, "alcEventIsSupportedSOFT") == 0) {
@@ -106,6 +151,7 @@ static void *hook_dlsym(void *handle, const char *name) {
     void *r = BYTEHOOK_CALL_PREV(hook_dlsym, typeof(&dlsym), handle, name);
     if (r == NULL) {
         void *stub = resolve_openal_soft_event(name);
+        if (stub == NULL) stub = resolve_missing_sdl(name);
         if (stub != NULL) r = stub;
     }
     BYTEHOOK_POP_STACK();
