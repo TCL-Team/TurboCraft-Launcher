@@ -6,19 +6,13 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
- * See the GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/gpl-3.0.txt>.
  */
 
 package com.movtery.zalithlauncher.game.renderer.renderers
 
 import com.movtery.zalithlauncher.game.renderer.RendererInterface
+import com.movtery.zalithlauncher.utils.settings.MobileGluesConfig
+import java.io.File
 
 object MobileGluesRenderer : RendererInterface {
     override fun getRendererId(): String = "mobileglues"
@@ -29,7 +23,19 @@ object MobileGluesRenderer : RendererInterface {
 
     override fun getRendererSummary(): String = "GL on top of OpenGL ES"
 
-    override fun getRendererEnv(): Lazy<Map<String, String>> = lazy { emptyMap() }
+    override fun getRendererEnv(): Lazy<Map<String, String>> = lazy {
+        val dir = File(MobileGluesConfig.CONFIG_FILE_PATH).parentFile
+            ?: File("/sdcard/MG")
+        dir.mkdirs()
+        val cfg = File(dir, "config.json")
+        val existing = runCatching { cfg.readText() }.getOrNull().orEmpty()
+        if (!existing.contains("\"ignoreError\"")) {
+            cfg.writeText(
+                """{"ignoreError":1,"enableNoError":3,"enableExtComputeShader":1,"enableExtDirectStateAccess":1,"enableANGLE":0}"""
+            )
+        }
+        mapOf("MG_DIR_PATH" to dir.absolutePath)
+    }
 
     override fun getDlopenLibrary(): Lazy<List<String>> = lazy { emptyList() }
 
