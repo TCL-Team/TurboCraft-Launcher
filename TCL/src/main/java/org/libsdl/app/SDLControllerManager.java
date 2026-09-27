@@ -41,13 +41,15 @@ public class SDLControllerManager
     static native void nativeAddJoystick(int device_id, String name, String desc,
                                                 int vendor_id, int product_id,
                                                 int button_mask,
-                                                int naxes, int axis_mask, int nhats, boolean can_rumble);
+                                                int naxes, int axis_mask, int nhats, boolean can_rumble, boolean has_rgb_led,
+                                                boolean has_accelerometer, boolean has_gyroscope);
     static native void nativeRemoveJoystick(int device_id);
     static native void nativeAddHaptic(int device_id, String name);
     static native void nativeRemoveHaptic(int device_id);
-    static public native boolean onNativePadDown(int device_id, int keycode);
-    static public native boolean onNativePadUp(int device_id, int keycode);
-    static native void onNativeJoy(int device_id, int axis, float value);
+    static public native boolean onNativePadDown(int device_id, int keycode, int scancode);
+    static public native boolean onNativePadUp(int device_id, int keycode, int scancode);
+    static native void onNativeJoy(int device_id, int axis,
+                                          float value);
     static native void onNativeHat(int device_id, int hat_id,
                                           int x, int y);
     static native void onNativeJoySensor(int device_id, int sensor_type, long sensor_timestamp, float x, float y, float z);
@@ -301,7 +303,8 @@ class SDLJoystickHandler {
                     mJoysticks.add(joystick);
                     SDLControllerManager.nativeAddJoystick(joystick.device_id, joystick.name, joystick.desc,
                             getVendorId(joystickDevice), getProductId(joystickDevice),
-                            getButtonMask(joystickDevice), joystick.axes.size(), getAxisMask(joystick.axes), joystick.hats.size()/2, can_rumble);
+                            getButtonMask(joystickDevice), joystick.axes.size(), getAxisMask(joystick.axes), joystick.hats.size()/2, can_rumble, has_rgb_led,
+                            has_accelerometer, has_gyroscope);
                 }
             }
         }
