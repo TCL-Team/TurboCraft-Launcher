@@ -41,6 +41,7 @@ import com.movtery.zalithlauncher.game.multirt.RuntimesManager
 import com.movtery.zalithlauncher.game.path.GamePathManager
 import com.movtery.zalithlauncher.game.plugin.driver.DriverPluginManager
 import com.movtery.zalithlauncher.game.plugin.renderer.RendererPluginManager
+import com.movtery.zalithlauncher.game.plugin.renderer.RendererPlugin
 import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.renderer.renderers.GL4ESRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.NGGL4ESRenderer
@@ -426,8 +427,14 @@ private fun setRendererEnv(envMap: MutableMap<String, String>) {
 
     renderer.getRendererEGL()?.let { eglName ->
         envMap["POJAVEXEC_EGL"] = eglName
-        val nativeLibPath = PathManager.DIR_NATIVE_LIB
-        envMap["SDL_EGL_LIBRARY"] = "$nativeLibPath/$eglName"
+        // ZL2: plugin EGL must come from the plugin APK, not TCL jniLibs.
+        // Mixing two libmobileglues.so (SDL vs LWJGL) = 60 FPS black screen on 26.3.
+        val nativeLibPath = if (renderer is RendererPlugin) {
+            renderer.path
+        } else {
+            PathManager.DIR_NATIVE_LIB
+        }
+        envMap["SDL_EGL_LIBRARY"] = if (eglName.startsWith("/")) eglName else "$nativeLibPath/$eglName"
     }
 
     envMap["POJAV_RENDERER"] = rendererId
