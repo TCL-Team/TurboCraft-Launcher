@@ -141,7 +141,7 @@ final class SdlImeController {
         }
 
         if (source == Source.GAME) {
-            TouchCharInput.disableActiveInput();
+            /* TCL TouchCharInput has no disableActiveInput(); ZL2-only API. */
         } else if (!mTextInputActive && !mForcedByLauncher) {
             // 游戏侧文本输入通道关闭（如模组自绘输入界面会主动关闭通道）时，
             // 启动器显式唤起输入法需代为激活 native 通道，否则输入文本无法送达游戏
