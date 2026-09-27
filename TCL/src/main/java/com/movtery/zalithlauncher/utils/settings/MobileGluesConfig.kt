@@ -32,9 +32,18 @@ class MobileGluesConfig private constructor(private var isInitializing: Boolean)
 
     fun save() {
         runCatching {
-            val configFile = File(CONFIG_FILE_PATH)
-            configFile.parentFile?.mkdirs()
-            configFile.writeText(Gson().toJson(_settings))
+            /* Native MobileGlues reads ignoreError from /sdcard/MG/config.json.
+               The settings UI historically wrote enableNoError under DIR_GAME/MG. */
+            if (!_settings.containsKey("ignoreError")) {
+                val noError = _settings["enableNoError"] ?: 0
+                _settings["ignoreError"] = if (noError > 0) 1 else 0
+            }
+            val json = Gson().toJson(_settings)
+            for (path in listOf(CONFIG_FILE_PATH, SDCARD_CONFIG_PATH)) {
+                val configFile = File(path)
+                configFile.parentFile?.mkdirs()
+                configFile.writeText(json)
+            }
         }
     }
 
@@ -44,6 +53,8 @@ class MobileGluesConfig private constructor(private var isInitializing: Boolean)
 
         val CONFIG_FILE_PATH: String
             get() = "${PathManager.DIR_GAME.absolutePath}/$CONFIG_SUBDIR/$CONFIG_FILE"
+
+        const val SDCARD_CONFIG_PATH: String = "/sdcard/MG/$CONFIG_FILE"
 
         fun load(): MobileGluesConfig? {
             val configFile = File(CONFIG_FILE_PATH)
