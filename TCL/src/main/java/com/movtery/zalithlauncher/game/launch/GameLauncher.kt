@@ -46,6 +46,8 @@ import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.renderer.renderers.GL4ESRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.NGGL4ESRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.MobileGluesRenderer
+import com.movtery.zalithlauncher.game.renderer.renderers.FreedrenoRenderer
+import com.movtery.zalithlauncher.game.renderer.renderers.PanfrostRenderer
 import com.movtery.zalithlauncher.game.support.touch_controller.ControllerProxy
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionInfoParser
@@ -443,7 +445,15 @@ private fun setRendererEnv(envMap: MutableMap<String, String>) {
 
     // Built-in MobileGlues is GLES translation, not Mesa/Zink. Zink env here caused
     // black screens on 26.2 (Adreno) while official ZL2 stayed on plugin/opengles path.
-    if (renderer != GL4ESRenderer && renderer != NGGL4ESRenderer && renderer != MobileGluesRenderer) {
+    if (renderer == FreedrenoRenderer) {
+        envMap["MESA_LOADER_DRIVER_OVERRIDE"] = "freedreno"
+        envMap["GALLIUM_DRIVER"] = "freedreno"
+        envMap["TU_DEBUG"] = "sysmem"
+        envMap["MESA_GLSL_CACHE_DIR"] = PathManager.DIR_CACHE.absolutePath
+        envMap["MESA_GL_VERSION_OVERRIDE"] = "4.6"
+        envMap["MESA_GLSL_VERSION_OVERRIDE"] = "460"
+        envMap["LIB_MESA_NAME"] = "libOSMesa_8.so"
+    } else if (renderer != GL4ESRenderer && renderer != NGGL4ESRenderer && renderer != MobileGluesRenderer && renderer != PanfrostRenderer) {
         envMap["MESA_LOADER_DRIVER_OVERRIDE"] = "zink"
         envMap["MESA_GLSL_CACHE_DIR"] = PathManager.DIR_CACHE.absolutePath
         envMap["MESA_GL_VERSION_OVERRIDE"] = "4.6"
