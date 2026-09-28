@@ -224,6 +224,32 @@ class GameLauncher(
         if (!ZLBridge.dlopen(rendererLib) && !ZLBridge.dlopen(findInLdLibPath(rendererLib))) {
             Logger.error(TAG, "Failed to load renderer $rendererLib")
         }
+
+        // Best-effort MojoExec EGL preload (LTW/MG plugin). Needs libmojoexec.so in jniLibs.
+        tryPrepareMojoEgl()
+    }
+
+    private fun tryPrepareMojoEgl() {
+        val renderer = runCatching { Renderers.getCurrentRenderer() }.getOrNull() ?: return
+        val eglName = renderer.getRendererEGL() ?: return
+        val plugin = RendererPluginManager.selectedRendererPlugin
+        val eglPath = when {
+            eglName.startsWith("/") -> eglName
+            plugin != null -> "${plugin.path}/$eglName"
+            else -> "${PathManager.DIR_NATIVE_LIB}/$eglName"
+        }
+        val libDir = plugin?.path ?: PathManager.DIR_NATIVE_LIB
+        if (!git.artdeell.mojoexec.MojoExec.ensureLoaded()) {
+            Logger.warning(TAG, "libmojoexec.so not in jniLibs; skip EGL preload")
+            return
+        }
+        runCatching {
+            git.artdeell.mojoexec.MojoExec.setNativeLibraryDir(libDir)
+            val ok = git.artdeell.mojoexec.MojoExec.prepareEgl(eglPath, false, true, 3)
+            Logger.info(TAG, "MojoExec.prepareEgl($eglPath) = $ok")
+        }.onFailure {
+            Logger.warning(TAG, "MojoExec.prepareEgl failed", it)
+        }
     }
 
     override fun progressFinalUserArgs(args: MutableList<String>, ramAllocation: Int) {
