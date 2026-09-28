@@ -552,9 +552,13 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
     }
 
     override fun onResume() {
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        super.onResume()
-        withHandler { onResume() }
+    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+    super.onResume()
+    withHandler { onResume() }
+    
+    // MC 26.3 specific: Force immediate focus
+    lifecycleScope.launch {
+        delay(50)  // Give SDL time to setup
         CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_FOCUSED, 1)
         CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_HOVERED, 1)
     }
@@ -577,8 +581,8 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_FOCUSED, if (hasFocus) 0 else 0)
+            super.onWindowFocusChanged(hasFocus)
+            CallbackBridge.nativeSetWindowAttrib(LwjglGlfwKeycode.GLFW_FOCUSED, if (hasFocus) 1 else 0)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
