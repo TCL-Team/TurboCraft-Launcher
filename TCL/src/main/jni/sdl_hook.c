@@ -372,6 +372,29 @@ static void *custom_SDL_EGLGetProcAddress_Func(const char *proc) {
 // （校验 vkGetInstanceProcAddr 指针一致），而 SDL 仅能按路径加载，
 // 无法触及该私有实例。此处在 SDL 加载 Vulkan loader 时改还 VULKAN_PTR
 // 句柄；对应句柄的引用计数由启动器持有，忽略 SDL 侧的卸载。
+
+typedef void *(*dlopen_t)(const char *, int);
+static __thread int sInMojoEglDlopen;
+
+static void *custom_dlopen_Func(const char *path, int flags) {
+    const char *want = getenv("SDL_EGL_LIBRARY");
+    if (!sInMojoEglDlopen && path != NULL && want != NULL && strcmp(path, want) == 0) {
+        void *(*acq)(void) = (void *(*)(void)) dlsym(RTLD_DEFAULT, "mojoexec_acq_egl_handle");
+        if (acq != NULL) {
+            sInMojoEglDlopen = 1;
+            void *handle = acq();
+            sInMojoEglDlopen = 0;
+            if (handle != NULL) {
+                LOG_TO_I("SDL_Hook: acquired EGL handle from mojoexec = %p", handle);
+                return handle;
+            }
+        }
+    }
+    void *r = BYTEHOOK_CALL_PREV(custom_dlopen_Func, dlopen_t, path, flags);
+    BYTEHOOK_POP_STACK();
+    return r;
+}
+
 static void *custom_SDL_LoadObject_Func(const char *path) {
     if (path != NULL && strstr(path, "libvulkan") != NULL) {
         const char *vkptr = getenv("VULKAN_PTR");
@@ -628,6 +651,17 @@ static SDL_Window *proxy_SDL_GetWindowFromID(uint32_t id) {
 }
 
 static void *proxy_SDL_LoadObject(const char *path) {
+    const char *want = getenv("SDL_EGL_LIBRARY");
+    if (path != NULL && want != NULL && strcmp(path, want) == 0) {
+        void *(*acq)(void) = (void *(*)(void)) dlsym(RTLD_DEFAULT, "mojoexec_acq_egl_handle");
+        if (acq != NULL) {
+            void *handle = acq();
+            if (handle != NULL) {
+                LOG_TO_I("SDL_Hook: acquired EGL handle from mojoexec = %p", handle);
+                return handle;
+            }
+        }
+    }
     if (path != NULL && strstr(path, "libvulkan") != NULL) {
         const char *vkptr = getenv("VULKAN_PTR");
         if (vkptr != NULL && vkptr[0] != '\0') {
@@ -666,6 +700,8 @@ void create_sdl_hooks(bytehook_stub_t (*bytehook_hook_all_p)(const char *callee_
     bytehook_stub_t stub_SDL_EGLGetProcAddress = bytehook_hook_all_p(NULL, "SDL_EGL_GetProcAddress", &custom_SDL_EGLGetProcAddress_Func, NULL, NULL);
     // Vulkan 加载器一致性：SDL 侧改用启动器重定向的加载器句柄
     bytehook_stub_t stub_SDL_LoadObject = bytehook_hook_all_p(NULL, "SDL_LoadObject", &custom_SDL_LoadObject_Func, NULL, NULL);
+    bytehook_stub_t stub_dlopen = bytehook_hook_all_p(NULL, "dlopen", &custom_dlopen_Func, NULL, NULL);
+    (void) stub_dlopen;
     bytehook_stub_t stub_SDL_UnloadObject = bytehook_hook_all_p(NULL, "SDL_UnloadObject", &custom_SDL_UnloadObject_Func, NULL, NULL);
     // 主窗口销毁跟踪，配合窗口复用（见 custom_SDL_DestroyWindow_Func）
     bytehook_stub_t stub_SDL_DestroyWindow = bytehook_hook_all_p(NULL, "SDL_DestroyWindow", &custom_SDL_DestroyWindow_Func, NULL, NULL);
