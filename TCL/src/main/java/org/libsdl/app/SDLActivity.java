@@ -1108,6 +1108,13 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
 
     // C functions we call
     public static native String nativeGetVersion();
+    /**
+     * Required by SDL3 JNI_OnLoad (RegisterNatives). Missing this method makes
+     * System.loadLibrary("SDL3") fail with:
+     * no static or non-static method SDLActivity.nativeIsHIDAPIEnabled()Z
+     * HIDAPI is unused on this launcher; native side returns false when disabled.
+     */
+    public static native boolean nativeIsHIDAPIEnabled();
     public static native void nativeSetupJNI();
     public static native void nativeInitMainThread();
     public static native void nativeCleanupMainThread();
