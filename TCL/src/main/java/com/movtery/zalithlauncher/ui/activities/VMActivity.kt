@@ -442,6 +442,8 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
             System.loadLibrary("SDL3")
             LoggerBridge.append("TCL: SDL3 library loaded on main thread")
         } catch (t: Throwable) {
+            // SDL3 JNI_OnLoad RegisterNatives fails closed if SDLActivity is
+            // missing nativeIsHIDAPIEnabled()Z. Do not call setupJNI after this.
             LoggerBridge.append("TCL: SDL3 preload failed: ${t.message}")
         }
 
