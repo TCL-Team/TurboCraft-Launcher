@@ -225,8 +225,16 @@ class GameLauncher(
             Logger.error(TAG, "Failed to load renderer $rendererLib")
         }
 
-        // Best-effort MojoExec EGL preload (LTW/MG plugin). Needs libmojoexec.so in jniLibs.
-        tryPrepareMojoEgl()
+        // MojoExec.prepareEgl on top of an already-loaded renderer plugin (LTW /
+        // MobileGlues) double-claims the EGL library. On 26.3 that is the
+        // 60 FPS black screen, and the following SDL_InitSubSystem path then
+        // dies in libart. Plugin renderers already set SDL_EGL_LIBRARY.
+        val pluginOwnsEgl = RendererPluginManager.selectedRendererPlugin != null
+        if (!pluginOwnsEgl) {
+            tryPrepareMojoEgl()
+        } else {
+            Logger.info(TAG, "Skip MojoExec EGL preload; renderer plugin already owns EGL")
+        }
     }
 
     private fun tryPrepareMojoEgl() {
