@@ -469,14 +469,16 @@ static bool sdlInitSubSystemPrepare(SDL_InitFlags flags) {
 static bool custom_SDL_InitSubSystem_Func(SDL_InitFlags flags) {
     if (!sdlInitSubSystemPrepare(flags)) return false;
 
-    // Call original func after doing all the needed setup
-    bool r = BYTEHOOK_CALL_PREV(custom_SDL_InitSubSystem_Func, SDL_InitSubSystem_t, flags);
-    if (!r){
-        SET_DLSYM_PTR(dlopen("libSDL3.so", RTLD_NOLOAD), SDL_GetError);
-        LOG_TO_E("SDL_Hook: SDL_InitSubsystem Error: %s", SDL_GetError_p());
-    }
+    // Game render thread is an OpenJDK thread. Real SDL_InitSubSystem enters
+    // the Android video driver and AttachCurrentThread's that thread to ART.
+    // 26.3 log after "skipping setupJNI" + SDL revision:
+    //   SIGSEGV libbase.so android::base::LogMessage::~LogMessage
+    // which is an Android FATAL abort, not a Java exception.
+    // Hints/SetMainReady already ran in prepare. Report success so MC continues
+    // on the LTW/GLFW surface instead of dying inside SDL's Android backend.
+    LOG_TO_I("SDL_Hook: stub SDL_InitSubSystem flags=0x%x", (unsigned)flags);
     BYTEHOOK_POP_STACK();
-    return r;
+    return true;
 }
 
 // 移动渲染器均为 OpenGL ES 实现，而游戏按桌面 GL 惯例初始化 SDL，
@@ -571,12 +573,11 @@ static sdlUnloadObject_t realSdlUnloadObject = NULL;
 
 static bool proxy_SDL_InitSubSystem(SDL_InitFlags flags) {
     if (!sdlInitSubSystemPrepare(flags)) return false;
-    bool r = realSdlInitSubSystem(flags);
-    if (!r) {
-        SET_DLSYM_PTR(dlopen("libSDL3.so", RTLD_NOLOAD), SDL_GetError);
-        LOG_TO_E("SDL_Hook: SDL_InitSubsystem Error: %s", SDL_GetError_p());
-    }
-    return r;
+    // dlsym path used by LWJGL. Do not call realSdlInitSubSystem here:
+    // it logs SDL revision then FATAL-aborts in libbase LogMessage
+    // (seen on 26.3, tid != pid, right after "skipping setupJNI").
+    LOG_TO_I("SDL_Hook: stub SDL_InitSubSystem flags=0x%x (dlsym)", (unsigned)flags);
+    return true;
 }
 
 static SDL_Window *proxy_SDL_CreateWindow(const char *title, int w, int h, uint32_t flags) {
