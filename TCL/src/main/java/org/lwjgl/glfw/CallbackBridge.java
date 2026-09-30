@@ -332,26 +332,34 @@ public class CallbackBridge {
             return true;
         }
         try {
-            // Do NOT System.loadLibrary("SDL3") or SDL.setupJNI() here.
-            // This callback runs on the game render thread attached to
-            // Dalvik; nativeSetupJNI / HIDDeviceRegisterCallback SIGSEGV
-            // libart. VMActivity already loaded libSDL3 on the UI thread.
-            // sdl_hook.c stubs SDL_InitSubSystem + CreateWindow.
-            // ZL2 path: setupJNI on the Dalvik-attached thread after
-            // SDL.initialize()+externalInitialize already ran on UI.
-            try { System.loadLibrary("SDL2"); } catch (Throwable ignored) {}
-            LoggerBridge.append("TCL: setting up SDL JNI");
-            SdlBridge.setupJNI();
-            LoggerBridge.append("TCL: binding SDL surface");
-            SdlBridge.setSdlEnabled(true);
-            SDLSurface surface = SDLActivity.getSDLSurface();
-            if (surface != null) {
-                surface.surfaceChanged();
-                if (windowWidth > 0 && windowHeight > 0) {
-                    surface.nativeResize(windowWidth, windowHeight);
+            // This callback runs on the game render thread, which sdl_hook.c
+            // has AttachCurrentThread'd to Dalvik while the same thread also
+            // belongs to the game JVM. Calling SDLActivity.nativeSetupJNI /
+            // HIDDeviceRegisterCallback from here SIGSEGVs libart (seen as
+            // hs_err problematic frame libart.so right after this log line).
+            // SDL3 is loaded on the Android UI thread in VMActivity.
+            // Hand the surface bind back to that thread and return so the
+            // real SDL_InitSubSystem can continue.
+            LoggerBridge.append("TCL: SDL_InitSubSystem on game thread; posting JNI setup to UI thread");
+            final int w = windowWidth;
+            final int h = windowHeight;
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                try {
+                    SdlBridge.setupJNI();
+                    SdlBridge.setSdlEnabled(true);
+                    SDLSurface surface = SDLActivity.getSDLSurface();
+                    if (surface != null) {
+                        surface.surfaceChanged();
+                        if (w > 0 && h > 0) {
+                            surface.nativeResize(w, h);
+                        }
+                    }
+                    LoggerBridge.append("TCL: SDL support enabled (UI thread)");
+                } catch (Throwable t) {
+                    SdlBridge.setSdlEnabled(false);
+                    LoggerBridge.append("TCL: UI-thread SDL setup failed: " + t);
                 }
-            }
-            LoggerBridge.append("TCL: SDL support enabled");
+            });
             return true;
         } catch (Throwable e) {
             SdlBridge.setSdlEnabled(false);
