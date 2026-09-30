@@ -442,8 +442,10 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
             System.loadLibrary("SDL3")
             LoggerBridge.append("TCL: SDL3 library loaded on main thread")
         } catch (t: Throwable) {
-            // SDL3 JNI_OnLoad RegisterNatives fails closed if SDLActivity is
-            // missing nativeIsHIDAPIEnabled()Z. Do not call setupJNI after this.
+            // SDL 3.5.0 RegisterNatives fails closed on the first signature
+            // mismatch. Seen in order: nativeIsHIDAPIEnabled()Z, then
+            // onNativePinchStart(FFFF)V. Do not call setupJNI after this:
+            // a half-registered libSDL3 SIGSEGVs libart on the UI thread.
             LoggerBridge.append("TCL: SDL3 preload failed: ${t.message}")
         }
 
