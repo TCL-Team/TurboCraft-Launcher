@@ -1158,8 +1158,16 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     public static native boolean nativeAllowRecreateActivity();
     public static native int nativeCheckSDLThreadCounter();
     public static native void onNativeFileDialog(int requestCode, String[] filelist, int filter);
-    public static native void onNativePinchStart();
-    public static native void onNativePinchUpdate(float scale);
+    // SDL 3.5.0-506c628 RegisterNatives expects (FFFF)V / (FFFFF)V.
+    // Old ()V / (F)V overloads stay so existing SDLSurface call sites still compile.
+    public static native void onNativePinchStart(float spanX, float spanY, float focusX, float focusY);
+    public static void onNativePinchStart() {
+        onNativePinchStart(0f, 0f, 0f, 0f);
+    }
+    public static native void onNativePinchUpdate(float scale, float spanX, float spanY, float focusX, float focusY);
+    public static void onNativePinchUpdate(float scale) {
+        onNativePinchUpdate(scale, 0f, 0f, 0f, 0f);
+    }
     public static native void onNativePinchEnd();
 
     /**
