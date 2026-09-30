@@ -332,34 +332,17 @@ public class CallbackBridge {
             return true;
         }
         try {
-            // This callback runs on the game render thread, which sdl_hook.c
-            // has AttachCurrentThread'd to Dalvik while the same thread also
-            // belongs to the game JVM. Calling SDLActivity.nativeSetupJNI /
-            // HIDDeviceRegisterCallback from here SIGSEGVs libart (seen as
-            // hs_err problematic frame libart.so right after this log line).
-            // SDL3 is loaded on the Android UI thread in VMActivity.
-            // Hand the surface bind back to that thread and return so the
-            // real SDL_InitSubSystem can continue.
-            LoggerBridge.append("TCL: SDL_InitSubSystem on game thread; posting JNI setup to UI thread");
-            final int w = windowWidth;
-            final int h = windowHeight;
-            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-                try {
-                    SdlBridge.setupJNI();
-                    SdlBridge.setSdlEnabled(true);
-                    SDLSurface surface = SDLActivity.getSDLSurface();
-                    if (surface != null) {
-                        surface.surfaceChanged();
-                        if (w > 0 && h > 0) {
-                            surface.nativeResize(w, h);
-                        }
-                    }
-                    LoggerBridge.append("TCL: SDL support enabled (UI thread)");
-                } catch (Throwable t) {
-                    SdlBridge.setSdlEnabled(false);
-                    LoggerBridge.append("TCL: UI-thread SDL setup failed: " + t);
-                }
-            });
+            // Do not touch Android framework or SDL JNI from this callback.
+            // 26.3 log after the previous patch:
+            //   TCL: SDL_InitSubSystem on game thread; posting JNI setup to UI thread
+            //   SIGSEGV libart.so+0x263a58  pid==tid  (main/UI thread)
+            // Handler.post ran SdlBridge.setupJNI() on the UI thread while
+            // SDL3 JNI_OnLoad had already failed (pinch signature mismatch),
+            // so nativeSetupJNI entered a half-registered libSDL3 and killed ART.
+            // Real SDL_InitSubSystem must be allowed to return. SDL 3.5.0 itself
+            // already logged App name/version on the render thread after this hook.
+            LoggerBridge.append("TCL: SDL_InitSubSystem noted; skipping setupJNI");
+            SdlBridge.setSdlEnabled(true);
             return true;
         } catch (Throwable e) {
             SdlBridge.setSdlEnabled(false);
