@@ -1116,6 +1116,9 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     public static native void nativeSendQuit();
     public static native void nativeQuit();
     public static native void nativePause();
+    public static native int nativeGetCompiledSubsystems();
+    public static native String nativeGetHint(String name);
+    public static native boolean nativeGetHintBoolean(String name, boolean defaultValue);
     public static native void nativeResume();
     public static native void nativeFocusChanged(boolean hasFocus);
     public static native void onNativeDropFile(String filename);
