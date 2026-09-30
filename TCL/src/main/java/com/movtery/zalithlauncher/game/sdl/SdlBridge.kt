@@ -49,6 +49,10 @@ object SdlBridge {
             SDL.setupJNI()
         } catch (t: Throwable) {
             android.util.Log.w("SdlBridge", "SDL.setupJNI: ${t.message}")
+            // Do not mark JNI ready. A partial RegisterNatives (missing
+            // nativeIsHIDAPIEnabled) leaves nativeSetupJNI able to enter
+            // libSDL3 and SIGSEGV libart.
+            return false
         }
         activityRef?.get()?.let { SDL.setContext(it) }
         jniReady = true
