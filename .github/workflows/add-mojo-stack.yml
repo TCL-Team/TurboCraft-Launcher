@@ -1,0 +1,46 @@
+name: Add Mojo 26.3 stack
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [26.3-support]
+    paths:
+      - .github/workflows/add-mojo-stack.yml
+
+permissions:
+  contents: write
+
+jobs:
+  submodules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: false
+
+      - name: Add mojoexec, MojoSDL and glfw if missing
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          add_if_missing() {
+            local url="$1" path="$2"
+            if [ -e "$path/.git" ] || git ls-files --stage "$path" | grep -q '^160000'; then
+              echo "already present: $path"
+              return
+            fi
+            rm -rf "$path"
+            git submodule add "$url" "$path"
+          }
+          add_if_missing https://github.com/MojoLauncher/mojoexec TCL/src/main/jni/mojoexec
+          add_if_missing https://github.com/MojoLauncher/MojoSDL TCL/src/main/jni/sdl
+          add_if_missing https://github.com/MojoLauncher/glfw TCL/src/main/jni/glfw
+          git add .gitmodules TCL/src/main/jni/mojoexec TCL/src/main/jni/sdl TCL/src/main/jni/glfw
+          if git diff --cached --quiet; then
+            echo "nothing to commit"
+            exit 0
+          fi
+          git commit -m "Add Mojo 26.3 submodules"
+          git push origin HEAD:26.3-mojo
