@@ -437,6 +437,9 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
         // Load only. Do not call setupJNI() here: HIDDeviceRegisterCallback
         // kills the process before the game JVM starts. The phone then jumps
         // to the Android home screen and the log stops at this line.
+        // 26.2 and below do not need SDL3. Do not call nativeSetupJNI here:
+        // it SIGSEGVs libart once the game JVM exists, and killed the process
+        // when called from onCreate. 26.3 uses the separate Mc26 path.
         try {
             System.loadLibrary("SDL3")
             LoggerBridge.append("TCL: SDL3 library loaded on main thread")
