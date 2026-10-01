@@ -466,23 +466,17 @@ static bool sdlInitSubSystemPrepare(SDL_InitFlags flags) {
     return true;
 }
 
-// 26.3 log with driver=dummy: init succeeded, then RenderPearl rejected it:
-//   No dynamic OpenGL support in current SDL video driver (dummy)
-//   No dynamic Vulkan support in current SDL video driver (dummy)
-// Game then exited 0 and the launcher returned home. dummy cannot run 26.3.
-// Use the Android driver. JNI method IDs must already be cached on the UI
-// thread (VMActivity after loadLibrary) or this call FATAL-aborts in libbase.
+// ZL2 path: call the real SDL_InitSubSystem. Do not force dummy — RenderPearl
+// rejects it ("No dynamic OpenGL support in current SDL video driver (dummy)")
+// and the game exits 0, which sends the user back to the launcher.
+// Do not force a driver hint either; the Android build's default is android.
 static bool initSubsystemNoAndroid(SDL_InitFlags flags, bool (*real_init)(SDL_InitFlags)) {
     void *sdl = dlopen("libSDL3.so", RTLD_NOLOAD);
-    SET_DLSYM_PTR(sdl, SDL_SetHint);
     SET_DLSYM_PTR(sdl, SDL_GetError);
-    unsetenv("SDL_VIDEO_DRIVER");
-    unsetenv("SDL_VIDEODRIVER");
-    if (SDL_SetHint_p) SDL_SetHint_p("SDL_VIDEO_DRIVER", "android");
-    LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x driver=android", (unsigned)flags);
+    LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x real", (unsigned)flags);
     bool r = real_init(flags);
     if (!r) {
-        LOG_TO_E("SDL_Hook: android init failed: %s", SDL_GetError_p ? SDL_GetError_p() : "?");
+        LOG_TO_E("SDL_Hook: SDL_InitSubsystem Error: %s", SDL_GetError_p ? SDL_GetError_p() : "?");
     }
     return r;
 }
