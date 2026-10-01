@@ -466,27 +466,25 @@ static bool sdlInitSubSystemPrepare(SDL_InitFlags flags) {
     return true;
 }
 
-// flags=0x20 is SDL_INIT_VIDEO. Returning true without the real call left
-// SDL_WasInit(VIDEO)==0, so RenderPearl aborted both backends with
-// "Video subsystem has not been initialized" (26.3 and 26.4-snapshot-2).
-// The Android video driver then FATAL-aborts in libbase LogMessage if it
-// runs on this OpenJDK thread. dummy/offscreen do not enter that JNI path.
+// 26.3 log with driver=dummy: init succeeded, then RenderPearl rejected it:
+//   No dynamic OpenGL support in current SDL video driver (dummy)
+//   No dynamic Vulkan support in current SDL video driver (dummy)
+// Game then exited 0 and the launcher returned home. dummy cannot run 26.3.
+// Use the Android driver. JNI method IDs must already be cached on the UI
+// thread (VMActivity after loadLibrary) or this call FATAL-aborts in libbase.
 static bool initSubsystemNoAndroid(SDL_InitFlags flags, bool (*real_init)(SDL_InitFlags)) {
     void *sdl = dlopen("libSDL3.so", RTLD_NOLOAD);
     SET_DLSYM_PTR(sdl, SDL_SetHint);
     SET_DLSYM_PTR(sdl, SDL_GetError);
-    const char *drivers[] = {"dummy", "offscreen"};
-    for (int i = 0; i < 2; i++) {
-        if (SDL_SetHint_p) SDL_SetHint_p("SDL_VIDEO_DRIVER", drivers[i]);
-        setenv("SDL_VIDEO_DRIVER", drivers[i], 1);
-        setenv("SDL_VIDEODRIVER", drivers[i], 1);
-        LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x driver=%s", (unsigned)flags, drivers[i]);
-        bool r = real_init(flags);
-        if (r) return true;
-        LOG_TO_E("SDL_Hook: init failed driver=%s err=%s", drivers[i],
-                 SDL_GetError_p ? SDL_GetError_p() : "?");
+    unsetenv("SDL_VIDEO_DRIVER");
+    unsetenv("SDL_VIDEODRIVER");
+    if (SDL_SetHint_p) SDL_SetHint_p("SDL_VIDEO_DRIVER", "android");
+    LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x driver=android", (unsigned)flags);
+    bool r = real_init(flags);
+    if (!r) {
+        LOG_TO_E("SDL_Hook: android init failed: %s", SDL_GetError_p ? SDL_GetError_p() : "?");
     }
-    return false;
+    return r;
 }
 
 static bool custom_SDL_InitSubSystem_Func(SDL_InitFlags flags);
