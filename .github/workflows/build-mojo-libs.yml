@@ -48,5 +48,5 @@ jobs:
             exit 0
           fi
           git commit -m "Add Mojo arm64 libs for 26.3"
-          git push origin HEAD:26.3-mojo
+          git push origin HEAD:26.3-mojo-1
           
