@@ -43,6 +43,18 @@ object SdlBridge {
 
     @JvmStatic
     @Synchronized
+    /** Video method IDs only. Full SDL.setupJNI() also registers HID and SIGSEGVs libart.so+0x263a58. */
+    fun setupVideoJni(): Boolean {
+        return try {
+            org.libsdl.app.SDLActivity.nativeSetupJNI()
+            LoggerBridge.append("TCL: SDL video JNI cached")
+            true
+        } catch (t: Throwable) {
+            LoggerBridge.append("TCL: SDL video JNI failed: ${t.message}")
+            false
+        }
+    }
+
     fun setupJNI(): Boolean {
         if (jniReady) return true
         try {
