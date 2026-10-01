@@ -1,4 +1,4 @@
-name: Add Mojo 26.3 stack
+name: Add Mojo 26.3 stack files
 
 on:
   workflow_dispatch:
