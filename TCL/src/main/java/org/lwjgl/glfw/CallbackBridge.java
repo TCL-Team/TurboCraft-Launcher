@@ -337,16 +337,14 @@ public class CallbackBridge {
             // process when it ran from VMActivity.onCreate. Run it on the
             // Android main looper after prepareSurface, then let sdl_hook call
             // the real Android SDL_InitSubSystem. dummy is rejected by RenderPearl.
-            LoggerBridge.append("TCL: posting SDL JNI to UI thread");
+            LoggerBridge.append("TCL: SDL_Init noted; not calling nativeSetupJNI");
             final int w = windowWidth;
             final int h = windowHeight;
             final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
             new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                 try {
-                    // Full setupJNI() calls SDLControllerManager.nativeSetupJNI()
-                    // and SIGSEGVs libart.so+0x263a58 (pid==tid, main thread).
-                    // Video init only needs SDLActivity.nativeSetupJNI().
-                    SdlBridge.setupVideoJni();
+                    // nativeSetupJNI is fatal on this launcher (libart.so+0x263a58).
+                    // 26.2 never needs it. 26.3 must use the Mojo SDL/EGL stack.
                     SdlBridge.setSdlEnabled(true);
                     SDLSurface surface = SDLActivity.getSDLSurface();
                     if (surface != null) {
