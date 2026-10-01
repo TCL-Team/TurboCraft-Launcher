@@ -4,6 +4,7 @@ import android.app.Activity
 import android.view.Surface
 import android.view.ViewGroup
 import androidx.annotation.Keep
+import com.movtery.zalithlauncher.bridge.LoggerBridge
 import androidx.annotation.MainThread
 import org.libsdl.app.SDL
 import org.libsdl.app.SDLActivity
