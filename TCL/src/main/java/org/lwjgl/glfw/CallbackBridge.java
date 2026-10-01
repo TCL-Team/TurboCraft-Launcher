@@ -343,7 +343,10 @@ public class CallbackBridge {
             final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
             new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
                 try {
-                    SdlBridge.setupJNI();
+                    // Full setupJNI() calls SDLControllerManager.nativeSetupJNI()
+                    // and SIGSEGVs libart.so+0x263a58 (pid==tid, main thread).
+                    // Video init only needs SDLActivity.nativeSetupJNI().
+                    SdlBridge.setupVideoJni();
                     SdlBridge.setSdlEnabled(true);
                     SDLSurface surface = SDLActivity.getSDLSurface();
                     if (surface != null) {
