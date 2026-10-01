@@ -332,17 +332,32 @@ public class CallbackBridge {
             return true;
         }
         try {
-            // Do not touch Android framework or SDL JNI from this callback.
-            // 26.3 log after the previous patch:
-            //   TCL: SDL_InitSubSystem on game thread; posting JNI setup to UI thread
-            //   SIGSEGV libart.so+0x263a58  pid==tid  (main/UI thread)
-            // Handler.post ran SdlBridge.setupJNI() on the UI thread while
-            // SDL3 JNI_OnLoad had already failed (pinch signature mismatch),
-            // so nativeSetupJNI entered a half-registered libSDL3 and killed ART.
-            // Real SDL_InitSubSystem must be allowed to return. SDL 3.5.0 itself
-            // already logged App name/version on the render thread after this hook.
-            LoggerBridge.append("TCL: SDL_InitSubSystem noted; skipping setupJNI");
-            SdlBridge.setSdlEnabled(true);
+            // ZL2 calls setupJNI from this hook, but on TCL that SIGSEGV'd
+            // libart when it ran on the OpenJDK render thread, and killed the
+            // process when it ran from VMActivity.onCreate. Run it on the
+            // Android main looper after prepareSurface, then let sdl_hook call
+            // the real Android SDL_InitSubSystem. dummy is rejected by RenderPearl.
+            LoggerBridge.append("TCL: posting SDL JNI to UI thread");
+            final int w = windowWidth;
+            final int h = windowHeight;
+            final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+                try {
+                    SdlBridge.setupJNI();
+                    SdlBridge.setSdlEnabled(true);
+                    SDLSurface surface = SDLActivity.getSDLSurface();
+                    if (surface != null) {
+                        surface.surfaceChanged();
+                        if (w > 0 && h > 0) surface.nativeResize(w, h);
+                    }
+                    LoggerBridge.append("TCL: SDL support enabled (UI thread)");
+                } catch (Throwable t) {
+                    LoggerBridge.append("TCL: UI SDL setup failed: " + t);
+                } finally {
+                    done.countDown();
+                }
+            });
+            done.await(3, java.util.concurrent.TimeUnit.SECONDS);
             return true;
         } catch (Throwable e) {
             SdlBridge.setSdlEnabled(false);
