@@ -1,0 +1,9 @@
+[submodule "TCL/src/main/jni/mojoexec"]
+	path = TCL/src/main/jni/mojoexec
+	url = https://github.com/MojoLauncher/mojoexec
+[submodule "TCL/src/main/jni/sdl"]
+	path = TCL/src/main/jni/sdl
+	url = https://github.com/MojoLauncher/MojoSDL
+[submodule "TCL/src/main/jni/glfw"]
+	path = TCL/src/main/jni/glfw
+	url = https://github.com/MojoLauncher/glfw
