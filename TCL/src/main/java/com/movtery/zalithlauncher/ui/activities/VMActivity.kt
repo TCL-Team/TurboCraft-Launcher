@@ -434,19 +434,12 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
         if (!logFile.exists() && !logFile.createNewFile()) throw IOException("Failed to create a new log file")
         LoggerBridge.start(logFile.absolutePath)
 
-        // Load SDL3 on the Android UI thread so JNI_OnLoad sees the real
-        // SDLActivity class. Cache JNI only after a successful load.
-        // Calling setupJNI from the game thread SIGSEGV'd libart. Skipping
-        // it and then entering the Android video driver FATAL-aborted libbase.
-        // dummy driver inits but RenderPearl rejects it (no dynamic GL/Vulkan).
+        // Load only. Do not call setupJNI() here: HIDDeviceRegisterCallback
+        // kills the process before the game JVM starts. The phone then jumps
+        // to the Android home screen and the log stops at this line.
         try {
             System.loadLibrary("SDL3")
             LoggerBridge.append("TCL: SDL3 library loaded on main thread")
-            if (com.movtery.zalithlauncher.game.sdl.SdlBridge.setupJNI()) {
-                LoggerBridge.append("TCL: SDL JNI cached on UI thread")
-            } else {
-                LoggerBridge.append("TCL: SDL JNI cache failed on UI thread")
-            }
         } catch (t: Throwable) {
             LoggerBridge.append("TCL: SDL3 preload failed: ${t.message}")
         }
