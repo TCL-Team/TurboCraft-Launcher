@@ -435,17 +435,19 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
         LoggerBridge.start(logFile.absolutePath)
 
         // Load SDL3 on the Android UI thread so JNI_OnLoad sees the real
-        // SDLActivity class. Do NOT call setupJNI() here: that runs
-        // HIDDeviceRegisterCallback in the launcher process and kills
-        // every version (1.21 / 26.1 / 26.3) before the game JVM starts.
+        // SDLActivity class. Cache JNI only after a successful load.
+        // Calling setupJNI from the game thread SIGSEGV'd libart. Skipping
+        // it and then entering the Android video driver FATAL-aborted libbase.
+        // dummy driver inits but RenderPearl rejects it (no dynamic GL/Vulkan).
         try {
             System.loadLibrary("SDL3")
             LoggerBridge.append("TCL: SDL3 library loaded on main thread")
+            if (com.movtery.zalithlauncher.game.sdl.SdlBridge.setupJNI()) {
+                LoggerBridge.append("TCL: SDL JNI cached on UI thread")
+            } else {
+                LoggerBridge.append("TCL: SDL JNI cache failed on UI thread")
+            }
         } catch (t: Throwable) {
-            // SDL 3.5.0 RegisterNatives fails closed on the first signature
-            // mismatch. Seen in order: nativeIsHIDAPIEnabled()Z, then
-            // onNativePinchStart(FFFF)V. Do not call setupJNI after this:
-            // a half-registered libSDL3 SIGSEGVs libart on the UI thread.
             LoggerBridge.append("TCL: SDL3 preload failed: ${t.message}")
         }
 
