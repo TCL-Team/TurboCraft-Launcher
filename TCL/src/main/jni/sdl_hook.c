@@ -489,6 +489,8 @@ static bool initSubsystemNoAndroid(SDL_InitFlags flags, bool (*real_init)(SDL_In
     return false;
 }
 
+static bool custom_SDL_InitSubSystem_Func(SDL_InitFlags flags);
+
 static bool bytehook_real_init(SDL_InitFlags flags) {
     bool r = BYTEHOOK_CALL_PREV(custom_SDL_InitSubSystem_Func, SDL_InitSubSystem_t, flags);
     return r;
