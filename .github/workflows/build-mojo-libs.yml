@@ -1,0 +1,51 @@
+name: Build Mojo native libs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  libs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 26.3-mojo
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25c
+
+      - name: Build MojoSDL, mojoexec, glfw
+        run: |
+          set -euo pipefail
+          cmake -S TCL/src/main/jni/mojo-build -B build-mojo \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_HOME/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-26 \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-mojo --parallel
+          mkdir -p TCL/src/main/jniLibs/arm64-v8a
+          find build-mojo -name 'libmojoexec.so' -o -name 'libSDL3.so' -o -name 'libglfw.so' \
+            | while read -r so; do cp -v "$so" TCL/src/main/jniLibs/arm64-v8a/; done
+          ls -l TCL/src/main/jniLibs/arm64-v8a
+
+      - name: Commit libs
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add TCL/src/main/jniLibs/arm64-v8a/libmojoexec.so \
+                  TCL/src/main/jniLibs/arm64-v8a/libSDL3.so \
+                  TCL/src/main/jniLibs/arm64-v8a/libglfw.so
+          if git diff --cached --quiet; then
+            echo "no new libs"
+            exit 0
+          fi
+          git commit -m "Add Mojo arm64 libs for 26.3"
+          git push origin HEAD:26.3-mojo
