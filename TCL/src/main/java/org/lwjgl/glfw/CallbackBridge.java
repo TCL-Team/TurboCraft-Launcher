@@ -332,33 +332,10 @@ public class CallbackBridge {
             return true;
         }
         try {
-            // ZL2 calls setupJNI from this hook, but on TCL that SIGSEGV'd
-            // libart when it ran on the OpenJDK render thread, and killed the
-            // process when it ran from VMActivity.onCreate. Run it on the
-            // Android main looper after prepareSurface, then let sdl_hook call
-            // the real Android SDL_InitSubSystem. dummy is rejected by RenderPearl.
-            LoggerBridge.append("TCL: SDL_Init noted; not calling nativeSetupJNI");
-            final int w = windowWidth;
-            final int h = windowHeight;
-            final java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(1);
-            new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-                try {
-                    // nativeSetupJNI is fatal on this launcher (libart.so+0x263a58).
-                    // 26.2 never needs it. 26.3 must use the Mojo SDL/EGL stack.
-                    SdlBridge.setSdlEnabled(true);
-                    SDLSurface surface = SDLActivity.getSDLSurface();
-                    if (surface != null) {
-                        surface.surfaceChanged();
-                        if (w > 0 && h > 0) surface.nativeResize(w, h);
-                    }
-                    LoggerBridge.append("TCL: SDL support enabled (UI thread)");
-                } catch (Throwable t) {
-                    LoggerBridge.append("TCL: UI SDL setup failed: " + t);
-                } finally {
-                    done.countDown();
-                }
-            });
-            done.await(3, java.util.concurrent.TimeUnit.SECONDS);
+            // Mojo libSDL3.so has no SDLActivity.onNativeSurfaceChanged.
+            // Calling surfaceChanged() crashes the 26.3 path. Do not call it.
+            LoggerBridge.append("TCL: SDL_Init noted; not calling nativeSetupJNI or onNativeSurfaceChanged");
+            SdlBridge.setSdlEnabled(true);
             return true;
         } catch (Throwable e) {
             SdlBridge.setSdlEnabled(false);
