@@ -21,27 +21,52 @@ jobs:
         with:
           ndk-version: r27c
 
-      - name: Stop Android_JNI_InitNotify crash
+      - name: Patch Android video init
         run: |
           set -euo pipefail
           python3 - << 'PY'
           from pathlib import Path
-          p = Path("TCL/src/main/jni/sdl/src/core/android/SDL_android.c")
+          p = Path("TCL/src/main/jni/sdl/src/video/android/SDL_androidvideo.c")
           text = p.read_text()
-          old = """void Android_JNI_InitNotify()
+          start = text.find("bool Android_VideoInit(")
+          if start < 0:
+              raise SystemExit("Android_VideoInit not found")
+          end = text.find("\nstatic SDL_VideoDevice *Android_CreateDevice", start)
+          if end < 0:
+              raise SystemExit("Android_CreateDevice not found")
+          new = '''bool Android_VideoInit(SDL_VideoDevice *_this)
           {
-              JNIEnv *env = Android_JNI_GetEnv();
-              (*env)->CallStaticVoidMethod(env, mActivityClass, midNotifyInit);
-          }"""
-          new = """void Android_JNI_InitNotify()
-          {
-              /* TCL game thread has no SDLActivity JNI env. Do not crash here. */
-              return;
-          }"""
-          if old not in text:
-              raise SystemExit("Android_JNI_InitNotify block not found")
-          p.write_text(text.replace(old, new, 1))
-          print("patched SDL_android.c")
+              SDL_VideoData *videodata = _this->internal;
+              SDL_DisplayID displayID;
+              SDL_VideoDisplay *display;
+              SDL_DisplayMode mode;
+
+              videodata->isPaused = false;
+              videodata->isPausing = false;
+              if (Android_DeviceWidth <= 0) Android_DeviceWidth = 1688;
+              if (Android_DeviceHeight <= 0) Android_DeviceHeight = 756;
+              if (Android_ScreenRate <= 0.0f) Android_ScreenRate = 60.0f;
+
+              SDL_zero(mode);
+              mode.format = Android_ScreenFormat;
+              mode.w = Android_DeviceWidth;
+              mode.h = Android_DeviceHeight;
+              mode.refresh_rate = Android_ScreenRate;
+
+              displayID = SDL_AddBasicVideoDisplay(&mode);
+              if (displayID == 0) {
+                  return false;
+              }
+              display = SDL_GetVideoDisplay(displayID);
+              display->natural_orientation = SDL_ORIENTATION_LANDSCAPE;
+              display->current_orientation = SDL_ORIENTATION_LANDSCAPE;
+              display->content_scale = 1.0f;
+              return true;
+          }
+
+          '''
+          p.write_text(text[:start] + new + text[end:])
+          print("patched Android_VideoInit")
           aff = Path("TCL/src/main/jni/mojoexec/affinity.c")
           t = aff.read_text()
           if "_GNU_SOURCE" not in t:
@@ -76,5 +101,5 @@ jobs:
             echo "no change"
             exit 0
           fi
-          git commit -m "Rebuild Mojo SDL without Android_JNI_InitNotify crash"
+          git commit -m "Rebuild Mojo SDL without Android video JNI"
           git push origin HEAD:26.3-mojo
