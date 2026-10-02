@@ -1,12 +1,20 @@
 package git.artdeell.mojoexec;
 
 /**
- * JNI names match MojoLauncher/mojoexec. The methods live in libmojoexec.so,
- * which is built from the mojoexec submodule. Do not call these on 26.2.
+ * JNI names match MojoLauncher/mojoexec. Methods live in libmojoexec.so.
  */
 public class MojoExec {
-    static {
-        System.loadLibrary("mojoexec");
+    private static boolean loaded;
+
+    public static boolean ensureLoaded() {
+        if (loaded) return true;
+        try {
+            System.loadLibrary("mojoexec");
+            loaded = true;
+            return true;
+        } catch (UnsatisfiedLinkError e) {
+            return false;
+        }
     }
 
     public static native boolean prepareEgl(String eglPath, boolean useBypass, boolean useGles, int glesVersion);
