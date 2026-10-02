@@ -225,16 +225,8 @@ class GameLauncher(
             Logger.error(TAG, "Failed to load renderer $rendererLib")
         }
 
-        // MojoExec.prepareEgl on top of an already-loaded renderer plugin (LTW /
-        // MobileGlues) double-claims the EGL library. On 26.3 that is the
-        // 60 FPS black screen, and the following SDL_InitSubSystem path then
-        // dies in libart. Plugin renderers already set SDL_EGL_LIBRARY.
-        val pluginOwnsEgl = RendererPluginManager.selectedRendererPlugin != null
-        if (!pluginOwnsEgl) {
-            tryPrepareMojoEgl()
-        } else {
-            Logger.info(TAG, "Skip MojoExec EGL preload; renderer plugin already owns EGL")
-        }
+        // 26.3 Mojo SDL needs prepareEgl even when LTW already loaded the renderer.
+        tryPrepareMojoEgl()
     }
 
     private fun tryPrepareMojoEgl() {
@@ -251,10 +243,13 @@ class GameLauncher(
             Logger.warning(TAG, "libmojoexec.so not in jniLibs; skip EGL preload")
             return
         }
+        val w = System.getProperty("glfwstub.windowWidth")?.toIntOrNull() ?: 1280
+        val h = System.getProperty("glfwstub.windowHeight")?.toIntOrNull() ?: 720
         runCatching {
             git.artdeell.mojoexec.MojoExec.setNativeLibraryDir(libDir)
-            val ok = git.artdeell.mojoexec.MojoExec.prepareEgl(eglPath, false, true, 3)
-            Logger.info(TAG, "MojoExec.prepareEgl($eglPath) = $ok")
+            git.artdeell.mojoexec.MojoExec.setDisplayParams(w, h, 60f)
+            val ok = git.artdeell.mojoexec.MojoExec.prepareEgl(eglPath, true, true, 3)
+            Logger.info(TAG, "MojoExec.prepareEgl($eglPath) = $ok ${w}x$h")
         }.onFailure {
             Logger.warning(TAG, "MojoExec.prepareEgl failed", it)
         }
