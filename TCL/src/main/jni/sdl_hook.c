@@ -466,11 +466,13 @@ static bool sdlInitSubSystemPrepare(SDL_InitFlags flags) {
     return true;
 }
 
-// ZL2 path: call the real SDL_InitSubSystem. Do not force dummy — RenderPearl
-// rejects it ("No dynamic OpenGL support in current SDL video driver (dummy)")
-// and the game exits 0, which sends the user back to the launcher.
-// Do not force a driver hint either; the Android build's default is android.
+// Mojo Android video init SIGSEGVs in libSDL3.so on the game thread.
+// Skip only the video flag. Other subsystems still call the real init.
 static bool initSubsystemNoAndroid(SDL_InitFlags flags, bool (*real_init)(SDL_InitFlags)) {
+    if (flags & 0x20u) {
+        LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x skip android video", (unsigned)flags);
+        return true;
+    }
     void *sdl = dlopen("libSDL3.so", RTLD_NOLOAD);
     SET_DLSYM_PTR(sdl, SDL_GetError);
     LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x real", (unsigned)flags);
