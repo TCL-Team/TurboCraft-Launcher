@@ -28,14 +28,26 @@ jobs:
           from pathlib import Path
           p = Path("TCL/src/main/jni/sdl/src/video/android/SDL_androidvideo.c")
           text = p.read_text()
-          start = text.find("bool Android_VideoInit(")
-          if start < 0:
-              raise SystemExit("Android_VideoInit not found")
-          end = text.find("\n}", start)
-          if end < 0:
-              raise SystemExit("function end not found")
-          end += 2
-          body = text[start:end]
+          key = "bool Android_VideoInit("
+          start = 0
+          body = None
+          while True:
+              i = text.find(key, start)
+              if i < 0:
+                  break
+              brace = text.find("{", i)
+              semi = text.find(";", i)
+              if brace >= 0 and (semi < 0 or brace < semi):
+                  end = text.find("\n}", brace)
+                  if end < 0:
+                      raise SystemExit("function end not found")
+                  end += 2
+                  body_start = i
+                  body = text[body_start:end]
+                  break
+              start = i + len(key)
+          if body is None:
+              raise SystemExit("Android_VideoInit body not found")
           body = body.replace("Android_JNI_InitNotify();", "/* no JNI on game thread */")
           body = body.replace("Android_JNI_GetDisplayNaturalOrientation()", "SDL_ORIENTATION_LANDSCAPE")
           body = body.replace("Android_JNI_GetDisplayCurrentOrientation()", "SDL_ORIENTATION_LANDSCAPE")
@@ -43,8 +55,8 @@ jobs:
           body = body.replace("Android_InitMouse();", "/* skip mouse JNI */")
           if "Android_JNI_" in body:
               raise SystemExit("JNI call still in VideoInit:\n" + body)
-          p.write_text(text[:start] + body + text[end:])
-          print("patched VideoInit only")
+          p.write_text(text[:body_start] + body + text[end:])
+          print("patched VideoInit body")
           print(body)
           aff = Path("TCL/src/main/jni/mojoexec/affinity.c")
           t = aff.read_text()
