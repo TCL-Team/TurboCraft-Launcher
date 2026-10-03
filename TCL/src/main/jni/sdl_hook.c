@@ -8,6 +8,7 @@
 #include "logger/logger.h"
 #include "sdl_hook.h"
 
+#include <android/native_window.h>
 #include <bytehook.h>
 #include <dlfcn.h>
 #include <jni.h>
@@ -466,16 +467,26 @@ static bool sdlInitSubSystemPrepare(SDL_InitFlags flags) {
     return true;
 }
 
-// Mojo Android video init SIGSEGVs in libSDL3.so on the game thread.
-// Skip only the video flag. Other subsystems still call the real init.
+// Use the launcher Surface already stored in pojavWindow. Do not enter
+// Android_JNI_GetNativeWindow, that call has no SDLActivity on this thread.
+static void *hook_Android_JNI_GetNativeWindow(void) {
+    struct ANativeWindow *window = (pojav_environ != NULL) ? pojav_environ->pojavWindow : NULL;
+    LOG_TO_I("SDL_Hook: native window %p", window);
+    return window;
+}
+
+static void hook_Android_JNI_InitNotify(void) {
+    LOG_TO_I("SDL_Hook: skip Android_JNI_InitNotify");
+}
+
+static int hook_Android_JNI_GetDisplayNaturalOrientation(void) { return 1; }
+static int hook_Android_JNI_GetDisplayCurrentOrientation(void) { return 1; }
+
 static bool initSubsystemNoAndroid(SDL_InitFlags flags, bool (*real_init)(SDL_InitFlags)) {
-    if (flags & 0x20u) {
-        LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x skip android video", (unsigned)flags);
-        return true;
-    }
     void *sdl = dlopen("libSDL3.so", RTLD_NOLOAD);
     SET_DLSYM_PTR(sdl, SDL_GetError);
-    LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x real", (unsigned)flags);
+    struct ANativeWindow *window = (pojav_environ != NULL) ? pojav_environ->pojavWindow : NULL;
+    LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x pojavWindow=%p", (unsigned)flags, window);
     bool r = real_init(flags);
     if (!r) {
         LOG_TO_E("SDL_Hook: SDL_InitSubsystem Error: %s", SDL_GetError_p ? SDL_GetError_p() : "?");
@@ -671,6 +682,10 @@ void create_sdl_hooks(bytehook_stub_t (*bytehook_hook_all_p)(const char *callee_
                                                              bytehook_hooked_t hooked, void *hooked_arg)) {
     // Don't set callee_path_name to anything besides NULL or else it won't be able to find the symbol
     bytehook_stub_t stub_SDL_InitSubSystem = bytehook_hook_all_p(NULL, "SDL_InitSubSystem", &custom_SDL_InitSubSystem_Func, NULL, NULL);
+    bytehook_hook_all_p(NULL, "Android_JNI_GetNativeWindow", &hook_Android_JNI_GetNativeWindow, NULL, NULL);
+    bytehook_hook_all_p(NULL, "Android_JNI_InitNotify", &hook_Android_JNI_InitNotify, NULL, NULL);
+    bytehook_hook_all_p(NULL, "Android_JNI_GetDisplayNaturalOrientation", &hook_Android_JNI_GetDisplayNaturalOrientation, NULL, NULL);
+    bytehook_hook_all_p(NULL, "Android_JNI_GetDisplayCurrentOrientation", &hook_Android_JNI_GetDisplayCurrentOrientation, NULL, NULL);
     bytehook_stub_t stub_SDL_GetWindowFromEvent = bytehook_hook_all_p(NULL, "SDL_GetWindowFromEvent", &custom_SDL_GetWindowFromEvent_Func, NULL, NULL);
     bytehook_stub_t stub_SDL_GetWindowFromID = bytehook_hook_all_p(NULL, "SDL_GetWindowFromID", &custom_SDL_GetWindowFromID_Func, NULL, NULL);
     // 窗口创建前强制 ES profile（覆盖 SDL3 的两种窗口创建入口）
