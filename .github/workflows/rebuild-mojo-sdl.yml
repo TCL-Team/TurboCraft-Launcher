@@ -31,42 +31,21 @@ jobs:
           start = text.find("bool Android_VideoInit(")
           if start < 0:
               raise SystemExit("Android_VideoInit not found")
-          end = text.find("\nstatic SDL_VideoDevice *Android_CreateDevice", start)
+          end = text.find("\n}", start)
           if end < 0:
-              raise SystemExit("Android_CreateDevice not found")
-          new = '''bool Android_VideoInit(SDL_VideoDevice *_this)
-          {
-              SDL_VideoData *videodata = _this->internal;
-              SDL_DisplayID displayID;
-              SDL_VideoDisplay *display;
-              SDL_DisplayMode mode;
-
-              videodata->isPaused = false;
-              videodata->isPausing = false;
-              if (Android_DeviceWidth <= 0) Android_DeviceWidth = 1688;
-              if (Android_DeviceHeight <= 0) Android_DeviceHeight = 756;
-              if (Android_ScreenRate <= 0.0f) Android_ScreenRate = 60.0f;
-
-              SDL_zero(mode);
-              mode.format = Android_ScreenFormat;
-              mode.w = Android_DeviceWidth;
-              mode.h = Android_DeviceHeight;
-              mode.refresh_rate = Android_ScreenRate;
-
-              displayID = SDL_AddBasicVideoDisplay(&mode);
-              if (displayID == 0) {
-                  return false;
-              }
-              display = SDL_GetVideoDisplay(displayID);
-              display->natural_orientation = SDL_ORIENTATION_LANDSCAPE;
-              display->current_orientation = SDL_ORIENTATION_LANDSCAPE;
-              display->content_scale = 1.0f;
-              return true;
-          }
-
-          '''
-          p.write_text(text[:start] + new + text[end:])
-          print("patched Android_VideoInit")
+              raise SystemExit("function end not found")
+          end += 2
+          body = text[start:end]
+          body = body.replace("Android_JNI_InitNotify();", "/* no JNI on game thread */")
+          body = body.replace("Android_JNI_GetDisplayNaturalOrientation()", "SDL_ORIENTATION_LANDSCAPE")
+          body = body.replace("Android_JNI_GetDisplayCurrentOrientation()", "SDL_ORIENTATION_LANDSCAPE")
+          body = body.replace("Android_InitTouch();", "/* skip touch JNI */")
+          body = body.replace("Android_InitMouse();", "/* skip mouse JNI */")
+          if "Android_JNI_" in body:
+              raise SystemExit("JNI call still in VideoInit:\n" + body)
+          p.write_text(text[:start] + body + text[end:])
+          print("patched VideoInit only")
+          print(body)
           aff = Path("TCL/src/main/jni/mojoexec/affinity.c")
           t = aff.read_text()
           if "_GNU_SOURCE" not in t:
