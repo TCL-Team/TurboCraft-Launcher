@@ -64,8 +64,8 @@ jobs:
           else:
               c = c2
               print("patched InitNotify")
-          if "Android_JNI_GetNativeWindow" not in c:
-              raise SystemExit("GetNativeWindow not found")
+          if "#include <dlfcn.h>" not in c:
+              c = "#include <dlfcn.h>\n" + c
           core.write_text(c)
           t = core.read_text()
           mark = "ANativeWindow *Android_JNI_GetNativeWindow"
@@ -73,14 +73,16 @@ jobs:
           if j < 0:
               mark = "void *Android_JNI_GetNativeWindow"
               j = t.find(mark)
-          if j >= 0:
-              brace = t.find("{", j)
-              semi = t.find(";", j)
-              if brace >= 0 and (semi < 0 or brace < semi):
-                  end = t.find("\n}", brace)
-                  new = t[j:brace+1] + "\n    extern void *tcl_get_native_window(void);\n    return (ANativeWindow *)tcl_get_native_window();\n}"
-                  core.write_text(t[:j] + new + t[end+2:])
-                  print("patched GetNativeWindow")
+          if j < 0:
+              raise SystemExit("GetNativeWindow signature not found")
+          brace = t.find("{", j)
+          semi = t.find(";", j)
+          if brace < 0 or (semi >= 0 and semi < brace):
+              raise SystemExit("GetNativeWindow body not found")
+          end = t.find("\n}", brace)
+          new = t[j:brace+1] + "\n    void *sym = dlsym(RTLD_DEFAULT, \"tcl_get_native_window\");\n    if (!sym) return NULL;\n    return (ANativeWindow *)((void *(*)(void))sym)();\n}"
+          core.write_text(t[:j] + new + t[end+2:])
+          print("patched GetNativeWindow")
           aff = Path("TCL/src/main/jni/mojoexec/affinity.c")
           a = aff.read_text()
           if "_GNU_SOURCE" not in a:
@@ -103,6 +105,7 @@ jobs:
           cmake --build build-mojo --parallel
           mkdir -p TCL/src/main/jniLibs/arm64-v8a
           find build-mojo -name 'libSDL3.so' -exec cp -v {} TCL/src/main/jniLibs/arm64-v8a/ \;
+          ls -l TCL/src/main/jniLibs/arm64-v8a/libSDL3.so
 
       - name: Commit libSDL3.so
         run: |
@@ -110,5 +113,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add TCL/src/main/jniLibs/arm64-v8a/libSDL3.so
-          git commit -m "Rebuild Mojo SDL using launcher surface" || true
+          if git diff --cached --quiet; then
+            echo "no change"
+            exit 0
+          fi
+          git commit -m "Rebuild Mojo SDL using launcher surface"
           git push origin HEAD:26.3-mojo
