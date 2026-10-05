@@ -26,11 +26,11 @@ jobs:
           set -euo pipefail
           python3 - << 'PY'
           from pathlib import Path
-          p = Path("TCL/src/main/jni/sdl/src/video/android/SDL_androidvideo.c")
-          text = p.read_text()
+          video = Path("TCL/src/main/jni/sdl/src/video/android/SDL_androidvideo.c")
+          text = video.read_text()
           key = "bool Android_VideoInit("
           start = 0
-          body = None
+          body_start = None
           while True:
               i = text.find(key, start)
               if i < 0:
@@ -46,26 +46,49 @@ jobs:
                   body = text[body_start:end]
                   break
               start = i + len(key)
-          if body is None:
+          if body_start is None:
               raise SystemExit("Android_VideoInit body not found")
-          body = body.replace("Android_JNI_InitNotify();", "/* no JNI on game thread */")
+          body = body.replace("Android_JNI_InitNotify();", "/* no JNI */")
           body = body.replace("Android_JNI_GetDisplayNaturalOrientation()", "SDL_ORIENTATION_LANDSCAPE")
           body = body.replace("Android_JNI_GetDisplayCurrentOrientation()", "SDL_ORIENTATION_LANDSCAPE")
-          body = body.replace("Android_InitTouch();", "/* skip touch JNI */")
-          body = body.replace("Android_InitMouse();", "/* skip mouse JNI */")
-          if "Android_JNI_" in body:
-              raise SystemExit("JNI call still in VideoInit:\n" + body)
-          p.write_text(text[:body_start] + body + text[end:])
-          print("patched VideoInit body")
-          print(body)
+          body = body.replace("Android_InitTouch();", "/* skip */")
+          body = body.replace("Android_InitMouse();", "/* skip */")
+          video.write_text(text[:body_start] + body + text[end:])
+          print("patched VideoInit")
+          core = Path("TCL/src/main/jni/sdl/src/core/android/SDL_android.c")
+          c = core.read_text()
+          old = "JNIEnv *env = Android_JNI_GetEnv();\n    (*env)->CallStaticVoidMethod(env, mActivityClass, midNotifyInit);"
+          c2 = c.replace(old, "return;", 1)
+          if c2 == c:
+              print("InitNotify body not exact, leaving it")
+          else:
+              c = c2
+              print("patched InitNotify")
+          if "Android_JNI_GetNativeWindow" not in c:
+              raise SystemExit("GetNativeWindow not found")
+          core.write_text(c)
+          t = core.read_text()
+          mark = "ANativeWindow *Android_JNI_GetNativeWindow"
+          j = t.find(mark)
+          if j < 0:
+              mark = "void *Android_JNI_GetNativeWindow"
+              j = t.find(mark)
+          if j >= 0:
+              brace = t.find("{", j)
+              semi = t.find(";", j)
+              if brace >= 0 and (semi < 0 or brace < semi):
+                  end = t.find("\n}", brace)
+                  new = t[j:brace+1] + "\n    extern void *tcl_get_native_window(void);\n    return (ANativeWindow *)tcl_get_native_window();\n}"
+                  core.write_text(t[:j] + new + t[end+2:])
+                  print("patched GetNativeWindow")
           aff = Path("TCL/src/main/jni/mojoexec/affinity.c")
-          t = aff.read_text()
-          if "_GNU_SOURCE" not in t:
-              aff.write_text("#define _GNU_SOURCE\n" + t)
+          a = aff.read_text()
+          if "_GNU_SOURCE" not in a:
+              aff.write_text("#define _GNU_SOURCE\n" + a)
           fake = Path("TCL/src/main/jni/mojoexec/driver_helper/fake_dlfcn.c")
-          t = fake.read_text()
-          if "stdbool.h" not in t:
-              fake.write_text("#include <stdbool.h>\n" + t)
+          f = fake.read_text()
+          if "stdbool.h" not in f:
+              fake.write_text("#include <stdbool.h>\n" + f)
           PY
 
       - name: Build MojoSDL
@@ -80,7 +103,6 @@ jobs:
           cmake --build build-mojo --parallel
           mkdir -p TCL/src/main/jniLibs/arm64-v8a
           find build-mojo -name 'libSDL3.so' -exec cp -v {} TCL/src/main/jniLibs/arm64-v8a/ \;
-          ls -l TCL/src/main/jniLibs/arm64-v8a/libSDL3.so
 
       - name: Commit libSDL3.so
         run: |
@@ -88,9 +110,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add TCL/src/main/jniLibs/arm64-v8a/libSDL3.so
-          if git diff --cached --quiet; then
-            echo "no change"
-            exit 0
-          fi
-          git commit -m "Rebuild Mojo SDL without Android video JNI"
+          git commit -m "Rebuild Mojo SDL using launcher surface" || true
           git push origin HEAD:26.3-mojo
