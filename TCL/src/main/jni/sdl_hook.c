@@ -52,6 +52,10 @@ typedef uint32_t SDL_InitFlags;
 typedef struct SDL_Window SDL_Window;
 typedef struct SDL_Rect { int x, y, w, h; } SDL_Rect;
 
+void *tcl_get_native_window(void) {
+    return (pojav_environ != NULL) ? pojav_environ->pojavWindow : NULL;
+}
+
 bool SDL_InitSubSystem(SDL_InitFlags flags);
 void SDL_SetMainReady(void);
 bool SDL_SetHint(const char *name, const char *value);
