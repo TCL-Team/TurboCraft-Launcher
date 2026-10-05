@@ -486,11 +486,30 @@ static void hook_Android_JNI_InitNotify(void) {
 static int hook_Android_JNI_GetDisplayNaturalOrientation(void) { return 1; }
 static int hook_Android_JNI_GetDisplayCurrentOrientation(void) { return 1; }
 
+static const char *proxy_SDL_GetCurrentVideoDriver(void) {
+    return "android";
+}
+
+static bool proxy_SDL_GL_LoadLibrary(const char *path) {
+    const char *egl = getenv("SDL_EGL_LIBRARY");
+    if (egl == NULL || egl[0] == '\0') egl = getenv("SDL_OPENGL_LIBRARY");
+    void *lib = egl ? dlopen(egl, RTLD_NOW | RTLD_GLOBAL) : NULL;
+    LOG_TO_I("SDL_Hook: GL_LoadLibrary egl=%s handle=%p", egl ? egl : "(null)", lib);
+    return lib != NULL;
+}
+
 static bool initSubsystemNoAndroid(SDL_InitFlags flags, bool (*real_init)(SDL_InitFlags)) {
     void *sdl = dlopen("libSDL3.so", RTLD_NOLOAD);
+    SET_DLSYM_PTR(sdl, SDL_SetHint);
     SET_DLSYM_PTR(sdl, SDL_GetError);
-    struct ANativeWindow *window = (pojav_environ != NULL) ? pojav_environ->pojavWindow : NULL;
-    LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x pojavWindow=%p", (unsigned)flags, window);
+    if (flags & 0x20u) {
+        if (SDL_SetHint_p) SDL_SetHint_p("SDL_VIDEO_DRIVER", "dummy");
+        setenv("SDL_VIDEO_DRIVER", "dummy", 1);
+        LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x video=dummy pojavWindow=%p",
+                 (unsigned)flags, pojav_environ ? pojav_environ->pojavWindow : NULL);
+    } else {
+        LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x real", (unsigned)flags);
+    }
     bool r = real_init(flags);
     if (!r) {
         LOG_TO_E("SDL_Hook: SDL_InitSubsystem Error: %s", SDL_GetError_p ? SDL_GetError_p() : "?");
@@ -713,6 +732,9 @@ void *sdlDlsymProxy(const char *symbol, void *real) {
         if (realSdlInitSubSystem == NULL) realSdlInitSubSystem = (sdlInitSubSystem_t) real;
         return (void *) proxy_SDL_InitSubSystem;
     }
+   if (strcmp(symbol, "SDL_GetCurrentVideoDriver") == 0) return (void *) proxy_SDL_GetCurrentVideoDriver;
+   if (strcmp(symbol, "SDL_GL_LoadLibrary") == 0) return (void *) proxy_SDL_GL_LoadLibrary;
+
     if (strcmp(symbol, "SDL_CreateWindow") == 0) {
         if (realSdlCreateWindow == NULL) realSdlCreateWindow = (sdlCreateWindow_t) real;
         return (void *) proxy_SDL_CreateWindow;
