@@ -491,11 +491,32 @@ static const char *proxy_SDL_GetCurrentVideoDriver(void) {
 }
 
 static bool proxy_SDL_GL_LoadLibrary(const char *path) {
-    const char *egl = getenv("SDL_EGL_LIBRARY");
-    if (egl == NULL || egl[0] == '\0') egl = getenv("SDL_OPENGL_LIBRARY");
-    void *lib = egl ? dlopen(egl, RTLD_NOW | RTLD_GLOBAL) : NULL;
-    LOG_TO_I("SDL_Hook: GL_LoadLibrary egl=%s handle=%p", egl ? egl : "(null)", lib);
-    return lib != NULL;
+    const char *eglPath = getenv("SDL_EGL_LIBRARY");
+    if (eglPath == NULL || eglPath[0] == '\0') eglPath = "libltw.so";
+    void *lib = dlopen(eglPath, RTLD_NOW | RTLD_GLOBAL);
+    LOG_TO_I("SDL_Hook: GL_LoadLibrary egl=%s handle=%p", eglPath, lib);
+    if (lib == NULL) return false;
+
+    void *(*eglGetDisplay)(void *) = dlsym(lib, "eglGetDisplay");
+    unsigned int (*eglInitialize)(void *, int *, int *) = dlsym(lib, "eglInitialize");
+    unsigned int (*eglChooseConfig)(void *, const int *, void **, int, int *) = dlsym(lib, "eglChooseConfig");
+    void *(*eglCreateWindowSurface)(void *, void *, void *, const int *) = dlsym(lib, "eglCreateWindowSurface");
+    void *(*eglCreateContext)(void *, void *, void *, const int *) = dlsym(lib, "eglCreateContext");
+    unsigned int (*eglMakeCurrent)(void *, void *, void *, void *) = dlsym(lib, "eglMakeCurrent");
+
+    void *window = pojav_environ ? pojav_environ->pojavWindow : NULL;
+    void *dpy = eglGetDisplay ? eglGetDisplay((void *)0) : NULL;
+    int major = 0, minor = 0, count = 0;
+    void *config = NULL;
+    const int attribs[] = {0x3038};
+    const int ctxAttribs[] = {0x3098, 3, 0x3038};
+    if (dpy && eglInitialize) eglInitialize(dpy, &major, &minor);
+    if (dpy && eglChooseConfig) eglChooseConfig(dpy, attribs, &config, 1, &count);
+    void *surface = (eglCreateWindowSurface && window && config) ? eglCreateWindowSurface(dpy, config, window, NULL) : NULL;
+    void *ctx = (eglCreateContext && config) ? eglCreateContext(dpy, config, NULL, ctxAttribs) : NULL;
+    unsigned int ok = (eglMakeCurrent && surface && ctx) ? eglMakeCurrent(dpy, surface, surface, ctx) : 0;
+    LOG_TO_I("SDL_Hook: egl current dpy=%p surface=%p ctx=%p ok=%u", dpy, surface, ctx, ok);
+    return true;
 }
 
 static bool initSubsystemNoAndroid(SDL_InitFlags flags, bool (*real_init)(SDL_InitFlags)) {
