@@ -12,15 +12,17 @@ object Mc26Mojo {
     private const val TAG = "Mc26Mojo"
 
     @JvmStatic
-    fun prepare(context: Context, versionId: String?, width: Int, height: Int) {
+    fun prepare(context: Context, versionId: String?, width: Int, height: Int, eglPath: String? = null) {
         if (!Mc26Gate.needsSdlWindow(versionId)) return
         val dir = context.applicationInfo.nativeLibraryDir
         MojoExec.setNativeLibraryDir(dir)
         val w = if (width > 0) width else 1280
         val h = if (height > 0) height else 720
         MojoExec.setDisplayParams(w, h, 60f)
-        val egl = "$dir/libltw.so"
-        val ok = MojoExec.prepareEgl(egl, true, true, 3)
-        Log.i(TAG, "prepareEgl $egl -> $ok (${w}x$h) version=$versionId")
+        
+        // Use the provided EGL path, or fall back to env var or default
+        val finalEglPath = eglPath ?: System.getenv("SDL_EGL_LIBRARY") ?: "$dir/libltw.so"
+        val ok = MojoExec.prepareEgl(finalEglPath, true, true, 3)
+        Log.i(TAG, "prepareEgl $finalEglPath -> $ok (${w}x$h) version=$versionId")
     }
 }

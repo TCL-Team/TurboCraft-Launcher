@@ -49,6 +49,8 @@ import com.movtery.zalithlauncher.game.renderer.renderers.MobileGluesRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.FreedrenoRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.PanfrostRenderer
 import com.movtery.zalithlauncher.game.support.touch_controller.ControllerProxy
+import com.movtery.zalithlauncher.game.sdl.Mc26Gate
+import com.movtery.zalithlauncher.game.sdl.Mc26Mojo
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionInfoParser
 import com.movtery.zalithlauncher.game.version.installed.VersionsManager
@@ -61,6 +63,7 @@ import com.movtery.zalithlauncher.utils.device.Architecture
 import com.movtery.zalithlauncher.utils.file.child
 import com.movtery.zalithlauncher.utils.file.ensureDirectorySilently
 import com.movtery.zalithlauncher.utils.logging.Logger
+import com.movtery.zalithlauncher.game.version.installed.utils.isBiggerOrEqualVer
 import com.movtery.zalithlauncher.utils.string.isBiggerTo
 import com.movtery.zalithlauncher.utils.string.isEqualTo
 import com.movtery.zalithlauncher.utils.string.isLowerTo
@@ -140,6 +143,26 @@ class GameLauncher(
         )
 
         initLwjglComponent(activity, detectLwjglVersion(gameManifest))
+        
+        // ✅ FIX FOR 26.3: Initialize Mc26Mojo for SDL3 window
+        val mcVersion = version.getVersionInfo()?.minecraftVersion
+        if (mcVersion != null && Mc26Gate.needsSdlWindow(mcVersion)) {
+            // Get the EGL library path from the renderer before starting JVM
+            val renderer = Renderers.getCurrentRenderer()
+            val eglName = renderer.getRendererEGL()
+            val plugin = RendererPluginManager.selectedRendererPlugin
+            val nativeLibPath = if (renderer is RendererPlugin) {
+                renderer.path
+            } else {
+                PathManager.DIR_NATIVE_LIB
+            }
+            val eglPath = if (eglName != null) {
+                if (eglName.startsWith("/")) eglName else "$nativeLibPath/$eglName"
+            } else {
+                "$nativeLibPath/libltw.so"
+            }
+            Mc26Mojo.prepare(activity, mcVersion, screenSize.width, screenSize.height, eglPath)
+        }
 
         return launchGame(
             screenSize = screenSize,
@@ -259,6 +282,31 @@ class GameLauncher(
         super.progressFinalUserArgs(args, version.getRamAllocation(activity))
         if (Renderers.isCurrentRendererValid()) {
             args.add("-Dorg.lwjgl.opengl.libname=${loadGraphicsLibrary()}")
+            
+            // ✅ FIX FOR 26.3 WITH LTW/Turnip: Point LWJGL Vulkan to libltw.so
+            // Only set for LTW which contains Turnip Vulkan. MobileGlues doesn't support Vulkan.
+            val renderer = Renderers.getCurrentRenderer()
+            val rendererId = renderer.getRendererId()
+            val eglName = renderer.getRendererEGL()
+            
+            // For built-in renderers, getRendererEGL() might return null
+            val effectiveEglName = eglName ?: when (rendererId) {
+                "mobileglues", "opengles2_mobileglues", "opengles3_mobileglues" -> "libMobileGlues.so"
+                "gl4es", "opengles2_gl4es", "opengles3_gl4es" -> "libgl4es.so"
+                "nggl4es" -> "libnggl4es.so"
+                else -> null
+            }
+            
+            if (effectiveEglName != null && effectiveEglName.contains("ltw")) {
+                val plugin = RendererPluginManager.selectedRendererPlugin
+                val nativeLibPath = if (renderer is RendererPlugin) {
+                    renderer.path
+                } else {
+                    PathManager.DIR_NATIVE_LIB
+                }
+                val vulkanLibPath = if (effectiveEglName.startsWith("/")) effectiveEglName else "$nativeLibPath/$effectiveEglName"
+                args.add("-Dorg.lwjgl.vulkan.libname=$vulkanLibPath")
+            }
         }
 
         if (args.none { it.startsWith("-Djava.library.path=") }) {
@@ -375,10 +423,16 @@ class GameLauncher(
 
         if (AllSettings.autoPickJavaRuntime.getValue()) {
             val loaderInfo = version.getVersionInfo()?.loaderInfo
+            val mcVersion = version.getVersionInfo()?.minecraftVersion
+            
+            //Minecraft 26.3+ requires Java 25
+            val is263OrHigher = mcVersion != null && mcVersion.isBiggerOrEqualVer("26.3")
+            
             //开启了自动选择，根据游戏需求的版本做选择
-            val targetJavaVersion = when (loaderInfo?.loader) {
-                ModLoader.BABRIC -> 17 //Babric 推荐使用 17
-                ModLoader.CLEANROOM -> {
+            val targetJavaVersion = when {
+                is263OrHigher -> 25 //Minecraft 26.3+ requires Java 25
+                loaderInfo?.loader == ModLoader.BABRIC -> 17 //Babric 推荐使用 17
+                loaderInfo?.loader == ModLoader.CLEANROOM -> {
                     if (loaderInfo.version.isBiggerTo("0.4.4-alpha")) {
                         25 //0.5.0-alpha 及以上要求使用 25
                     } else {
@@ -445,6 +499,16 @@ private fun setRendererEnv(envMap: MutableMap<String, String>) {
 
     // SDL3 (Minecraft 26.3+) needs the same renderer name the GLFW path uses.
     envMap["SDL_OPENGL_LIBRARY"] = rendererId
+    
+    // ✅ FIX FOR 26.3: Let sdl_hook.c handle SDL_VIDEODRIVER
+    // Don't force android driver here as it causes SIGSEGV in libbase
+    // sdl_hook.c will set the appropriate driver (dummy/offscreen) with proper hooks
+    /*
+    val mcVersion = version.getVersionInfo()?.minecraftVersion
+    if (mcVersion != null && Mc26Gate.needsSdlWindow(mcVersion)) {
+        envMap["SDL_VIDEODRIVER"] = "android"
+    }
+    */
 
     if (rendererId.startsWith("opengles2")) {
         envMap["LIBGL_ES"] = "2"
@@ -456,16 +520,40 @@ private fun setRendererEnv(envMap: MutableMap<String, String>) {
 
     envMap += renderer.getRendererEnv().value
 
-    renderer.getRendererEGL()?.let { eglName ->
-        envMap["POJAVEXEC_EGL"] = eglName
-        // ZL2: plugin EGL must come from the plugin APK, not TCL jniLibs.
-        // Mixing two libmobileglues.so (SDL vs LWJGL) = 60 FPS black screen on 26.3.
+    // Handle EGL library setup for all renderers
+    val eglName = renderer.getRendererEGL()
+    
+    // For built-in renderers like MobileGlues, getRendererEGL() might return null
+    // but they still need EGL library set. Use renderer ID as fallback for built-in renderers.
+    val effectiveEglName = eglName ?: when (rendererId) {
+        "mobileglues", "opengles2_mobileglues", "opengles3_mobileglues" -> "libMobileGlues.so"
+        "gl4es", "opengles2_gl4es", "opengles3_gl4es" -> "libgl4es.so"
+        "nggl4es" -> "libnggl4es.so"
+        else -> null
+    }
+    
+    effectiveEglName?.let { egl ->
+        envMap["POJAVEXEC_EGL"] = egl
         val nativeLibPath = if (renderer is RendererPlugin) {
             renderer.path
         } else {
             PathManager.DIR_NATIVE_LIB
         }
-        envMap["SDL_EGL_LIBRARY"] = if (eglName.startsWith("/")) eglName else "$nativeLibPath/$eglName"
+        val eglPath = if (egl.startsWith("/")) egl else "$nativeLibPath/$egl"
+        envMap["SDL_EGL_LIBRARY"] = eglPath
+        
+        // ✅ FIX FOR 26.3 WITH LTW/Turnip: Only set Vulkan variables for LTW
+        // MobileGlues doesn't support Vulkan, so don't set these for it
+        if (egl.contains("ltw")) {
+            // Set SDL_VULKAN_LIBRARY to the EGL path (libltw.so contains Turnip Vulkan)
+            // RenderPearl tries Vulkan first, and needs to find the Vulkan loader.
+            envMap["SDL_VULKAN_LIBRARY"] = eglPath
+            
+            // Disable namespace isolation in MojoExec so that LWJGL can see
+            // Vulkan functions from libltw.so loaded by MojoExec. Without this, libltw.so is
+            // loaded in a separate namespace, and LWJGL's dlopen can't access its symbols.
+            envMap["MOJOEEXEC_NO_NS"] = "1"
+        }
     }
 
     envMap["POJAV_RENDERER"] = rendererId

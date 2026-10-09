@@ -384,6 +384,22 @@ static void *custom_SDL_LoadObject_Func(const char *path) {
             void *handle = (void *) (uintptr_t) strtoull(vkptr, NULL, 16);
             if (handle != NULL) return handle;
         }
+        // On Android with LTW/Turnip, Vulkan functions are in libltw.so
+        // Try loading libltw.so as a fallback for libvulkan.so
+        const char *eglPath = getenv("SDL_EGL_LIBRARY");
+        if (eglPath != NULL && eglPath[0] != '\0') {
+            void *lib = dlopen(eglPath, RTLD_NOW | RTLD_GLOBAL);
+            if (lib != NULL) {
+                LOG_TO_I("SDL_Hook: LoadObject redirected libvulkan to eglPath=%s handle=%p", eglPath, lib);
+                return lib;
+            }
+        }
+        // Also try the default libltw.so
+        void *libLtw = dlopen("libltw.so", RTLD_NOW | RTLD_GLOBAL);
+        if (libLtw != NULL) {
+            LOG_TO_I("SDL_Hook: LoadObject redirected libvulkan to libltw.so handle=%p", libLtw);
+            return libLtw;
+        }
     }
     void *r = BYTEHOOK_CALL_PREV(custom_SDL_LoadObject_Func, SDL_LoadObject_t, path);
     BYTEHOOK_POP_STACK();
@@ -487,35 +503,46 @@ static int hook_Android_JNI_GetDisplayNaturalOrientation(void) { return 1; }
 static int hook_Android_JNI_GetDisplayCurrentOrientation(void) { return 1; }
 
 static const char *proxy_SDL_GetCurrentVideoDriver(void) {
-    return "android";
+    return "offscreen";
 }
 
 static bool proxy_SDL_GL_LoadLibrary(const char *path) {
     const char *eglPath = getenv("SDL_EGL_LIBRARY");
     if (eglPath == NULL || eglPath[0] == '\0') eglPath = "libltw.so";
+    
+    // For LTW/Turnip on 26.3+, we must NOT load libltw.so here as an EGL library.
+    // libltw.so is a Vulkan implementation (Turnip), not an EGL library.
+    // Loading it here causes LTW to override OpenGL functions (like glGetError),
+    // which causes RenderPearl to detect a "glGetError mismatch" and fail.
+    // 
+    // Instead, we just return success. The EGLBridge (MojoExec) has already
+    // set up EGL with the native window before SDL initialization.
+    // LWJGL/SDL will use the EGL functions from the EGLBridge, not from SDL_GL_LoadLibrary.
+    //
+    // However, we still need to load the library so that Vulkan functions are available
+    // for the Vulkan backend. We do this in proxy_SDL_LoadObject when libvulkan.so is requested.
+    
+    LOG_TO_I("SDL_Hook: GL_LoadLibrary path=%s egl=%s - skipping actual load, EGL handled by MojoExec", 
+             path ? path : "null", eglPath);
+    
+    // Check if this is LTW/Turnip - if so, skip loading to avoid glGetError override
+    if (strstr(eglPath, "libltw.so") != NULL) {
+        LOG_TO_I("SDL_Hook: GL_LoadLibrary detected LTW/Turnip, skipping dlopen to avoid glGetError override");
+        return true;
+    }
+    
+    // For non-LTW renderers, load the EGL library normally
     void *lib = dlopen(eglPath, RTLD_NOW | RTLD_GLOBAL);
-    LOG_TO_I("SDL_Hook: GL_LoadLibrary egl=%s handle=%p", eglPath, lib);
-    if (lib == NULL) return false;
-
+    if (lib == NULL) {
+        LOG_TO_E("SDL_Hook: GL_LoadLibrary failed to load %s", eglPath);
+        return false;
+    }
+    
     void *(*eglGetDisplay)(void *) = dlsym(lib, "eglGetDisplay");
-    unsigned int (*eglInitialize)(void *, int *, int *) = dlsym(lib, "eglInitialize");
-    unsigned int (*eglChooseConfig)(void *, const int *, void **, int, int *) = dlsym(lib, "eglChooseConfig");
-    void *(*eglCreateWindowSurface)(void *, void *, void *, const int *) = dlsym(lib, "eglCreateWindowSurface");
-    void *(*eglCreateContext)(void *, void *, void *, const int *) = dlsym(lib, "eglCreateContext");
-    unsigned int (*eglMakeCurrent)(void *, void *, void *, void *) = dlsym(lib, "eglMakeCurrent");
-
-    void *window = pojav_environ ? pojav_environ->pojavWindow : NULL;
-    void *dpy = eglGetDisplay ? eglGetDisplay((void *)0) : NULL;
-    int major = 0, minor = 0, count = 0;
-    void *config = NULL;
-    const int attribs[] = {0x3038};
-    const int ctxAttribs[] = {0x3098, 3, 0x3038};
-    if (dpy && eglInitialize) eglInitialize(dpy, &major, &minor);
-    if (dpy && eglChooseConfig) eglChooseConfig(dpy, attribs, &config, 1, &count);
-    void *surface = (eglCreateWindowSurface && window && config) ? eglCreateWindowSurface(dpy, config, window, NULL) : NULL;
-    void *ctx = (eglCreateContext && config) ? eglCreateContext(dpy, config, NULL, ctxAttribs) : NULL;
-    unsigned int ok = (eglMakeCurrent && surface && ctx) ? eglMakeCurrent(dpy, surface, surface, ctx) : 0;
-    LOG_TO_I("SDL_Hook: egl current dpy=%p surface=%p ctx=%p ok=%u", dpy, surface, ctx, ok);
+    if (eglGetDisplay == NULL) {
+        LOG_TO_W("SDL_Hook: eglGetDisplay not found in %s, but continuing anyway", eglPath);
+    }
+    
     return true;
 }
 
@@ -524,9 +551,12 @@ static bool initSubsystemNoAndroid(SDL_InitFlags flags, bool (*real_init)(SDL_In
     SET_DLSYM_PTR(sdl, SDL_SetHint);
     SET_DLSYM_PTR(sdl, SDL_GetError);
     if (flags & 0x20u) {
-        if (SDL_SetHint_p) SDL_SetHint_p("SDL_VIDEO_DRIVER", "dummy");
-        setenv("SDL_VIDEO_DRIVER", "dummy", 1);
-        LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x video=dummy pojavWindow=%p",
+        // For 26.3+, use offscreen video driver to avoid android driver crash
+        // The android driver SIGSEGVs in libSDL3.so, dummy doesn't support Vulkan,
+        // offscreen works with our custom window setup and Mc26Mojo EGL initialization
+        if (SDL_SetHint_p) SDL_SetHint_p("SDL_VIDEO_DRIVER", "offscreen");
+        setenv("SDL_VIDEO_DRIVER", "offscreen", 1);
+        LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x video=offscreen pojavWindow=%p",
                  (unsigned)flags, pojav_environ ? pojav_environ->pojavWindow : NULL);
     } else {
         LOG_TO_I("SDL_Hook: SDL_InitSubSystem flags=0x%x real", (unsigned)flags);
@@ -704,6 +734,20 @@ static void *proxy_SDL_LoadObject(const char *path) {
         if (vkptr != NULL && vkptr[0] != '\0') {
             void *handle = (void *) (uintptr_t) strtoull(vkptr, NULL, 16);
             if (handle != NULL) return handle;
+        }
+        // On Android with LTW/Turnip, Vulkan functions are in libltw.so
+        const char *eglPath = getenv("SDL_EGL_LIBRARY");
+        if (eglPath != NULL && eglPath[0] != '\0') {
+            void *lib = dlopen(eglPath, RTLD_NOW | RTLD_GLOBAL);
+            if (lib != NULL) {
+                LOG_TO_I("SDL_Hook: LoadObject redirected libvulkan to eglPath=%s handle=%p", eglPath, lib);
+                return lib;
+            }
+        }
+        void *libLtw = dlopen("libltw.so", RTLD_NOW | RTLD_GLOBAL);
+        if (libLtw != NULL) {
+            LOG_TO_I("SDL_Hook: LoadObject redirected libvulkan to libltw.so handle=%p", libLtw);
+            return libLtw;
         }
     }
     return realSdlLoadObject(path);
