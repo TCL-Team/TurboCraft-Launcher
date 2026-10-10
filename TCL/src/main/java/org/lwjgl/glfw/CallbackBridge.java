@@ -19,6 +19,7 @@ import com.movtery.zalithlauncher.bridge.ZLBridgeStates;
 import com.movtery.zalithlauncher.bridge.ZLNativeInvoker;
 import com.movtery.zalithlauncher.context.ContextsKt;
 import com.movtery.zalithlauncher.game.keycodes.LwjglGlfwKeycode;
+import com.movtery.zalithlauncher.game.sdl.DirectGamepadEnableHandler;
 import com.movtery.zalithlauncher.game.sdl.SdlBridge;
 import com.movtery.zalithlauncher.bridge.LoggerBridge;
 import org.libsdl.app.SDLActivity;
@@ -26,6 +27,10 @@ import org.libsdl.app.SDLSurface;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
+import java.lang.ref.WeakReference;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.util.function.Consumer;
 
 import dalvik.annotation.optimization.CriticalNative;
@@ -56,6 +61,12 @@ public class CallbackBridge {
     public static volatile int windowWidth, windowHeight;
     public static volatile int physicalWidth, physicalHeight;
     public static float mouseX, mouseY;
+    public static float deltaX, deltaY;
+    private static int sMouseButtonState = 0;
+    public static final ByteBuffer sGamepadButtonBuffer;
+    public static final FloatBuffer sGamepadAxisBuffer;
+    public static boolean sGamepadDirectInput = false;
+    private static @Nullable WeakReference<DirectGamepadEnableHandler> sDirectGamepadEnableHandler;
     public volatile static boolean holdingAlt, holdingCapslock, holdingCtrl,
             holdingNumlock, holdingShift;
 
@@ -302,8 +313,23 @@ public class CallbackBridge {
     @Keep public static native void nativeSetWindowAttrib(int attrib, int value);
     @Keep public static native int getCurrentFps();
 
+    public static void clearSdlBridgeState() {
+        sGamepadDirectInput = false;
+        sDirectGamepadEnableHandler = null;
+        sMouseButtonState = 0;
+        deltaX = 0f;
+        deltaY = 0f;
+    }
+
+    @Keep
+    private static native ByteBuffer nativeCreateGamepadButtonBuffer();
+    @Keep
+    private static native ByteBuffer nativeCreateGamepadAxisBuffer();
+
     static {
         NativeLibraryLoader.loadPojavLib();
+        sGamepadButtonBuffer = nativeCreateGamepadButtonBuffer();
+        sGamepadAxisBuffer = nativeCreateGamepadAxisBuffer().order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
     }
 
     public static final int NOTIF_TYPE_SDL = 0;
