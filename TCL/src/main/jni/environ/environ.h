@@ -42,6 +42,7 @@ struct pojav_environ_s {
     size_t inEventCount; // Count registered right before pumping OUT events. Used as a cache.
     double cursorX, cursorY, cLastX, cLastY;
     jmethodID method_accessAndroidClipboard;
+    jmethodID method_notifyLauncher;
     jmethodID method_onGrabStateChanged;
     jmethodID method_onCursorShapeChanged;
     jmethodID method_onGraphicOutput;
