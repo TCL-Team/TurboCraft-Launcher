@@ -27,14 +27,36 @@ public class TouchCharInput extends androidx.appcompat.widget.AppCompatEditText 
     }
 
 
+    private static TouchCharInput sActiveInput;
     private boolean mIsDoingInternalChanges = false;
     private InputListener mListener;
 
     public void enableKeyboard() {
         InputMethodManager imm = (InputMethodManager) getContext().getSystemService(INPUT_METHOD_SERVICE);
         enable();
+        sActiveInput = this;
         imm.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT);
         clear();
+    }
+
+    public static void disableActiveInput() {
+        if (sActiveInput != null) {
+            sActiveInput.disableKeyboard();
+        }
+    }
+
+    public static boolean isActive() {
+        return sActiveInput != null;
+    }
+
+    public void disableKeyboard() {
+        InputMethodManager imm = (InputMethodManager) getContext().getSystemService(INPUT_METHOD_SERVICE);
+        imm.hideSoftInputFromWindow(getWindowToken(), 0);
+        clearFocus();
+        setEnabled(false);
+        if (sActiveInput == this) {
+            sActiveInput = null;
+        }
     }
 
     /**
