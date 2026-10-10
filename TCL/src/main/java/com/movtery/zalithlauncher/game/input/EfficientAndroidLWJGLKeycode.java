@@ -20,6 +20,7 @@ package com.movtery.zalithlauncher.game.input;
 
 import static org.lwjgl.glfw.CallbackBridge.sendKeyPress;
 
+import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 
 import com.movtery.zalithlauncher.game.keycodes.LwjglGlfwKeycode;
@@ -222,6 +223,43 @@ public class EfficientAndroidLWJGLKeycode {
             if(sLwjglKeycodes[i] == lwjglKey) return i;
         }
         return 0;
+    }
+
+    private static final KeyCharacterMap mKcm = KeyCharacterMap.load(KeyCharacterMap.VIRTUAL_KEYBOARD);
+    private static final char[] buffer = new char[1];
+
+    public static int getAndroidKeycode(int lwjglGlfwKeycode) {
+        if (lwjglGlfwKeycode == LwjglGlfwKeycode.GLFW_KEY_2) return KeyEvent.KEYCODE_2;
+        if (lwjglGlfwKeycode == LwjglGlfwKeycode.GLFW_KEY_3) return KeyEvent.KEYCODE_3;
+        int index = getIndexByValue(lwjglGlfwKeycode);
+        return index >= 0 && index < sAndroidKeycodes.length
+                ? sAndroidKeycodes[index]
+                : KeyEvent.KEYCODE_UNKNOWN;
+    }
+
+    public static int getSdlAndroidKeycode(int lwjglGlfwKeycode) {
+        return switch (lwjglGlfwKeycode) {
+            case LwjglGlfwKeycode.GLFW_KEY_ESCAPE -> KeyEvent.KEYCODE_ESCAPE;
+            case LwjglGlfwKeycode.GLFW_KEY_HOME -> KeyEvent.KEYCODE_MOVE_HOME;
+            case LwjglGlfwKeycode.GLFW_KEY_END -> KeyEvent.KEYCODE_MOVE_END;
+            case LwjglGlfwKeycode.GLFW_KEY_KP_ADD -> KeyEvent.KEYCODE_NUMPAD_ADD;
+            case LwjglGlfwKeycode.GLFW_KEY_KP_DECIMAL -> KeyEvent.KEYCODE_NUMPAD_DOT;
+            case LwjglGlfwKeycode.GLFW_KEY_KP_ENTER -> KeyEvent.KEYCODE_NUMPAD_ENTER;
+            case LwjglGlfwKeycode.GLFW_KEY_DELETE -> KeyEvent.KEYCODE_FORWARD_DEL;
+            case LwjglGlfwKeycode.GLFW_KEY_KP_EQUAL -> KeyEvent.KEYCODE_NUMPAD_EQUALS;
+            case LwjglGlfwKeycode.GLFW_KEY_LEFT_SUPER -> KeyEvent.KEYCODE_META_LEFT;
+            case LwjglGlfwKeycode.GLFW_KEY_RIGHT_SUPER -> KeyEvent.KEYCODE_META_RIGHT;
+            case LwjglGlfwKeycode.GLFW_KEY_MENU -> KeyEvent.KEYCODE_MENU;
+            default -> getAndroidKeycode(lwjglGlfwKeycode);
+        };
+    }
+
+    public static int getAndroidKeycode(char c) {
+        buffer[0] = c;
+        KeyEvent[] events = mKcm.getEvents(buffer);
+        return events != null && events.length > 0
+                ? events[0].getKeyCode()
+                : KeyEvent.KEYCODE_UNKNOWN;
     }
 
     private static void add(int androidKeycode, short LWJGLKeycode){
