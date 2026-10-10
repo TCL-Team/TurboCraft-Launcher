@@ -37,6 +37,11 @@ static void custom_atexit() {
     nominal_exit(0, false);
 }
 
+
+// SDL3 launcher integration, ported from ZalithLauncher2 for Minecraft 26.3+.
+void create_sdl_hooks(bytehook_stub_t (*bytehook_hook_all_p)(const char *, const char *, void *, bytehook_hooked_t, void *));
+void create_sdl_dlopen_hooks(bytehook_stub_t (*bytehook_hook_all_p)(const char *, const char *, void *, bytehook_hooked_t, void *));
+
 static bool init_exit_hook() {
     void* bytehook_handle = dlopen("libbytehook.so", RTLD_NOW);
     if(bytehook_handle == NULL) {
@@ -57,6 +62,8 @@ static bool init_exit_hook() {
     if(bhook_status == BYTEHOOK_STATUS_CODE_OK) {
         bytehook_stub_t stub = bytehook_hook_all_p(NULL, "exit", &custom_exit, NULL, NULL);
         __android_log_print(ANDROID_LOG_INFO, "exit_hook", "Successfully initialized exit hook, stub=%p", stub);
+        create_sdl_hooks(bytehook_hook_all_p);
+        create_sdl_dlopen_hooks(bytehook_hook_all_p);
         return true;
     } else {
         __android_log_print(ANDROID_LOG_INFO, "exit_hook", "bytehook_init failed (%i)", bhook_status);

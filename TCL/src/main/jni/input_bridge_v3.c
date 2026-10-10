@@ -23,6 +23,12 @@
 #include "utils.h"
 #include "environ/environ.h"
 
+
+static void *sdlPrimaryWindow = NULL;
+void sdlBridgeSetPrimaryWindow(void *window) {
+    sdlPrimaryWindow = window;
+}
+
 #define EVENT_TYPE_CHAR 1000
 #define EVENT_TYPE_CHAR_MODS 1001
 #define EVENT_TYPE_CURSOR_ENTER 1002
