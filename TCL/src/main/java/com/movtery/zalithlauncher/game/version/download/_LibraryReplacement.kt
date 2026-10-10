@@ -67,9 +67,29 @@ fun getLibraryReplacement(libraryName: String, versionParts: List<String>): Libr
 }
 
 /**
- * @return 是否需要被过滤
+ * Minecraft 26.3+ declares org.lwjgl:lwjgl-sdl. Older versions keep dropping
+ * every Mojang LWJGL jar so the Android GLFW/OpenGL jars stay in charge.
  */
-fun GameManifest.Library.filterLibrary(): Boolean {
+fun List<GameManifest.Library>?.usesLwjglSdl(): Boolean =
+    this?.any { library -> library.name?.startsWith("org.lwjgl:lwjgl-sdl") == true } == true
+
+/**
+ * Java-only artifacts required by the SDL window path.
+ * Native classifiers stay filtered so desktop libraries are never extracted.
+ */
+fun GameManifest.Library.isSdlRuntimeJavaLibrary(): Boolean {
+    if (isNative) return false
+    val parts = name?.split(":") ?: return false
+    if (parts.size != 3) return false
+    return parts[0] == "org.lwjgl" && (parts[1] == "lwjgl" || parts[1] == "lwjgl-sdl")
+}
+
+/**
+ * @param allowLwjglSdlClasses keep matching LWJGL core + lwjgl-sdl jars for 26.3+
+ * @return true when the library must be filtered
+ */
+fun GameManifest.Library.filterLibrary(allowLwjglSdlClasses: Boolean = false): Boolean {
+    if (allowLwjglSdlClasses && isSdlRuntimeJavaLibrary()) return false
     return when {
         name?.contains("org.lwjgl") == true -> true
         name?.contains("jinput-platform") == true -> true

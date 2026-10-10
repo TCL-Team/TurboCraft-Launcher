@@ -111,8 +111,10 @@ fun artifactToPath(library: GameManifest.Library): String? {
 }
 
 fun processLibraries(libraries: () -> List<GameManifest.Library>) {
-    libraries().forEach { library ->
-        if (library.filterLibrary()) return@forEach
+    val libs = libraries()
+    val allowLwjglSdlClasses = libs.usesLwjglSdl()
+    libs.forEach { library ->
+        if (library.filterLibrary(allowLwjglSdlClasses)) return@forEach
 
         val versionSegment = library.name.split(":").getOrNull(2) ?: return
         val versionParts = versionSegment.split(".")

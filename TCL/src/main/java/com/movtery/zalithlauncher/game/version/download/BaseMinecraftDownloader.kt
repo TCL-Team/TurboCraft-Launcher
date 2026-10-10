@@ -152,10 +152,13 @@ class BaseMinecraftDownloader(
     ) {
         gameManifest.libraries?.let { libraries ->
             processLibraries { libraries }
+            val allowLwjglSdlClasses = libraries.usesLwjglSdl()
             libraries.forEach { library ->
                 currentCoroutineContext().ensureActive()
 
-                if (library.name.startsWith("org.lwjgl")) return@forEach
+                // Desktop LWJGL natives stay filtered. 26.3+ keeps matching
+                // lwjgl core and lwjgl-sdl Java jars so org.lwjgl.sdl.SDL resolves.
+                if (library.filterLibrary(allowLwjglSdlClasses)) return@forEach
 
                 val artifactPath: String = artifactToPath(library) ?: return@forEach
                 val (sha1: String?, url, size, isDownloadable) = library.downloads?.let { downloads ->
