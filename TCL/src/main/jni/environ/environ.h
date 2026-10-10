@@ -30,6 +30,11 @@ typedef void GLFW_invoke_MouseButton_func(void* window, int button, int action, 
 typedef void GLFW_invoke_Scroll_func(void* window, double xoffset, double yoffset);
 typedef void GLFW_invoke_WindowSize_func(void* window, int width, int height);
 
+typedef struct {
+    unsigned char buttons[15];
+    float axes[6];
+} GLFWgamepadstate;
+
 struct pojav_environ_s {
     struct ANativeWindow* pojavWindow;
     basic_render_window_t* mainWindowBundle;
@@ -51,6 +56,7 @@ struct pojav_environ_s {
     jclass bridgeClazz;
     jclass vmGlfwClass;
     jboolean isGrabbing;
+    GLFWgamepadstate gamepadState;
     jbyte* keyDownBuffer;
     jbyte* mouseDownBuffer;
     JavaVM* runtimeJavaVMPtr;
