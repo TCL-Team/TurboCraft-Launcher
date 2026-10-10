@@ -23,7 +23,6 @@ import android.view.Surface
 import android.view.ViewGroup
 import androidx.annotation.Keep
 import androidx.annotation.MainThread
-// IME auto-show setting is optional on TurboCraft
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -154,7 +153,7 @@ object SdlBridge {
         jniReady = false
         sdlInitialized = false
         sdlEnabled = false
-        CallbackBridge.clearSdlBridgeState()
+        // TurboCraft has no ZL2 gamepad buffer to clear.
         SDLSurface.clearNativeSurface()
         SDL.initialize()
     }
