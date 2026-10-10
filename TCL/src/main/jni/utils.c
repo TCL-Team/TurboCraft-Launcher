@@ -6,6 +6,7 @@
 
 #include "logger/logger.h"
 
+#include "environ/environ.h"
 #include "utils.h"
 
 typedef int (*Main_Function_t)(int, char**);
@@ -144,3 +145,19 @@ JNIEXPORT void JNICALL Java_com_movtery_zalithlauncher_bridge_ZLBridge_fpsLimitS
 	}
 }
 
+
+bool notifyLauncher(JNIEnv *dvm_env, int type, int actions[], int len) {
+    if (pojav_environ->method_notifyLauncher == NULL || pojav_environ->bridgeClazz == NULL) {
+        return false;
+    }
+    jintArray actionArray = (*dvm_env)->NewIntArray(dvm_env, len);
+    (*dvm_env)->SetIntArrayRegion(dvm_env, actionArray, 0, len, actions);
+    jboolean result = (*dvm_env)->CallStaticBooleanMethod(
+        dvm_env, pojav_environ->bridgeClazz, pojav_environ->method_notifyLauncher, type, actionArray);
+    if ((*dvm_env)->ExceptionCheck(dvm_env)) {
+        (*dvm_env)->ExceptionDescribe(dvm_env);
+        (*dvm_env)->ExceptionClear(dvm_env);
+        return false;
+    }
+    return result;
+}
