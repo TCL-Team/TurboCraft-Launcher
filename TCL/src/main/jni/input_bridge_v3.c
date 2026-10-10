@@ -578,3 +578,13 @@ static void registerFunctions(JNIEnv *env) {
                             use_critical_cc ? critical_fcns : noncritical_fcns,
                             sizeof(critical_fcns) / sizeof(critical_fcns[0]));
 }
+
+JNIEXPORT jobject JNICALL
+Java_org_lwjgl_glfw_CallbackBridge_nativeCreateGamepadButtonBuffer(JNIEnv* env, __attribute__((unused)) jclass clazz) {
+    return (*env)->NewDirectByteBuffer(env, pojav_environ->gamepadState.buttons, sizeof(pojav_environ->gamepadState.buttons));
+}
+
+JNIEXPORT jobject JNICALL
+Java_org_lwjgl_glfw_CallbackBridge_nativeCreateGamepadAxisBuffer(JNIEnv* env, __attribute__((unused)) jclass clazz) {
+    return (*env)->NewDirectByteBuffer(env, pojav_environ->gamepadState.axes, sizeof(pojav_environ->gamepadState.axes));
+}
