@@ -146,6 +146,20 @@ JNIEXPORT void JNICALL Java_com_movtery_zalithlauncher_bridge_ZLBridge_fpsLimitS
 }
 
 
+
+JNIEnv* get_attached_env(JavaVM* jvm) {
+    if (jvm == NULL) return NULL;
+    JNIEnv *env = NULL;
+    jint status = (*jvm)->GetEnv(jvm, (void**)&env, JNI_VERSION_1_4);
+    if (status == JNI_OK) return env;
+    if (status == JNI_EDETACHED) {
+        if ((*jvm)->AttachCurrentThread(jvm, (void**)&env, NULL) == JNI_OK) {
+            return env;
+        }
+    }
+    return NULL;
+}
+
 bool notifyLauncher(JNIEnv *dvm_env, int type, int actions[], int len) {
     if (pojav_environ->method_notifyLauncher == NULL || pojav_environ->bridgeClazz == NULL) {
         return false;

@@ -13,6 +13,18 @@
 
 #define DECL_DLSYM(fn) typedef typeof(&fn) fn##_t;
 
+
+#define TRY_ATTACH_ENV(env_name, vm, error_message, then) JNIEnv* env_name;\
+do {                                                                       \
+    env_name = get_attached_env(vm);                                       \
+    if(env_name == NULL) {                                                 \
+        printf(error_message);                                             \
+        then                                                               \
+    }                                                                      \
+} while(0)
+
+JNIEnv* get_attached_env(JavaVM* jvm);
+
 #define SET_DLSYM_PTR(handle, fn)                     \
     fn##_t fn##_p;                                   \
     do {                                             \
