@@ -58,6 +58,12 @@ public class NativeLibraryLoader {
     }
 
     public static void loadPojavLib() {
+        try {
+            System.loadLibrary("SDL3");
+            Log.i(TAG, "Loaded libSDL3.so");
+        } catch (UnsatisfiedLinkError e) {
+            Log.w(TAG, "libSDL3.so was not loaded; Minecraft 26.3+ may fail to open an SDL window", e);
+        }
         System.loadLibrary("pojavexec");
     }
 
