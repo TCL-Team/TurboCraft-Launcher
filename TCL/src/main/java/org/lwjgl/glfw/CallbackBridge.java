@@ -19,6 +19,12 @@ import com.movtery.zalithlauncher.bridge.ZLBridgeStates;
 import com.movtery.zalithlauncher.bridge.ZLNativeInvoker;
 import com.movtery.zalithlauncher.context.ContextsKt;
 import com.movtery.zalithlauncher.game.keycodes.LwjglGlfwKeycode;
+import com.movtery.zalithlauncher.game.sdl.SdlBridge;
+import com.movtery.zalithlauncher.bridge.LoggerBridge;
+import org.libsdl.app.SDLActivity;
+import org.libsdl.app.SDLSurface;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 import java.util.function.Consumer;
 
@@ -299,5 +305,58 @@ public class CallbackBridge {
     static {
         NativeLibraryLoader.loadPojavLib();
     }
-}
 
+    public static final int NOTIF_TYPE_SDL = 0;
+    public static final int ACTION_INIT_LAUNCHER_INTEGRATION = 0;
+    public static final int ACTION_SEND_TEXTBOX_RECT = 1;
+    public static final int SDL = NOTIF_TYPE_SDL;
+    public static final int INIT = ACTION_INIT_LAUNCHER_INTEGRATION;
+
+    @SuppressWarnings("unused")
+    @Keep
+    public static boolean notifyLauncher(int type, int... action) {
+        if (action == null || action.length == 0) {
+            LoggerBridge.append("TurboCraft: SDL notification has no action");
+            return false;
+        }
+        if (type == NOTIF_TYPE_SDL && action[0] == ACTION_INIT_LAUNCHER_INTEGRATION) {
+            if (!SdlBridge.INSTANCE.markSdlInitialized()) {
+                return true;
+            }
+            try {
+                LoggerBridge.append("TurboCraft: loading SDL3");
+                System.loadLibrary("SDL3");
+                try {
+                    System.loadLibrary("SDL2");
+                } catch (Throwable ignored) {
+                    LoggerBridge.append("TurboCraft: SDL2 not packaged, continuing with SDL3");
+                }
+                SdlBridge.INSTANCE.setupJNI();
+                SdlBridge.INSTANCE.setSdlEnabled(true);
+                SDLSurface surface = SDLActivity.getSDLSurface();
+                if (surface != null) {
+                    surface.surfaceChanged();
+                    if (windowWidth > 0 && windowHeight > 0) {
+                        surface.nativeResize(windowWidth, windowHeight);
+                    }
+                }
+                LoggerBridge.append("TurboCraft: SDL support enabled");
+                return true;
+            } catch (Throwable e) {
+                SdlBridge.INSTANCE.setSdlEnabled(false);
+                SdlBridge.INSTANCE.clearSdlInitialized();
+                StringWriter trace = new StringWriter();
+                e.printStackTrace(new PrintWriter(trace));
+                LoggerBridge.append("TurboCraft: SDL launcher integration unavailable:\n" + trace);
+            }
+        }
+        return false;
+    }
+
+    @SuppressWarnings("unused")
+    @Keep
+    public static boolean nativeNotifyLauncher(int type, int action) {
+        return notifyLauncher(type, action);
+    }
+
+}
