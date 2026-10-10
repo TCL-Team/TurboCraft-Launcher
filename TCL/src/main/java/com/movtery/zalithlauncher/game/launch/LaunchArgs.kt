@@ -33,6 +33,8 @@ import com.movtery.zalithlauncher.game.path.getLibrariesHome
 import com.movtery.zalithlauncher.game.plugin.natives.NativePluginManager
 import com.movtery.zalithlauncher.game.version.download.artifactToPath
 import com.movtery.zalithlauncher.game.version.download.filterLibrary
+import com.movtery.zalithlauncher.game.version.download.isSdlRuntimeJavaLibrary
+import com.movtery.zalithlauncher.game.version.download.usesLwjglSdl
 import com.movtery.zalithlauncher.game.version.download.getLibraryReplacement
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionInfo
@@ -153,11 +155,36 @@ class LaunchArgs(
         }
     }
 
-    private fun getLWJGL3ClassPath(): String =
-        File(PathManager.DIR_COMPONENTS, "lwjgl3")
+    private val lwjglVersion: Int = detectLwjglVersion(gameManifest)
+
+    /**
+     * ZalithLauncher 2 layout:
+     * LWJGL >= 3.4.1 (Minecraft 26.3+) uses components/lwjgl/3.4.1
+     * older versions use components/lwjgl/3.3.3
+     * Falls back to the old lwjgl3 folder if the versioned dir is empty.
+     */
+    private fun getLWJGL3ClassPath(): String {
+        val versionDir = lwjglVersionDir(lwjglVersion)
+        val dir = File(PathManager.DIR_COMPONENTS, "lwjgl/$versionDir")
+        val isLwjgl2 = lwjglVersion in 1..299
+        val jars = dir.listFiles { file -> file.name.endsWith(".jar") }
+            ?.sortedBy { file -> lwjglJarOrder(file.name, versionDir, isLwjgl2) }
+            ?.filter { file -> isLwjgl2 || file.name != "lwjgl-lwjglx.jar" }
+            ?.joinToString(":") { it.absolutePath }
+            .orEmpty()
+        if (jars.isNotEmpty()) return jars
+        return File(PathManager.DIR_COMPONENTS, "lwjgl3")
             .listFiles { file -> file.name.endsWith(".jar") }
             ?.joinToString(":") { it.absolutePath }
             ?: ""
+    }
+
+    private fun lwjglJarOrder(name: String, versionDir: String, isLwjgl2: Boolean): Int = when (name) {
+        "lwjgl.jar" -> 0
+        "lwjgl-$versionDir-merged-modules.jar" -> 1
+        "lwjgl-lwjglx.jar" -> 3
+        else -> 2
+    }
 
     private fun getJavaArgs(): List<String> {
         val argsList: MutableList<String> = ArrayList()
@@ -240,7 +267,12 @@ class LaunchArgs(
 //        }
 
         val varArgMap: MutableMap<String, String> = android.util.ArrayMap()
-        val launchClassPath = "${getLWJGL3ClassPath()}:${generateLaunchClassPath(gameManifest)}"
+        // 26.3+ SDL jars must precede the bundled Android LWJGL jars.
+        val launchClassPath = listOf(
+            sdlRuntimeClassPath(gameManifest),
+            getLWJGL3ClassPath(),
+            generateLaunchClassPath(gameManifest)
+        ).filter { it.isNotBlank() }.joinToString(":")
         var hasClasspath = false //是否已经在jvm参数中包含 ${classpath} 配置
 
         varArgMap["classpath_separator"] = ":"
@@ -315,9 +347,10 @@ class LaunchArgs(
         val libSortFix = LibSortFix(version.getVersionInfo())
         val libs = LinkedHashMap<GameManifest.Library, String>()
 
+        val allowLwjglSdlClasses = gameManifest.libraries.usesLwjglSdl()
         for (libItem in gameManifest.libraries) {
             if (!(GameManifest.Rule.checkRules(libItem.rules) && !libItem.isNative)) continue
-            val path = libItem.progressLibrary() ?: continue
+            val path = libItem.progressLibrary(allowLwjglSdlClasses) ?: continue
             with(libSortFix) {
                 libs.insertLib(libItem, getLibrariesHome() + "/" + path)
             }
@@ -330,8 +363,19 @@ class LaunchArgs(
     /**
      * @return 库相对路径
      */
-    private fun GameManifest.Library.progressLibrary(): String? {
-        if (filterLibrary()) return null
+    private fun sdlRuntimeClassPath(gameManifest: GameManifest): String {
+        if (!gameManifest.libraries.usesLwjglSdl()) return ""
+        return gameManifest.libraries.mapNotNull { library ->
+            if (!library.isSdlRuntimeJavaLibrary()) return@mapNotNull null
+            if (!(GameManifest.Rule.checkRules(library.rules) && !library.isNative)) return@mapNotNull null
+            val path = library.progressLibrary(allowLwjglSdlClasses = true) ?: return@mapNotNull null
+            val file = File(getLibrariesHome(), path)
+            if (file.exists()) file.absolutePath else null
+        }.joinToString(":")
+    }
+
+    private fun GameManifest.Library.progressLibrary(allowLwjglSdlClasses: Boolean = false): String? {
+        if (filterLibrary(allowLwjglSdlClasses)) return null
 
         var path = artifactToPath(this)
 
@@ -393,3 +437,27 @@ class LaunchArgs(
         return list.toTypedArray()
     }
 }
+
+/**
+ * Detect required LWJGL version from the game manifest.
+ * 3.3.3 -> 333, 3.4.1 -> 341. Unknown returns 0 and uses 3.3.3.
+ */
+fun detectLwjglVersion(manifest: GameManifest): Int {
+    for (lib in manifest.libraries) {
+        val name = lib.name ?: continue
+        val versionPrefix = when {
+            name.startsWith("org.lwjgl.lwjgl:lwjgl:") -> "org.lwjgl.lwjgl:lwjgl:"
+            name.startsWith("org.lwjgl:lwjgl:") -> "org.lwjgl:lwjgl:"
+            else -> continue
+        }
+        val intVersion = name.substring(versionPrefix.length)
+            .takeWhile { it.isDigit() || it == '.' }
+            .filter { it != '.' }
+            .toIntOrNull()
+        if (intVersion != null && intVersion in 200..999) return intVersion
+    }
+    return 0
+}
+
+/** >= 3.4.1 uses the SDL-capable component. Everything else stays on 3.3.3. */
+fun lwjglVersionDir(lwjglVersion: Int): String = if (lwjglVersion >= 341) "3.4.1" else "3.3.3"
