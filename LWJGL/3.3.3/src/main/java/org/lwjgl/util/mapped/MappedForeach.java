@@ -31,36 +31,41 @@
  */
 package org.lwjgl.util.mapped;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.util.Iterator;
 
 /**
- * When this annotation is used on a field, automatic cache-line-sized padding
- * will be inserted around the field. This is useful in multi-threaded algorithms
- * to avoid cache line false sharing. The annotation defaults to padding after
- * the field, but can be changed to before or both before and after. It can be
- * applied to both mapped object fields and POJO primitive fields.
+ * Iterable implementation for {@link MappedObject}.
  *
- * @author Spasi
+ * @author Riven
  */
-@Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.FIELD)
-public @interface CacheLinePad {
+final class MappedForeach<T extends MappedObject> implements Iterable<T> {
 
-	/**
-	 * When true, cache-line padding will be inserted before the field.
-	 *
-	 * @return true if cache-line padding will be inserted before the field
-	 */
-	boolean before() default false;
+	final T   mapped;
+	final int elementCount;
 
-	/**
-	 * When true, cache-line padding will be inserted after the field.
-	 *
-	 * @return true if cache-line padding will be inserted after the field
-	 */
-	boolean after() default true;
+	MappedForeach(T mapped, int elementCount) {
+		this.mapped = mapped;
+		this.elementCount = elementCount;
+	}
+
+	public Iterator<T> iterator() {
+		return new Iterator<T>() {
+
+			private int index;
+
+			public boolean hasNext() {
+				return this.index < (MappedForeach.this.elementCount);
+			}
+
+			public T next() {
+				mapped.setViewAddress(mapped.getViewAddress(this.index++));
+				return mapped;
+			}
+
+			public void remove() {
+				throw new UnsupportedOperationException();
+			}
+		};
+	}
 
 }
