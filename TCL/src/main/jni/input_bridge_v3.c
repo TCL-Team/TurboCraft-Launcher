@@ -592,3 +592,54 @@ JNIEXPORT jobject JNICALL
 Java_org_lwjgl_glfw_CallbackBridge_nativeCreateGamepadAxisBuffer(JNIEnv* env, __attribute__((unused)) jclass clazz) {
     return (*env)->NewDirectByteBuffer(env, pojav_environ->gamepadState.axes, sizeof(pojav_environ->gamepadState.axes));
 }
+
+jboolean ensureGlfwNativeBridgeInitialized(JNIEnv *env) {
+    if (pojav_environ->vmGlfwClass != NULL) {
+        return JNI_TRUE;
+    }
+    if (env == NULL && pojav_environ->runtimeJavaVMPtr != NULL) {
+        (*pojav_environ->runtimeJavaVMPtr)->GetEnv(
+                pojav_environ->runtimeJavaVMPtr, (void **) &env, JNI_VERSION_1_4);
+    }
+    if (env == NULL) {
+        LOG_TO_E("<%s> %s", "Native", "nativeInitializeGLFWNativeBridge: no game JVM environ available!");
+        return JNI_FALSE;
+    }
+
+    jclass glfwClass = (*env)->FindClass(env, "org/lwjgl/glfw/GLFW");
+    if (glfwClass == NULL) {
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
+        LOG_TO_E("<%s> %s", "Native", "nativeInitializeGLFWNativeBridge: failed to find org.lwjgl.glfw.GLFW");
+        return JNI_FALSE;
+    }
+
+    jmethodID method_glftSetWindowAttrib = (*env)->GetStaticMethodID(env, glfwClass, "glfwSetWindowAttrib", "(JII)V");
+    jmethodID method_internalWindowSizeChanged = (*env)->GetStaticMethodID(env, glfwClass, "internalWindowSizeChanged", "(J)V");
+    jfieldID field_keyDownBuffer = (*env)->GetStaticFieldID(env, glfwClass, "keyDownBuffer", "Ljava/nio/ByteBuffer;");
+    jfieldID field_mouseDownBuffer = (*env)->GetStaticFieldID(env, glfwClass, "mouseDownBuffer", "Ljava/nio/ByteBuffer;");
+    if ((*env)->ExceptionCheck(env)) {
+        LOG_TO_E("<%s> %s", "Native", "nativeInitializeGLFWNativeBridge: failed to resolve GLFW bridge members");
+        (*env)->ExceptionClear(env);
+        (*env)->DeleteLocalRef(env, glfwClass);
+        return JNI_FALSE;
+    }
+
+    jobject keyDownBufferJ = (*env)->GetStaticObjectField(env, glfwClass, field_keyDownBuffer);
+    jobject mouseDownBufferJ = (*env)->GetStaticObjectField(env, glfwClass, field_mouseDownBuffer);
+    jbyte *keyDownBuffer = keyDownBufferJ ? (*env)->GetDirectBufferAddress(env, keyDownBufferJ) : NULL;
+    jbyte *mouseDownBuffer = mouseDownBufferJ ? (*env)->GetDirectBufferAddress(env, mouseDownBufferJ) : NULL;
+    if (keyDownBufferJ) (*env)->DeleteLocalRef(env, keyDownBufferJ);
+    if (mouseDownBufferJ) (*env)->DeleteLocalRef(env, mouseDownBufferJ);
+
+    pojav_environ->vmGlfwClass = (*env)->NewGlobalRef(env, glfwClass);
+    (*env)->DeleteLocalRef(env, glfwClass);
+    pojav_environ->method_glftSetWindowAttrib = method_glftSetWindowAttrib;
+    pojav_environ->method_internalWindowSizeChanged = method_internalWindowSizeChanged;
+    pojav_environ->keyDownBuffer = keyDownBuffer;
+    pojav_environ->mouseDownBuffer = mouseDownBuffer;
+    return JNI_TRUE;
+}
+
+JNIEXPORT void JNICALL Java_org_lwjgl_glfw_GLFW_nativeInitializeGLFWNativeBridge(JNIEnv* env, __attribute__((unused)) jclass clazz) {
+    ensureGlfwNativeBridgeInitialized(env);
+}
