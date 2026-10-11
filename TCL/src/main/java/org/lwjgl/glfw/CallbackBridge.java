@@ -327,9 +327,19 @@ public class CallbackBridge {
     private static native ByteBuffer nativeCreateGamepadAxisBuffer();
 
     static {
-        NativeLibraryLoader.loadPojavLib();
-        sGamepadButtonBuffer = nativeCreateGamepadButtonBuffer();
-        sGamepadAxisBuffer = nativeCreateGamepadAxisBuffer().order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+        ByteBuffer buttons = ByteBuffer.allocateDirect(15);
+        FloatBuffer axes = ByteBuffer.allocateDirect(24).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+        try {
+            NativeLibraryLoader.loadPojavLib();
+            ByteBuffer nativeButtons = nativeCreateGamepadButtonBuffer();
+            ByteBuffer nativeAxes = nativeCreateGamepadAxisBuffer();
+            if (nativeButtons != null) buttons = nativeButtons;
+            if (nativeAxes != null) axes = nativeAxes.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
+        } catch (Throwable t) {
+            android.util.Log.e("CallbackBridge", "Gamepad buffer init failed, older versions will still launch", t);
+        }
+        sGamepadButtonBuffer = buttons;
+        sGamepadAxisBuffer = axes;
     }
 
     public static final int NOTIF_TYPE_SDL = 0;
