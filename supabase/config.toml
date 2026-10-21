@@ -1,0 +1,6 @@
+# The first chat session exists before a Supabase JWT; the function verifies launcher identity itself.
+[functions.chat-account-session]
+verify_jwt = false
+
+[functions.chat-account-recovery]
+verify_jwt = false
