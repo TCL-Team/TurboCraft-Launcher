@@ -182,8 +182,8 @@ fun MenuBox(
     position: Offset,
     onPositionChanged: (Offset) -> Unit,
     opened: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
 ) {
     FloatingBall(
         position = position,
