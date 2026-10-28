@@ -1,5 +1,5 @@
 /*
- * TurboCraft Launcher / PetLib
+ * Zalith Launcher 2
  * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
@@ -19,107 +19,130 @@
 package com.movtery.petlib
 
 import android.graphics.Bitmap
-import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Looper
 import android.util.Log
+import android.view.Choreographer
+import android.view.Surface
 import androidx.annotation.FloatRange
+import androidx.core.graphics.createBitmap
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.PI
 
 private const val TAG = "PetLib"
 
-/** 单帧时间步长上限（秒），宿主卡顿后不做大跨度跳变 */
-private const val MAX_STEP_SECONDS = 0.1f
+/** 连续锁画布失败达到该次数后，判定表面已失效并停止帧驱动 */
+private const val SURFACE_FAILURE_LIMIT = 10
+
+/**
+ * 帧间隔下限
+ */
+private const val MIN_FRAME_INTERVAL_NANOS = 1_000_000_000L / 60L * 9L / 10L
+
+/** 归一化到 (-π, π]，供最短路径回正 */
+private fun wrapPi(angle: Float): Float {
+    val twoPi = (2 * PI).toFloat()
+    val a = angle % twoPi
+    return when {
+        a > PI.toFloat() -> a - twoPi
+        a < -PI.toFloat() -> a + twoPi
+        else -> a
+    }
+}
 
 /**
  * PetLib 控制器
  *
- * 持有皮肤、披风、动画与光照状态，并在主线程以纹理视图的表面逐帧绘制玩家模型。
- * 除 [close] 外的状态方法都可以从任意线程调用；渲染只发生在主线程，
- * 因此姿态数据无需加锁。释放后调用任何方法均为无操作。
+ * 内部独占一个渲染线程；除 release 外所有方法都可从任意线程调用，
+ * 实际的原生调用全部排队到该线程执行。释放后调用任何方法均为无操作。
  *
- * @param initialSkin 初始皮肤数据（PNG）
- * @param arm 手臂模型，null 表示按皮肤自动检测
- * @param defaultYaw 默认偏航角（弧度），回正时回到该角度
- * @throws IllegalArgumentException 皮肤数据非法
+ * @param skin 初始皮肤数据
+ * @param arm 手臂模型，null 自动检测
+ * @param defaultYaw 默认偏航角（弧度），回正回到该角度
+ * @throws IllegalArgumentException 皮肤非法或解析失败
  */
 class PetController(
-    initialSkin: ByteArray,
+    skin: ByteArray,
     arm: ArmModel?,
     private val defaultYaw: Float = 0f
 ) : AutoCloseable {
-
-    private val renderer = PetRenderer()
-    private val animator = PetAnimator()
-
-    @Volatile
-    private var skin: PetSkin = PetSkin.load(initialSkin, arm)
+    private val thread = HandlerThread("PetLibRender").apply { start() }
+    private val handler = Handler(thread.looper)
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     @Volatile
-    private var cape: PetTexture? = null
-
-    @Volatile
-    private var lighting = PetLighting()
-
-    @Volatile
-    private var outerLayer = true
+    private var ptr: Long = PetLibNative.nativeCreate(skin, ArmModel.codeOf(arm))
 
     @Volatile
     private var released = false
 
-    /** 离屏帧缓冲：软件光栅到 ARGB 位图，由宿主组件直接绘到界面上 */
-    private var frameBitmap: Bitmap? = null
-    private var frameCanvas: Canvas? = null
+    // 偏航目标角的调用侧镜像，供增量旋转直接累加
+    @Volatile
+    private var yawTarget = 0f
 
-    private var lastFrameNanos = 0L
-    private var viewWidth = 0
-    private var viewHeight = 0
+    private var frameCallback: Choreographer.FrameCallback? = null
+    // 双缓冲：光栅写后台缓冲，提交展示前台缓冲，锁画布的等待期不再把
+    // 光栅时间串联进提交关键路径
+    private var backBuffer: FrameBuffer? = null
+    private var frontBuffer: FrameBuffer? = null
+    // 位图以 SRC 模式整幅覆写画布，透明区域随位图零像素一并替换，
+    // 免去提交前对旧内容做全画布清屏的额外一遍操作
+    private val overwritePaint = Paint().apply {
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC)
+    }
+    private var surfaceFailures = 0
+    private var lastRenderNanos = 0L
+    private var lastSlowLogNanos = 0L
+    private var attachedSurface: Surface? = null
+    private val surfaceRef = AtomicReference<Surface?>(null)
+    private val frameInFlight = AtomicBoolean(false)
+    private val widthHint = AtomicInteger(0)
+    private val heightHint = AtomicInteger(0)
 
     init {
-        animator.defaultYaw = defaultYaw
-        animator.setYawTarget(defaultYaw)
+        setModelYaw(defaultYaw)
     }
-
-    //<editor-fold desc="皮肤与外观">
 
     /**
      * 替换皮肤
      * @param skin PNG 皮肤数据
-     * @param arm 手臂模型类别，null 表示自动检测类型
-     * @param onError 失败时的回调（在调用线程执行）
+     * @param arm 手臂模型类别，为 null 则自动检测类型
+     * @param onError 失败时在渲染线程的回调
      */
-    fun setSkin(skin: ByteArray, arm: ArmModel?, onError: ((String) -> Unit)? = null) {
-        if (released) return
-        val parsed = try {
-            PetSkin.load(skin, arm)
-        } catch (e: IllegalArgumentException) {
-            Log.w(TAG, "Skin rejected: ${e.message}")
-            onError?.invoke(e.message ?: "Invalid skin")
-            return
+    fun setSkin(
+        skin: ByteArray,
+        arm: ArmModel?,
+        onError: ((String) -> Unit)? = null
+    ) {
+        post {
+            PetLibNative.nativeSetSkin(ptr, skin, ArmModel.codeOf(arm))?.let { error ->
+                Log.w(TAG, "Skin rejected: $error")
+                onError?.invoke(error)
+            }
         }
-        val previous = this.skin
-        this.skin = parsed
-        previous.texture.recycle()
     }
 
     /**
      * 替换披风
-     * @param cape 披风 PNG 数据，null 表示移除披风
-     * @param onError 失败时的回调（在调用线程执行）
+     * @param cape 披风，为 null 则移除
+     * @param onError 失败时在渲染线程的回调
      */
-    fun setCape(cape: ByteArray?, onError: ((String) -> Unit)? = null) {
-        if (released) return
-        val parsed = if (cape == null) {
-            null
-        } else {
-            try {
-                PetSkin.loadCape(cape)
-            } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Cape rejected: ${e.message}")
-                onError?.invoke(e.message ?: "Invalid cape")
-                return
+    fun setCape(
+        cape: ByteArray?,
+        onError: ((String) -> Unit)? = null
+    ) {
+        post {
+            PetLibNative.nativeSetCape(ptr, cape)?.let { error ->
+                Log.w(TAG, "Cape rejected: $error")
+                onError?.invoke(error)
             }
         }
-        val previous = this.cape
-        this.cape = parsed
-        previous?.recycle()
     }
 
     /**
@@ -129,16 +152,28 @@ class PetController(
      * @param brightness 亮度百分比，100 为原始色
      * @param softness 柔和度百分比，越高明暗对比越平缓
      */
-    fun setLighting(azimuth: Float, elevation: Float, brightness: Float, softness: Float) {
-        if (released) return
-        lighting = PetLighting(azimuth, elevation, brightness, softness)
+    fun setLighting(
+        azimuth: Float,
+        elevation: Float,
+        brightness: Float,
+        softness: Float
+    ) {
+        post { PetLibNative.nativeSetLighting(ptr, azimuth, elevation, brightness, softness) }
     }
 
     /**
-     * 是否绘制双层皮肤
+     * 超采样系数
+     * @param value 系数
+     */
+    fun setSuperSample(@FloatRange(0.5, 2.0) value: Float) {
+        post { PetLibNative.nativeSetSuperSample(ptr, value) }
+    }
+
+    /**
+     * 是否开启双层皮肤
      */
     fun setOuterLayer(enabled: Boolean) {
-        outerLayer = enabled
+        post { PetLibNative.nativeSetOuterLayer(ptr, enabled) }
     }
 
     /**
@@ -148,12 +183,13 @@ class PetController(
      * @param anim 动画切换的交叉过渡
      * @param recenter 头部回正
      */
-    fun setTau(gaze: Float, yaw: Float, anim: Float, recenter: Float) {
-        if (released) return
-        animator.yawTau = yaw.coerceAtLeast(0f)
-        animator.recenterTau = recenter.coerceAtLeast(0f)
-        if (anim > 0f) animator.poseTau = anim
-        if (gaze > 0f) animator.poseTau = minOf(animator.poseTau, gaze)
+    fun setTau(
+        gaze: Float,
+        yaw: Float,
+        anim: Float,
+        recenter: Float
+    ) {
+        post { PetLibNative.nativeSetTau(ptr, gaze, yaw, anim, recenter) }
     }
 
     /**
@@ -161,66 +197,60 @@ class PetController(
      * @param x 水平夹角上限（度）
      * @param y 垂直夹角上限（度）
      */
-    fun setHeadRange(x: Float, y: Float) {
-        if (released) return
-        animator.headRangeX = x.coerceIn(0f, 89f)
-        animator.headRangeY = y.coerceIn(0f, 89f)
+    fun setHeadRange(
+        x: Float,
+        y: Float
+    ) {
+        post { PetLibNative.nativeSetHeadRange(ptr, x, y) }
+    }
+
+    /** 设置压扁动画深度百分比 */
+    fun setSquashDepth(@FloatRange(.0, 30.0) depth: Float) {
+        post { PetLibNative.nativeSetSquashDepth(ptr, depth) }
     }
 
     /**
-     * 设置压扁动画深度百分比
-     */
-    fun setSquashDepth(@FloatRange(from = 0.0, to = 30.0) depth: Float) {
-        if (released) return
-        animator.squashDepth = depth.coerceIn(0f, 30f)
-    }
-
-    /**
-     * 超采样系数。硬件光栅化本身与分辨率解耦，这里只调整模型占屏比例。
-     */
-    fun setSuperSample(@FloatRange(from = 0.5, to = 2.0) value: Float) {
-        // 保留接口以兼容调用方；硬件光栅化下无需超采样
-    }
-
-    //</editor-fold>
-
-    //<editor-fold desc="姿态与动画">
-
-    /**
-     * 注视目标（视图像素坐标），null 表示回正
+     * 注视目标（视图像素坐标），null 表示回正。
      */
     fun setGaze(target: Pair<Float, Float>?) {
-        if (released) return
-        if (target == null) {
-            animator.setGaze(null, null)
-        } else {
-            val width = viewWidth.coerceAtLeast(1)
-            val height = viewHeight.coerceAtLeast(1)
-            animator.setGaze(target.first / width, target.second / height)
+        post {
+            if (target == null) {
+                PetLibNative.nativeSetGaze(ptr, 0f, 0f, false)
+            } else {
+                PetLibNative.nativeSetGaze(ptr, target.first, target.second, true)
+            }
         }
     }
 
     /** 整体偏航目标角（弧度） */
     fun setModelYaw(yaw: Float) {
-        if (released) return
-        animator.setYawTarget(yaw)
+        yawTarget = yaw
+        post { PetLibNative.nativeSetYaw(ptr, yaw) }
     }
 
-    /** 在当前偏航目标角上叠加增量（弧度），供拖拽旋转 */
+    /**
+     * 在当前偏航目标角上叠加增量（弧度），供拖拽旋转
+     * @param delta 偏航增量（弧度）
+     */
     fun rotateYaw(delta: Float) {
-        if (released) return
-        animator.rotateYaw(delta)
+        val next = yawTarget + delta
+        yawTarget = next
+        post { PetLibNative.nativeSetYaw(ptr, next) }
     }
 
     /** 回正：从当前姿态以最短路径转回默认偏航角 */
     fun recenterYaw() {
-        if (released) return
-        animator.recenterYaw()
+        post {
+            val current = PetLibNative.nativeGetYaw(ptr)
+            val next = current + wrapPi(defaultYaw - current)
+            yawTarget = next
+            PetLibNative.nativeSetYaw(ptr, next)
+        }
     }
 
     /** 查询当前偏航角，结果异步回到调用方的回调 */
     fun getModelYaw(onResult: (Float) -> Unit) {
-        onResult(animator.pose.yaw)
+        post { onResult(PetLibNative.nativeGetYaw(ptr)) }
     }
 
     /**
@@ -230,135 +260,230 @@ class PetController(
      * @param headFollow 播放期间头部是否追随注视输入
      */
     fun playAnimation(animation: PetAnimation, speed: Float = 1f, headFollow: Boolean = true) {
-        if (released) return
-        animator.setAnimation(animation, speed, headFollow)
+        post { PetLibNative.nativePlayAnimation(ptr, animation.id, speed, headFollow) }
     }
 
-    /** 停止动画，回到静止姿态 */
+    /** 停止动画 */
     fun stopAnimation() {
-        if (released) return
-        animator.stopAnimation()
+        post { PetLibNative.nativeStopAnimation(ptr) }
     }
 
-    /** 播放点按压扁动画 */
+    /**
+     * 播放点按压扁动画
+     * @param now 兼容保留；内部按帧间隔计时，不读取该值
+     */
     fun squashTap(now: Float) {
-        if (released) return
-        animator.squashTap()
+        post { PetLibNative.nativeSquashTap(ptr, now) }
     }
 
-    /** 播放攻击摆臂动画 */
+    /**
+     * 播放攻击摆臂动画
+     * @param now 兼容保留；内部按帧间隔计时，不读取该值
+     */
     fun playSwing(now: Float) {
-        if (released) return
-        animator.swing()
+        post { PetLibNative.nativePlaySwing(ptr, now) }
     }
 
     /**
      * 播放点击反应动画，播放中重复调用时无效果
      */
     fun playInteract() {
-        if (released) return
-        animator.interact()
+        post { PetLibNative.nativePlayInteract(ptr) }
     }
 
     /**
-     * 归一化坐标命中测试
+     * 归一化坐标命中测试，结果异步回到调用方的回调
      * @param x 横坐标（0..1）
      * @param y 纵坐标（0..1）
+     * @param onResult 命中结果回调，在渲染线程上执行
      */
     fun hitTest(x: Float, y: Float, onResult: (Boolean) -> Unit) {
-        onResult(renderer.hitTest(x, y))
+        post { onResult(PetLibNative.nativeHitTest(ptr, x, y)) }
     }
 
-    //</editor-fold>
-
-    //<editor-fold desc="渲染">
-
-    /**
-     * 把当前姿态光栅到内部帧缓冲并返回该位图
-     *
-     * 由宿主组件在自身的绘制阶段调用；渲染结果直接绘到界面画布上，
-     * 不依赖 TextureView/Surface 这一层间接传递。
-     *
-     * @param width 目标宽（像素）
-     * @param height 目标高（像素）
-     * @param frameTimeNanos 帧时间戳，来自宿主帧时钟
-     * @return 已绘制的帧位图，尺寸非法或已释放时为 null
-     */
-    fun renderFrame(width: Int, height: Int, frameTimeNanos: Long): Bitmap? {
-        if (released) return null
-        if (width <= 0 || height <= 0) return null
-        viewWidth = width
-        viewHeight = height
-
-        // 首帧把姿态直接对齐到目标，避免从零姿态漫入
-        if (lastFrameNanos == 0L) {
-            animator.snap()
-        } else {
-            val dt = ((frameTimeNanos - lastFrameNanos) / 1_000_000_000f)
-                .coerceIn(0f, MAX_STEP_SECONDS)
-            animator.update(dt)
-        }
-        lastFrameNanos = frameTimeNanos
-
-        val canvas = obtainFrameBuffer(width, height) ?: return null
-        return try {
-            renderer.draw(
-                canvas = canvas,
-                width = width,
-                height = height,
-                skin = skin,
-                cape = cape,
-                pose = animator.pose,
-                outerLayer = outerLayer,
-                lighting = lighting
-            )
-            frameBitmap
-        } catch (e: Exception) {
-            Log.w(TAG, "Frame draw failed", e)
-            null
+    /** 渲染循环控制 */
+    internal fun attachSurface(surface: Surface, width: Int, height: Int) {
+        // surface 生命周期全部排队到渲染线程执行，与逐帧回调串行，
+        // 避免一帧正持有旧surface 时它被另一线程释放。
+        post {
+            widthHint.set(width)
+            heightHint.set(height)
+            // 视图附着、surface 创建与尺寸变化回调会接连触发，
+            // 同一 surface 的重复附着不再重复登记
+            if (attachedSurface === surface && surfaceRef.get() != null) {
+                startFrameLoop()
+                return@post
+            }
+            // surface 由宿主视图持有，这里只借用，不负责释放
+            surfaceRef.set(surface)
+            attachedSurface = surface
+            surfaceFailures = 0
+            lastRenderNanos = 0L
+            startFrameLoop()
         }
     }
 
-    /**
-     * 取回上一次缓存的帧缓冲尺寸变化时的旧位图不再使用
-     */
-    private fun obtainFrameBuffer(width: Int, height: Int): Canvas? {
-        val existing = frameBitmap
-        if (existing != null && !existing.isRecycled &&
-            existing.width == width && existing.height == height
-        ) {
-            return frameCanvas
-        }
-        existing?.recycle()
-        val bitmap = try {
-            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        } catch (e: Exception) {
-            Log.w(TAG, "Unable to allocate frame buffer", e)
-            frameBitmap = null
-            frameCanvas = null
-            return null
-        }
-        val canvas = Canvas(bitmap)
-        frameBitmap = bitmap
-        frameCanvas = canvas
-        return canvas
+    internal fun updateSurfaceSize(width: Int, height: Int) {
+        widthHint.set(width)
+        heightHint.set(height)
     }
 
-    /** 重置帧计时，用于宿主恢复绘制时避免一次大跨度推进 */
-    fun resetFrameClock() {
-        lastFrameNanos = 0L
+    internal fun detachSurface() {
+        post {
+            if (surfaceRef.getAndSet(null) != null) {
+                attachedSurface = null
+            }
+            stopFrameLoop()
+        }
     }
-
-    //</editor-fold>
 
     override fun close() {
         if (released) return
         released = true
-        skin.texture.recycle()
-        cape?.recycle()
-        cape = null
-        frameBitmap?.recycle()
-        frameBitmap = null
-        frameCanvas = null
+
+        mainHandler.post {
+            frameCallback?.let { Choreographer.getInstance().removeFrameCallback(it) }
+            frameCallback = null
+        }
+        handler.post {
+            surfaceRef.set(null)
+            attachedSurface = null
+            PetLibNative.nativeDestroy(ptr)
+            ptr = 0
+            backBuffer = null
+            frontBuffer = null
+        }
+        handler.looper.quitSafely()
     }
+
+    private fun post(block: () -> Unit) {
+        if (released) return
+
+        handler.post {
+            if (!released && ptr != 0L) block()
+        }
+    }
+
+    private fun startFrameLoop() {
+        mainHandler.post {
+            if (frameCallback != null || released) return@post
+            val choreographer = Choreographer.getInstance()
+            val callback = object : Choreographer.FrameCallback {
+                override fun doFrame(nanos: Long) {
+                    if (frameCallback !== this || released) return
+                    if (frameInFlight.compareAndSet(false, true)) {
+                        handler.post {
+                            try {
+                                renderOneFrame()
+                            } finally {
+                                frameInFlight.set(false)
+                            }
+                        }
+                    }
+                    choreographer.postFrameCallback(this)
+                }
+            }
+            frameCallback = callback
+            choreographer.postFrameCallback(callback)
+        }
+    }
+
+    private fun stopFrameLoop() {
+        mainHandler.post {
+            frameCallback?.let { Choreographer.getInstance().removeFrameCallback(it) }
+            frameCallback = null
+        }
+    }
+
+    private fun onSurfaceFailure(surface: Surface, error: Exception? = null) {
+        surfaceFailures++
+        if (error != null) {
+            Log.w(TAG, "Frame failed: $error")
+        }
+        if (surfaceFailures >= SURFACE_FAILURE_LIMIT && surfaceRef.compareAndSet(surface, null)) {
+            // 连续失败判定废弃并停帧
+            attachedSurface = null
+            stopFrameLoop()
+            Log.w(TAG, "Surface unusable after $surfaceFailures consecutive failures; frame loop stopped")
+        }
+    }
+
+    private fun renderOneFrame() {
+        val surface = surfaceRef.get() ?: return
+        val width = widthHint.get()
+        val height = heightHint.get()
+        if (width <= 0 || height <= 0) return
+
+        // 帧率上限：跳过的帧不推进计时基准，帧间隔随之累积，动画按真实时间推进不受采样率影响
+        val startedNanos = System.nanoTime()
+        if (lastRenderNanos != 0L && startedNanos - lastRenderNanos < MIN_FRAME_INTERVAL_NANOS) {
+            return
+        }
+
+        // 帧计时取自渲染线程的真实出帧间隔，帧率下降时动画仍按真实时间推进
+        val dt = if (lastRenderNanos == 0L) {
+            1f / 60f
+        } else {
+            ((startedNanos - lastRenderNanos) / 1_000_000_000f).coerceIn(0.001f, 0.25f)
+        }
+        lastRenderNanos = startedNanos
+
+        // surface 被系统侧失效时，lockCanvas 可能抛异常，也可能只返回 null 并由
+        // native 层打印错误。先锁画布再渲染，失败帧不产生渲染开销。
+        val canvas = try {
+            surface.lockCanvas(null)
+        } catch (e: IllegalStateException) {
+            onSurfaceFailure(surface, e)
+            return
+        } catch (e: IllegalArgumentException) {
+            onSurfaceFailure(surface, e)
+            return
+        } ?: run {
+            onSurfaceFailure(surface)
+            return
+        }
+        try {
+            var back = backBuffer
+            if (back == null || back.bitmap.width != width || back.bitmap.height != height) {
+                back = FrameBuffer(createBitmap(width, height))
+                backBuffer = back
+            }
+            // 渲染直写位图像素，位图为预乘 RGBA，随 SRC 模式整幅覆写画布
+            PetLibNative.nativeRender(ptr, width, height, startedNanos / 1_000_000_000f, dt, back.bitmap)
+            // 交换：刚完成的帧转为待提交，旧的前台缓冲留给下一轮光栅
+            val previousFront = frontBuffer
+            frontBuffer = back
+            backBuffer = previousFront
+            canvas.drawBitmap(back.bitmap, 0f, 0f, overwritePaint)
+            surface.unlockCanvasAndPost(canvas)
+        } catch (e: IllegalArgumentException) {
+            // 原生渲染失败或 surface 在锁画布与提交之间被废弃。先释放画布锁，
+            // 单帧失败不得级联堵死后续帧，再按 surface 故障计数处理。
+            try {
+                surface.unlockCanvasAndPost(canvas)
+            } catch (suppressed: Exception) {
+                e.addSuppressed(suppressed)
+            }
+            onSurfaceFailure(surface, e)
+            return
+        } catch (e: IllegalStateException) {
+            try {
+                surface.unlockCanvasAndPost(canvas)
+            } catch (suppressed: Exception) {
+                e.addSuppressed(suppressed)
+            }
+            onSurfaceFailure(surface, e)
+            return
+        }
+        surfaceFailures = 0
+
+        val costMs = (System.nanoTime() - startedNanos) / 1_000_000L
+        if (costMs > 100 && startedNanos - lastSlowLogNanos > 3_000_000_000L) {
+            lastSlowLogNanos = startedNanos
+            Log.i(TAG, "Slow frame: ${costMs}ms (surface ${width}x${height})")
+        }
+    }
+
+    /** 帧缓冲：原生侧渲染结果直接落入位图像素 */
+    private class FrameBuffer(val bitmap: Bitmap)
 }

@@ -1,5 +1,5 @@
 /*
- * TurboCraft Launcher
+ * Zalith Launcher 2
  * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
@@ -74,12 +74,10 @@ private fun Context.loadDefaultSkin(arm: ArmModel?): ByteArray = if (arm == ArmM
  * @param dragYaw 是否响应拖拽旋转偏航
  * @param gazeEnabled 是否跟随 Activity 全局鼠标位置（窗口坐标）；
  * 独立窗口中的预览与事件泵不同坐标系，应传 false
- * @param active 宿主界面是否可见，不可见时暂停渲染
  */
 @Composable
 fun PetModelView(
     modifier: Modifier = Modifier,
-    active: Boolean = true,
     skin: ByteArray? = null,
     cape: ByteArray? = null,
     arm: ArmModel? = null,
@@ -92,9 +90,7 @@ fun PetModelView(
 ) {
     val context = LocalContext.current
     val petController = remember {
-        // 皮肤数据损坏时回落到默认皮肤，避免整块界面崩溃
-        runCatching { PetController(skin ?: context.loadDefaultSkin(arm), arm) }
-            .getOrElse { PetController(context.loadDefaultSkin(arm), arm) }
+        PetController(skin ?: context.loadDefaultSkin(arm), arm)
     }
     DisposableEffect(petController) {
         onDispose { petController.close() }
@@ -109,18 +105,15 @@ fun PetModelView(
     LaunchedEffect(petController, animation, animationSpeed) {
         if (animation != null) {
             petController.playAnimation(animation, animationSpeed)
-        } else {
-            petController.stopAnimation()
         }
     }
     LaunchedEffect(petController, yaw) {
         petController.setModelYaw(yaw)
     }
 
-
     var previewBounds by remember { mutableStateOf<Rect?>(null) }
-    DisposableEffect(petController, gazeEnabled, active) {
-        if (!gazeEnabled || !active) {
+    DisposableEffect(petController, gazeEnabled) {
+        if (!gazeEnabled) {
             onDispose { }
         } else {
             val gazeTarget = object : PetGazeRouter.Target {
@@ -142,7 +135,6 @@ fun PetModelView(
         controller = petController,
         modifier = modifier.onGloballyPositioned { previewBounds = it.boundsInWindow() },
         tapReaction = tapReaction,
-        dragYaw = dragYaw,
-        active = active
+        dragYaw = dragYaw
     )
 }

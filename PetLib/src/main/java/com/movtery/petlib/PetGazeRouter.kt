@@ -1,5 +1,5 @@
 /*
- * TurboCraft Launcher / PetLib
+ * Zalith Launcher 2
  * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
@@ -23,11 +23,7 @@ import android.view.MotionEvent
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Activity 事件泵：把真实鼠标的位置喂给当前注册的玩家模型预览，
- * 让模型头部与视线跟随光标。
- *
- * 宿主需要在 Activity 的 `dispatchGenericMotionEvent` / `dispatchTouchEvent`
- * 中把事件转发进来。
+ * Activity 事件泵，把真实鼠标的位置喂给当前注册的玩家模型预览
  */
 object PetGazeRouter {
     private const val IDLE_RECENTER_NANOS: Long = 10_000_000_000L
@@ -35,7 +31,6 @@ object PetGazeRouter {
     interface Target {
         /** 光标移动，坐标为窗口坐标 */
         fun onCursor(x: Float, y: Float)
-
         /** 超时未再见鼠标，应清空注视 */
         fun onGazeExpired()
     }

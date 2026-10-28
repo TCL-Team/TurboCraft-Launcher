@@ -1334,8 +1334,8 @@ fun ChangeSkinDialog(
             uri?.let { onCapePicked(account, it) }
         }
 
-    // 皮肤预览：跟随当前未保存的选择实时刷新（PetLib 直接按 PNG 数据渲染）
-    val previewSkin by produceState<ByteArray?>(null, skinState, account, capeRefreshKey) {
+    // 皮肤状态变化时重载预览皮肤
+    val previewSkin by produceState<ByteArray?>(null, skinState) {
         value = withContext(Dispatchers.IO) {
             when (skinState) {
                 ChangeSkin.None -> account.getSkinFile()
@@ -1349,8 +1349,9 @@ fun ChangeSkinDialog(
             }
         }
     }
+    // 加载披风
     val previewCape by produceState<ByteArray?>(
-        null, capeState, currentCapeToLoad, capeRefreshKey
+        null, capeState, currentCapeToLoad, availableCapes, capeRefreshKey
     ) {
         value = withContext(Dispatchers.IO) {
             when (capeState) {

@@ -1,5 +1,5 @@
 /*
- * TurboCraft Launcher / PetLib
+ * Zalith Launcher 2
  * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
@@ -22,10 +22,7 @@ package com.movtery.petlib
  * 玩家臂型
  */
 enum class ArmModel(internal val code: Int) {
-    /** 经典 4px 手臂 */
     Classic(0),
-
-    /** 纤细 3px 手臂 */
     Slim(1);
 
     internal companion object {

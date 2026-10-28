@@ -1,5 +1,5 @@
 /*
- * TurboCraft Launcher / PetLib
+ * Zalith Launcher 2
  * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
@@ -18,13 +18,10 @@
 
 package com.movtery.petlib
 
-/**
- * 循环动画预设
- */
+/** 循环动画预设 */
 enum class PetAnimation(internal val id: Int) {
-    /** 待机：轻微呼吸、手臂摆动与点头 */
+    /** 待机动画 */
     Idle(0),
-
-    /** 行走：手脚交替摆动、身体上下起伏 */
-    Walking(1)
+    /** 行走动画 */
+    Walking(1),
 }
