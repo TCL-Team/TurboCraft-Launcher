@@ -25,6 +25,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.setContent
@@ -71,10 +72,14 @@ import com.movtery.zalithlauncher.path.URL_SUPPORT
 import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.ui.AndroidStringText
 import com.movtery.zalithlauncher.ui.androidText
+import com.movtery.guide.GuideHost
+import com.movtery.petlib.PetGazeRouter
 import com.movtery.zalithlauncher.ui.base.BaseAppCompatActivity
 import com.movtery.zalithlauncher.ui.base.ObserveFullScreenSetting
 import com.movtery.zalithlauncher.ui.buildAppendedText
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
+import com.movtery.zalithlauncher.ui.guide.NextTipLabel
+import com.movtery.zalithlauncher.ui.guide.rememberAppGuides
 import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
 import com.movtery.zalithlauncher.ui.screens.content.elements.Background
@@ -339,30 +344,38 @@ class MainActivity : BaseAppCompatActivity() {
                 festivals = festivals
             ) {
                 ObserveFullScreenSetting(AllSettings.launcherFullScreen.state)
+                //新手引导画布：承载主界面的引导流，并渲染遮罩、镂空与引导内容
+                val guides = rememberAppGuides(eventViewModel)
                 Box {
-                    Background(
+                    GuideHost(
+                        guides.mainScreen,
                         modifier = Modifier.fillMaxSize(),
-                        viewModel = backgroundViewModel
-                    )
-
-                    CompositionLocalProvider(
-                        LocalHomePageViewModel provides homePageViewModel
+                        nextTip = { NextTipLabel(it) }
                     ) {
-                        MainScreen(
-                            screenBackStackModel = screenBackStackModel,
-                            eventViewModel = eventViewModel,
-                            modpackImportViewModel = modpackImportViewModel,
-                            submitError = {
-                                errorViewModel.showError(it)
-                            }
+                        Background(
+                            modifier = Modifier.fillMaxSize(),
+                            viewModel = backgroundViewModel
+                        )
+
+                        CompositionLocalProvider(
+                            LocalHomePageViewModel provides homePageViewModel
+                        ) {
+                            MainScreen(
+                                screenBackStackModel = screenBackStackModel,
+                                eventViewModel = eventViewModel,
+                                modpackImportViewModel = modpackImportViewModel,
+                                submitError = {
+                                    errorViewModel.showError(it)
+                                }
+                            )
+                        }
+
+                        //节日彩蛋效果层
+                        FestivalEffects(
+                            modifier = Modifier.fillMaxSize(),
+                            festivals = festivals
                         )
                     }
-
-                    //节日彩蛋效果层
-                    FestivalEffects(
-                        modifier = Modifier.fillMaxSize(),
-                        festivals = festivals
-                    )
 
                     //启动游戏操作流程
                     LaunchGameOperation(
@@ -521,6 +534,19 @@ class MainActivity : BaseAppCompatActivity() {
                 PlayerNoticeDialog()
             }
         }
+    }
+
+    /**
+     * 把真实鼠标事件转给玩家模型预览，让模型视线跟随光标
+     */
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean {
+        PetGazeRouter.onGenericMotionEvent(ev)
+        return super.dispatchGenericMotionEvent(ev)
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        PetGazeRouter.onTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun onNewIntent(intent: Intent) {

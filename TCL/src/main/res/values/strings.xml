@@ -1521,6 +1521,18 @@
     <string name="guide_main_card_tip_title">Looking a bit empty here?</string>
     <!-- Body of the guide card about pinning contents as cards on the main screen; %s is the name of the pin-to-home option -->
     <string name="guide_main_card_tip_text">Don\'t worry! You can pin content here as cards and arrange it freely, as long as it provides the “%s” option</string>
+    <!-- Title of the guide card for the big launch button at the bottom of the action panel -->
+    <string name="guide_main_launch_title">Ready to play?</string>
+    <!-- Body of the guide card explaining the launch button; it starts the game with the selected version -->
+    <string name="guide_main_launch_text">Tap this button to start the game with the version selected above</string>
+    <!-- Title of the guide card for the play-time statistics panel on the main screen -->
+    <string name="guide_main_stats_title">Your adventure, at a glance</string>
+    <!-- Body explaining the statistics panel: weekly play time, daily summary and the latest log -->
+    <string name="guide_main_stats_text">Play time charts, recent activity and the newest game log are collected here. Tap a card to see the full details</string>
+    <!-- Title of the guide card for the vertical side bar on the main screen -->
+    <string name="guide_main_sidebar_title">Everything else lives here</string>
+    <!-- Body explaining the side bar buttons: versions, performance info and launcher information -->
+    <string name="guide_main_sidebar_text">These buttons open the version manager, the performance settings and the launcher information. That\'s the whole main screen!</string>
     <!-- Welcome card shown centered on the screen at the very start of the control-editor guide -->
     <string name="guide_editor_welcome_title">Welcome to the control layout editor!</string>
     <!-- Second line of the centered welcome card that opens the control-editor guide -->

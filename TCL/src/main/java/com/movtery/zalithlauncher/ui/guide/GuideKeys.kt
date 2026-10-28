@@ -23,24 +23,33 @@ import com.movtery.guide.GuideKey
 /** 启动器各类引导 */
 sealed interface GuideKeys : GuideKey {
     /** 一组引导（一条引导流的身份），用于跨层启动事件与进度存储 */
-    sealed interface Keys
+    sealed interface Keys {
+        /** 该组引导的版本号，版本号提升时已看过旧版引导的用户会重新看到引导 */
+        val version: Int
+    }
 
     /** 主界面引导 */
     data object Main : Keys {
+        override val version = 1
+
         sealed interface Step : GuideKey {
             /** 添加账号入口 */
             data object Account : Step
             /** 版本列表入口 */
             data object VersionList : Step
-            /** 可长按拖动换边的操作菜单卡片 */
-            data object CardDrag : Step
-            /** 卡片化自定义主界面引导 */
-            data object CardTip : Step
+            /** 启动游戏按钮 */
+            data object Launch : Step
+            /** 游玩统计面板 */
+            data object Stats : Step
+            /** 侧边栏按钮组 */
+            data object SideBar : Step
         }
     }
 
     /** 控制布局编辑器的引导 */
     data object Editor : Keys {
+        override val version = 1
+
         sealed interface Step : GuideKey {
             /** 悬浮菜单 */
             data object MenuBall : Step

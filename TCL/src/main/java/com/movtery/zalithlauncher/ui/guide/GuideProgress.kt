@@ -30,24 +30,43 @@ object GuideProgress {
         MMKV.MULTI_PROCESS_MODE
     )
 
-    /**
-     * 该组引导的持久化键
-     */
-    fun keyOf(group: GuideKeys.Keys) = when (group) {
+    private fun legacyKeyOf(group: GuideKeys.Keys) = when (group) {
         GuideKeys.Main -> "started_Main"
         GuideKeys.Editor -> "started_Editor"
     }
 
     /**
-     * @return 该组引导是否已经播放过
+     * @return 该组引导已播放版本的持久化键
      */
-    fun isPlayed(group: GuideKeys.Keys): Boolean =
-        mmkv.getBoolean(keyOf(group), false)
+    fun keyOf(group: GuideKeys.Keys) = when (group) {
+        GuideKeys.Main -> "version_Main"
+        GuideKeys.Editor -> "version_Editor"
+    }
 
     /**
-     * 标记该组引导已经播放
+     * @return 该组引导已播放的版本，0 表示从未播放
      */
-    fun markPlayed(group: GuideKeys.Keys) {
-        mmkv.putBoolean(keyOf(group), true).apply()
+    fun playedVersion(group: GuideKeys.Keys): Int {
+        val version = mmkv.getInt(keyOf(group), 0)
+        if (version != 0) return version
+
+        // 兼容旧版布尔存储
+        return if (mmkv.getBoolean(legacyKeyOf(group), false)) {
+            1 // 旧版已播放时，视为版本号 1
+        } else {
+            0
+        }
+    }
+
+    /**
+     * @return 该组引导是否已经播放过当前版本
+     */
+    fun isPlayed(group: GuideKeys.Keys): Boolean = playedVersion(group) >= group.version
+
+    /**
+     * 标记该组引导已经播放到指定版本
+     */
+    fun markPlayed(group: GuideKeys.Keys, version: Int) {
+        mmkv.putInt(keyOf(group), version).apply()
     }
 }

@@ -61,6 +61,7 @@ import com.movtery.layer_controller.observable.cloneNew
 import com.movtery.layer_controller.observable.ObservableButtonStyle
 import com.movtery.layer_controller.observable.ObservableControlLayer
 import com.movtery.layer_controller.observable.ObservableWidget
+import com.movtery.guide.guideNode
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.setting.enums.isLauncherInDarkTheme
@@ -69,6 +70,7 @@ import com.movtery.zalithlauncher.ui.components.ProgressDialog
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.SimpleEditDialog
 import com.movtery.zalithlauncher.ui.components.rememberBoxSize
+import com.movtery.zalithlauncher.ui.guide.GuideKeys
 import com.movtery.zalithlauncher.ui.screens.main.control_editor.edit_joystick.EditJoystickStyleDialog
 import com.movtery.zalithlauncher.ui.screens.main.control_editor.edit_joystick.EditJoystickStyleMode
 import com.movtery.zalithlauncher.ui.screens.main.control_editor.edit_layer.EditControlLayerDialog
@@ -288,6 +290,10 @@ fun BoxWithConstraintsScope.ControlEditor(
     )
 
     MenuBox(
+        modifier = Modifier.guideNode(
+            key = GuideKeys.Editor.Step.MenuBall,
+            holeRadius = 12.dp
+        ),
         position = viewModel.editorBallPosition,
         onPositionChanged = { viewModel.editorBallPosition = it },
         opened = viewModel.editorMenu == MenuState.SHOW

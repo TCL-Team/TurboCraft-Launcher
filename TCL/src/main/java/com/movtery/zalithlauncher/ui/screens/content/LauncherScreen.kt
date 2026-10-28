@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -88,11 +89,18 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import com.movtery.zalithlauncher.BuildConfig
 import com.movtery.zalithlauncher.BuildKeys
+import androidx.compose.runtime.produceState
+import com.movtery.guide.GuideSide
+import com.movtery.guide.guideNode
+import com.movtery.petlib.PetAnimation
+import com.movtery.petlib.PetTapReaction
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.game.account.AccountsManager
+import com.movtery.zalithlauncher.game.account.wardrobe.toArmModel
 import com.movtery.zalithlauncher.game.version.installed.PlayTimeRepository
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionsManager
@@ -100,8 +108,10 @@ import com.movtery.zalithlauncher.ui.base.BaseScreen
 import com.movtery.zalithlauncher.ui.components.BackgroundCard
 import com.movtery.zalithlauncher.ui.components.MarkdownView
 import com.movtery.zalithlauncher.ui.components.MarqueeText
+import com.movtery.zalithlauncher.ui.components.PetModelView
 import com.movtery.zalithlauncher.ui.components.ScalingActionButton
 import com.movtery.zalithlauncher.ui.components.defaultMarkdownConfig
+import com.movtery.zalithlauncher.ui.guide.GuideKeys
 import com.iffly.compose.markdown.config.MarkdownRenderConfig
 import com.iffly.compose.markdown.style.ListTheme
 import com.iffly.compose.markdown.style.MarkdownTheme
@@ -137,7 +147,14 @@ fun LauncherScreen(
     onNavigateToStats: () -> Unit = {},
     onNavigateToPlayTimeStats: () -> Unit = {},
     onNavigateToLog: (String) -> Unit = {},
+    startGuideOnce: (GuideKeys.Keys) -> Unit = {},
 ) {
+    LaunchedEffect(Unit) {
+        //等待主界面完成首次布局后再展示新手引导，确保引导锚点已经测量完毕
+        delay(600)
+        startGuideOnce(GuideKeys.Main)
+    }
+
     BaseScreen(
         screenKey = NormalNavKey.LauncherMain,
         currentKey = backStackViewModel.mainScreen.currentKey
@@ -166,6 +183,10 @@ fun LauncherScreen(
         ) {
             SideBar(
                 modifier = Modifier
+                    .guideNode(
+                        key = GuideKeys.Main.Step.SideBar,
+                        preferSide = GuideSide.Below
+                    )
                     .padding(start = 12.dp, top = 12.dp, bottom = 12.dp),
                 isVisible = isVisible,
                 onFpsClick = {
@@ -297,6 +318,10 @@ private fun ContentMenu(
         ) {
             StatsSideColumn(
                 modifier = Modifier
+                    .guideNode(
+                        key = GuideKeys.Main.Step.Stats,
+                        preferSide = GuideSide.End
+                    )
                     .weight(1f)
                     .fillMaxHeight(),
                 side = StatsSide.Left,
@@ -714,6 +739,7 @@ private fun LastLogCard(
 @Composable
 private fun RightMenuContent(
     modifier: Modifier = Modifier,
+    isVisible: Boolean = true,
     onLaunchGame: (Version?) -> Unit,
     toAccountManageScreen: () -> Unit,
     toVersionManageScreen: () -> Unit,
@@ -727,133 +753,185 @@ private fun RightMenuContent(
     val account by AccountsManager.currentAccountFlow.collectAsStateWithLifecycle()
     val version by VersionsManager.currentVersion.collectAsStateWithLifecycle()
     val isRefreshing by VersionsManager.isRefreshing.collectAsStateWithLifecycle()
+    val refreshWardrobe by AccountsManager.refreshWardrobe.collectAsStateWithLifecycle()
 
-    ConstraintLayout(
+    // 当前账号的皮肤与披风文件（缺失时由 PetLib 回落到默认皮肤）
+    val skinFile = remember(account) { account?.getSkinFile() }
+    val capeFile = remember(account, refreshWardrobe) {
+        runCatching { account?.getSelectedCapeFile() }.getOrNull()
+    }
+    val skinStamp = skinFile?.lastModified()
+    val capeStamp = capeFile?.lastModified()
+    val skinBytes by produceState<ByteArray?>(null, skinFile, refreshWardrobe, skinStamp) {
+        value = withContext(Dispatchers.IO) {
+            skinFile?.takeIf { it.isFile }?.inputStream()?.use { it.readBytes() }
+        }
+    }
+    val capeBytes by produceState<ByteArray?>(null, capeFile, refreshWardrobe, capeStamp) {
+        value = withContext(Dispatchers.IO) {
+            capeFile?.takeIf { it.isFile }?.inputStream()?.use { it.readBytes() }
+        }
+    }
+    val armModel = account?.skinModelType?.toArmModel()
+
+    Column(
         modifier = modifier
     ) {
-        val (accountAvatar, versionManagerLayout, launchButton) = createRefs()
-
-        AccountAvatar(
+        // 三维玩家模型预览：跟随光标、可拖拽旋转、点按有反应
+        PetModelView(
             modifier = Modifier
-                .constrainAs(accountAvatar) {
-                    top.linkTo(parent.top)
-                    bottom.linkTo(launchButton.top, margin = 32.dp)
-                    start.linkTo(parent.start)
-                    end.linkTo(parent.end)
-                },
-            account = account,
-            onClick = toAccountManageScreen
+                .weight(1f)
+                .fillMaxWidth(),
+            active = isVisible,
+            skin = skinBytes,
+            cape = capeBytes,
+            arm = armModel,
+            animation = PetAnimation.Idle,
+            tapReaction = PetTapReaction.Interact,
+            dragYaw = true
         )
 
-        var showList by remember { mutableStateOf(false) }
-        var versionManagerRow by remember { mutableStateOf<LayoutCoordinates?>(null) }
-        Box(
-            modifier = Modifier.constrainAs(versionManagerLayout) {
-                start.linkTo(parent.start)
-                end.linkTo(parent.end)
-                bottom.linkTo(launchButton.top)
-            },
+        ConstraintLayout(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .onGloballyPositioned { coordinates ->
-                            versionManagerRow = coordinates
-                        }
-                ) {
-                    VersionManagerLayout(
-                        isRefreshing = isRefreshing,
-                        version = version,
-                        modifier = Modifier
-                            .padding(8.dp)
-                            .fillMaxWidth(),
-                        swapToVersionManage = toVersionManageScreen,
-                        openListMenu = { showList = true },
+            val (accountAvatar, versionManagerLayout, launchButton) = createRefs()
+
+            AccountAvatar(
+                modifier = Modifier
+                    .guideNode(
+                        key = GuideKeys.Main.Step.Account,
+                        preferSide = GuideSide.Below
                     )
-                }
-                version?.takeIf { !isRefreshing && it.isValid() }?.let {
-                    IconButton(
-                        modifier = Modifier.padding(end = 8.dp),
-                        onClick = toVersionSettingsScreen
+                    .constrainAs(accountAvatar) {
+                        top.linkTo(parent.top)
+                        bottom.linkTo(launchButton.top, margin = 32.dp)
+                        start.linkTo(parent.start)
+                        end.linkTo(parent.end)
+                    },
+                account = account,
+                onClick = toAccountManageScreen
+            )
+
+            var showList by remember { mutableStateOf(false) }
+            var versionManagerRow by remember { mutableStateOf<LayoutCoordinates?>(null) }
+            Box(
+                modifier = Modifier.constrainAs(versionManagerLayout) {
+                    start.linkTo(parent.start)
+                    end.linkTo(parent.end)
+                    bottom.linkTo(launchButton.top)
+                },
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .onGloballyPositioned { coordinates ->
+                                versionManagerRow = coordinates
+                            }
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_settings_filled),
-                            contentDescription = stringResource(R.string.versions_manage_settings)
+                        VersionManagerLayout(
+                            isRefreshing = isRefreshing,
+                            version = version,
+                            modifier = Modifier
+                                .guideNode(
+                                    key = GuideKeys.Main.Step.VersionList,
+                                    preferSide = GuideSide.Above
+                                )
+                                .padding(8.dp)
+                                .fillMaxWidth(),
+                            swapToVersionManage = toVersionManageScreen,
+                            openListMenu = { showList = true },
+                        )
+                    }
+                    version?.takeIf { !isRefreshing && it.isValid() }?.let {
+                        IconButton(
+                            modifier = Modifier.padding(end = 8.dp),
+                            onClick = toVersionSettingsScreen
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_settings_filled),
+                                contentDescription = stringResource(R.string.versions_manage_settings)
+                            )
+                        }
+                    }
+                }
+
+                val menuAnchor = versionManagerRow
+                val menuAnchorBounds = menuAnchor?.boundsInParent()
+                val menuAnchorX = menuAnchorBounds?.left ?: 0f
+                val menuAnchorHeight = menuAnchorBounds?.height ?: 0f
+
+                DropdownMenu(
+                    expanded = showList && menuAnchor != null,
+                    onDismissRequest = { showList = false },
+                    modifier = Modifier.width(260.dp),
+                    offset = DpOffset(
+                        x = with(LocalDensity.current) { menuAnchorX.toDp() },
+                        y = with(LocalDensity.current) { (-menuAnchorHeight).toDp() } - 8.dp
+                    ),
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    val versions by VersionsManager.versions.collectAsStateWithLifecycle()
+                    versions.forEach { version0 ->
+                        DropdownMenuItem(
+                            text = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    CommonVersionInfoLayout(
+                                        modifier = Modifier.weight(1f),
+                                        version = version0,
+                                        iconSize = 28.dp
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            onLaunchGame(version0)
+                                            showList = false
+                                        }
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_play_arrow_filled),
+                                            contentDescription = stringResource(R.string.main_launch_game),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+                            },
+                            onClick = {
+                                if (version == version0) return@DropdownMenuItem
+                                VersionsManager.saveVersion(version0)
+                                showList = false
+                            }
                         )
                     }
                 }
             }
 
-            val menuAnchor = versionManagerRow
-            val menuAnchorBounds = menuAnchor?.boundsInParent()
-            val menuAnchorX = menuAnchorBounds?.left ?: 0f
-            val menuAnchorHeight = menuAnchorBounds?.height ?: 0f
-
-            DropdownMenu(
-                expanded = showList && menuAnchor != null,
-                onDismissRequest = { showList = false },
-                modifier = Modifier.width(260.dp),
-                offset = DpOffset(
-                    x = with(LocalDensity.current) { menuAnchorX.toDp() },
-                    y = with(LocalDensity.current) { (-menuAnchorHeight).toDp() } - 8.dp
-                ),
-                shape = MaterialTheme.shapes.extraLarge
-            ) {
-                val versions by VersionsManager.versions.collectAsStateWithLifecycle()
-                versions.forEach { version0 ->
-                    DropdownMenuItem(
-                        text = {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                CommonVersionInfoLayout(
-                                    modifier = Modifier.weight(1f),
-                                    version = version0,
-                                    iconSize = 28.dp
-                                )
-                                IconButton(
-                                    onClick = {
-                                        onLaunchGame(version0)
-                                        showList = false
-                                    }
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_play_arrow_filled),
-                                        contentDescription = stringResource(R.string.main_launch_game),
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                        },
-                        onClick = {
-                            if (version == version0) return@DropdownMenuItem
-                            VersionsManager.saveVersion(version0)
-                            showList = false
-                        }
+            launchButton(
+                Modifier
+                    .guideNode(
+                        key = GuideKeys.Main.Step.Launch,
+                        preferSide = GuideSide.Above
                     )
+                    .fillMaxWidth()
+                    .constrainAs(launchButton) {
+                        bottom.linkTo(parent.bottom, margin = 8.dp)
+                    }
+                    .padding(PaddingValues(horizontal = 12.dp)),
+                {
+                    onLaunchGame(null)
+                },
+                {
+                    MarqueeText(text = stringResource(R.string.main_launch_game))
                 }
-            }
+            )
         }
-
-        launchButton(
-            Modifier
-                .fillMaxWidth()
-                .constrainAs(launchButton) {
-                    bottom.linkTo(parent.bottom, margin = 8.dp)
-                }
-                .padding(PaddingValues(horizontal = 12.dp)),
-            {
-                onLaunchGame(null)
-            },
-            {
-                MarqueeText(text = stringResource(R.string.main_launch_game))
-            }
-        )
     }
 }
 
@@ -878,6 +956,7 @@ private fun RightMenu(
     ) {
         RightMenuContent(
             modifier = Modifier.fillMaxSize(),
+            isVisible = isVisible,
             onLaunchGame = onLaunchGame,
             toAccountManageScreen = toAccountManageScreen,
             toVersionManageScreen = toVersionManageScreen,

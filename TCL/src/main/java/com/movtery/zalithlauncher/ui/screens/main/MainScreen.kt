@@ -118,6 +118,7 @@ import com.movtery.zalithlauncher.ui.screens.content.MultiplayerScreen
 import com.movtery.zalithlauncher.ui.screens.content.SettingsScreen
 import com.movtery.zalithlauncher.ui.screens.content.VersionExportScreen
 import com.movtery.zalithlauncher.ui.screens.content.VersionSettingsScreen
+import com.movtery.zalithlauncher.ui.guide.sendStartGuideOnce
 import com.movtery.zalithlauncher.ui.screens.content.VersionsManageScreen
 import com.movtery.zalithlauncher.ui.screens.content.WebViewScreen
 import com.movtery.zalithlauncher.ui.screens.content.assetinfo.AssetInfoScreen
@@ -674,6 +675,9 @@ private fun NavigationUI(
                         },
                         onNavigateToLog = { logPath ->
                             backStack.navigateTo(NormalNavKey.LogView(logPath))
+                        },
+                        startGuideOnce = { keys ->
+                            eventViewModel.sendStartGuideOnce(keys)
                         }
                     )
                 }

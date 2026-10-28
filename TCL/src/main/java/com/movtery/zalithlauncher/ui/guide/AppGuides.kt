@@ -68,19 +68,18 @@ class AppGuides(
         }
         val started = controller.start()
         if (started) {
-            GuideProgress.markPlayed(group)
-            Logger.info(TAG, "Guide started: ${GuideProgress.keyOf(group)}")
+            GuideProgress.markPlayed(group, group.version)
+            Logger.info(TAG, "Guide started: ${GuideProgress.keyOf(group)} v${group.version}")
         }
         return started
     }
 
     /**
-     * 首次启动指定组的引导流，持久化存储，确保引导仅播放一次
-     * @return 是否成功启动（流为空或已有其他流激活时失败，或者播放过）
+     * 启动指定组的引导流并持久化播放版本，已播放过当前版本时忽略
+     * @return 是否成功启动（流为空或已有其他流激活时失败，或已播放过当前版本）
      */
     fun startOnce(group: GuideKeys.Keys): Boolean {
-        if (GuideProgress.isPlayed(group)) return false
-        return start(group)
+        return GuideProgress.playedVersion(group) < group.version && start(group)
     }
 }
 
@@ -128,19 +127,22 @@ private fun rememberMainGuides() = rememberGuide(holeRadius = 28.dp) {
             Text(stringResource(R.string.guide_main_version_list))
         }
     }
-    entry(GuideKeys.Main.Step.CardDrag) {
+    entry(GuideKeys.Main.Step.Launch) {
         GuideCard {
-            Text(stringResource(R.string.guide_main_card_drag_title))
-            Text(stringResource(R.string.guide_main_card_drag_text))
+            Text(stringResource(R.string.guide_main_launch_title))
+            Text(stringResource(R.string.guide_main_launch_text))
         }
     }
-    entry(GuideKeys.Main.Step.CardTip) {
+    entry(GuideKeys.Main.Step.Stats) {
         GuideCard {
-            Text(stringResource(R.string.guide_main_card_tip_title))
-            Text(stringResource(
-                R.string.guide_main_card_tip_text,
-                stringResource(R.string.home_add_version_card)
-            ))
+            Text(stringResource(R.string.guide_main_stats_title))
+            Text(stringResource(R.string.guide_main_stats_text))
+        }
+    }
+    entry(GuideKeys.Main.Step.SideBar) {
+        GuideCard {
+            Text(stringResource(R.string.guide_main_sidebar_title))
+            Text(stringResource(R.string.guide_main_sidebar_text))
         }
     }
 }
