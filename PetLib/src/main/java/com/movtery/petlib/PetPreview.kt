@@ -73,11 +73,13 @@ fun PetPreview(
                 detectTapGestures(
                     onPress = { offset ->
                         if (size.width > 0 && size.height > 0) {
-                            controller.hitTest(
-                                offset.x / size.width,
-                                offset.y / size.height
-                            ) { hit ->
-                                if (hit) {
+                            val nx = offset.x / size.width
+                            val ny = offset.y / size.height
+                            controller.hitTest(nx, ny) { hit ->
+                                // 命中测试之外再兜一层宽松区域：模型占满中部时
+                                // 点按必定有反馈，不因边缘像素判定失败而无响应
+                                val nearModel = nx in 0.18f..0.82f && ny in 0.02f..0.98f
+                                if (hit || nearModel) {
                                     when (tapReaction) {
                                         PetTapReaction.Squash ->
                                             controller.squashTap(System.nanoTime() / 1_000_000_000f)

@@ -38,6 +38,15 @@ private const val SWING_SECONDS = 0.3f
 /** 点击反应（打招呼）动画时长（秒） */
 private const val INTERACT_SECONDS = 1.2f
 
+/** 随机待机子动画的间隔（秒） */
+private const val SUB_INTERVAL = 8f
+
+/** 单个随机待机子动画的时长（秒） */
+private const val SUB_SECONDS = 2.4f
+
+/** 随机待机子动画的数量 */
+private const val SUB_COUNT = 3
+
 /** 注视夹角上限（度） */
 private const val GAZE_YAW_LIMIT = 62f
 private const val GAZE_PITCH_LIMIT = 30f
@@ -75,6 +84,12 @@ internal class PetPose {
     /** 身体前倾 */
     var bodyRotX = 0f
 
+    /** 身体左右侧倾（重心移动） */
+    var bodyRotZ = 0f
+
+    /** 头部侧倾 */
+    var headRoll = 0f
+
     /** 垂直压扁比例，1 为原始比例 */
     var squash = 1f
 
@@ -91,6 +106,8 @@ internal class PetPose {
         legLX = other.legLX
         bodyY = other.bodyY
         bodyRotX = other.bodyRotX
+        bodyRotZ = other.bodyRotZ
+        headRoll = other.headRoll
         squash = other.squash
     }
 }
@@ -140,6 +157,22 @@ internal class PetAnimator {
     private var gazeActive = false
 
     private var animTime = 0f
+
+    /** 当前随机待机子动画序号，-1 表示未在播放 */
+    private var subIndex = -1
+
+    /** 当前子动画已播时间 */
+    private var subTime = -1f
+
+    /** 距下一次随机子动画的秒数 */
+    private var subCountdown = SUB_INTERVAL
+
+    /** 上一次播放的子动画序号，避免连续重复 */
+    private var lastSub = -1
+
+    /** 伪随机状态 */
+    private var rngState = (System.nanoTime() or 1L)
+
     private var squashTime = -1f
     private var swingTime = -1f
     private var interactTime = -1f
@@ -221,6 +254,7 @@ internal class PetAnimator {
         if (swingTime > SWING_SECONDS) swingTime = -1f
         if (interactTime > INTERACT_SECONDS) interactTime = -1f
 
+        advanceSubGestures(dt)
         updateTargets(animTime)
 
         // 偏航走最短路径
@@ -228,6 +262,7 @@ internal class PetAnimator {
         pose.yaw = PetMath.smooth(0f, yawDelta, yawTau, dt) + pose.yaw
         pose.headYaw = PetMath.smooth(pose.headYaw, target.headYaw, poseTau, dt)
         pose.headPitch = PetMath.smooth(pose.headPitch, target.headPitch, poseTau, dt)
+        pose.headRoll = PetMath.smooth(pose.headRoll, target.headRoll, poseTau, dt)
         pose.headY = PetMath.smooth(pose.headY, target.headY, poseTau, dt)
         pose.armRX = PetMath.smooth(pose.armRX, target.armRX, poseTau, dt)
         pose.armLX = PetMath.smooth(pose.armLX, target.armLX, poseTau, dt)
@@ -237,36 +272,81 @@ internal class PetAnimator {
         pose.legLX = PetMath.smooth(pose.legLX, target.legLX, poseTau, dt)
         pose.bodyY = PetMath.smooth(pose.bodyY, target.bodyY, poseTau, dt)
         pose.bodyRotX = PetMath.smooth(pose.bodyRotX, target.bodyRotX, poseTau, dt)
+        pose.bodyRotZ = PetMath.smooth(pose.bodyRotZ, target.bodyRotZ, poseTau, dt)
         // 压扁是瞬时的脉冲，直接使用目标值
         pose.squash = target.squash
+    }
+
+    /**
+     * 待机子动画调度：每 [SUB_INTERVAL] 秒随机播一个，播完自动回到基础循环
+     */
+    private fun advanceSubGestures(dt: Float) {
+        val idle = animation == PetAnimation.Idle
+        if (!idle) {
+            subIndex = -1
+            subTime = -1f
+            subCountdown = SUB_INTERVAL
+            return
+        }
+        if (subTime >= 0f) {
+            subTime += dt * animationSpeed
+            if (subTime >= SUB_SECONDS) {
+                subIndex = -1
+                subTime = -1f
+            }
+            return
+        }
+        subCountdown -= dt
+        if (subCountdown <= 0f) {
+            var next = nextRandom(SUB_COUNT)
+            if (next == lastSub) next = (next + 1) % SUB_COUNT
+            lastSub = next
+            subIndex = next
+            subTime = 0f
+            subCountdown = SUB_INTERVAL
+        }
+    }
+
+    private fun nextRandom(bound: Int): Int {
+        rngState = rngState * 6364136223846793005L + 1442695040888963407L
+        if (bound <= 0) return 0
+        return ((rngState ushr 33).toInt() and Int.MAX_VALUE) % bound
     }
 
     private fun updateTargets(time: Float) {
         // 注视与特效是叠加在循环动画之上的增量，每帧先清零
         target.headYaw = 0f
         target.headPitch = 0f
+        target.headRoll = 0f
+        target.bodyRotZ = 0f
         target.squash = 1f
 
         // 1. 循环动画
         when (animation) {
             PetAnimation.Walking -> applyWalking(time)
-            PetAnimation.Idle -> applyIdle(time)
+            PetAnimation.Idle -> {
+                applyIdle(time)
+                // 2. 随机待机子动画叠加在基础待机之上
+                if (subIndex >= 0 && subTime >= 0f) {
+                    applySubGesture(subIndex, (subTime / SUB_SECONDS).coerceIn(0f, 1f))
+                }
+            }
             null -> applyRest()
         }
 
-        // 2. 注视驱动的头部转动
+        // 3. 注视驱动的头部转动
         if (gazeActive && (headFollow || animation == null)) {
             val dx = (gazeX - 0.5f) * 2f
             val dy = (0.5f - gazeY) * 2f
-            target.headYaw += dx * Math.toRadians(headRangeX.toDouble()).toFloat()
-            target.headPitch += dy * Math.toRadians(headRangeY.toDouble()).toFloat()
+            target.headYaw += dx * degrees(headRangeX)
+            target.headPitch += dy * degrees(headRangeY)
         } else if (!gazeActive) {
             // 没有鼠标时头部缓缓回正
             target.headYaw = 0f
             target.headPitch = 0f
         }
 
-        // 3. 摆臂（攻击）特效
+        // 4. 摆臂（攻击）特效
         if (swingTime >= 0f) {
             val t = (swingTime / SWING_SECONDS).coerceIn(0f, 1f)
             val wave = sin(t * PI.toFloat())
@@ -274,16 +354,19 @@ internal class PetAnimator {
             target.armRZ += wave * 0.22f
         }
 
-        // 4. 点击反应：抬手打招呼
+        // 5. 点击反应：抬手挥动 + 头部侧倾
         if (interactTime >= 0f) {
             val t = (interactTime / INTERACT_SECONDS).coerceIn(0f, 1f)
             val envelope = sin(t * PI.toFloat())
-            target.armLZ += envelope * 0.55f
-            target.armLX -= envelope * 2.25f
-            target.armLZ += sin(t * PI.toFloat() * 5f) * envelope * 0.28f
+            val wave = sin(t * PI.toFloat() * 5f)
+            target.armLX -= envelope * 2.15f
+            target.armLZ -= envelope * 0.18f
+            target.armLZ += wave * envelope * 0.30f
+            target.headRoll += envelope * 0.10f
+            target.bodyRotZ -= envelope * 0.02f
         }
 
-        // 5. 点按压扁
+        // 6. 点按压扁
         target.squash = if (squashTime >= 0f) {
             val t = (squashTime / SQUASH_SECONDS).coerceIn(0f, 1f)
             val pulse = sin(t * PI.toFloat())
@@ -292,6 +375,8 @@ internal class PetAnimator {
             1f
         }
     }
+
+    private fun degrees(value: Float): Float = Math.toRadians(value.toDouble()).toFloat()
 
     private fun applyRest() {
         target.armRX = 0f
@@ -305,19 +390,60 @@ internal class PetAnimator {
         target.headY = 0f
     }
 
-    /** 待机：极缓慢的呼吸、手臂微摆与点头 */
+    /** 待机：缓慢呼吸、重心微移、视线漂移，避免看起来像静止帧 */
     private fun applyIdle(time: Float) {
         val phase = time / IDLE_PERIOD * PI.toFloat() * 2f
         val breath = sin(phase)
-        target.armRX = 0.045f * sin(phase + 0.6f)
-        target.armLX = -0.045f * sin(phase + 0.6f)
-        target.armRZ = 0.07f
-        target.armLZ = -0.07f
+        val sway = sin(phase * 0.5f)
+        target.armRX = 0.05f * sin(phase + 0.6f)
+        target.armLX = -0.05f * sin(phase + 0.6f)
+        target.armRZ = 0.07f + 0.02f * sway
+        target.armLZ = -0.07f - 0.02f * sway
         target.legRX = 0f
         target.legLX = 0f
         target.bodyY = 0.22f * breath
         target.bodyRotX = 0f
+        target.bodyRotZ = 0.012f * sway
         target.headY = 0.06f * breath
+        target.headYaw += 0.06f * sin(phase * 0.37f + 1.1f)
+        target.headPitch += 0.03f * sin(phase * 0.53f + 2.3f)
+    }
+
+    /**
+     * 随机待机子动画
+     * @param index 子动画序号
+     * @param t 归一化播放进度
+     */
+    private fun applySubGesture(index: Int, t: Float) {
+        // 两端平滑包络，进出都与基础循环无缝衔接
+        val envelope = sin(t * PI.toFloat())
+        when (index) {
+            // 左右张望
+            0 -> {
+                val sweep = sin(t * PI.toFloat() * 2f)
+                target.headYaw += sweep * 0.55f * envelope
+                target.headPitch += sin(t * PI.toFloat() * 3f) * 0.08f * envelope
+                target.bodyRotZ += sweep * 0.03f * envelope
+            }
+            // 抬手伸展
+            1 -> {
+                target.armRX -= 1.25f * envelope
+                target.armLX -= 1.25f * envelope
+                target.armRZ += 0.30f * envelope
+                target.armLZ -= 0.30f * envelope
+                target.bodyRotX -= 0.05f * envelope
+                target.headPitch -= 0.12f * envelope
+            }
+            // 重心移动、稍息站姿
+            else -> {
+                target.bodyRotZ += 0.095f * envelope
+                target.bodyY += 0.12f * envelope
+                target.legRX += 0.15f * envelope
+                target.armRZ += 0.10f * envelope
+                target.armLZ -= 0.04f * envelope
+                target.headRoll += 0.07f * envelope
+            }
+        }
     }
 
     /** 行走：手脚交替摆动，身体随步伐上下起伏 */
@@ -333,5 +459,7 @@ internal class PetAnimator {
         target.bodyY = 0.42f * abs(cos(s))
         target.bodyRotX = 0.03f
         target.headY = 0.1f * abs(cos(s))
+        target.headYaw += 0.04f * sin(s * 0.5f)
+        target.headPitch += 0.02f * cos(s)
     }
 }

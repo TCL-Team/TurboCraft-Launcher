@@ -371,8 +371,8 @@ internal class PetRenderer {
         centerY: Float,
         lighting: PetLighting
     ) {
-        val bodyRot = PetMath.euler(pose.bodyRotX, 0f, 0f)
-        val headRot = PetMath.euler(pose.headPitch, pose.headYaw, 0f)
+        val bodyRot = PetMath.euler(pose.bodyRotX, 0f, pose.bodyRotZ)
+        val headRot = PetMath.euler(pose.headPitch, pose.headYaw, pose.headRoll)
         val armRRot = PetMath.euler(pose.armRX, 0f, pose.armRZ)
         val armLRot = PetMath.euler(pose.armLX, 0f, pose.armLZ)
         val legRRot = PetMath.euler(pose.legRX, 0f, 0f)
