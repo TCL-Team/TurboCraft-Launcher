@@ -24,7 +24,7 @@ jobs:
 
     strategy:
       matrix:
-        arch: ["x86_64"]
+        arch: ["all", "arm", "arm64", "x86", "x86_64"]
       fail-fast: false
 
     env:
@@ -63,40 +63,7 @@ jobs:
       - name: Build APK for ${{ matrix.arch }}
         run: |
           chmod +x gradlew
-          set -o pipefail
-          ./gradlew TCL:assemble${{ inputs.variant }} -Darch=${{ matrix.arch }} --stacktrace 2>&1 | tee /tmp/gradle.log
-
-      - name: Collect build errors
-        if: failure()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          LOG=/tmp/gradle.log
-          if [ ! -f "$LOG" ]; then echo "no gradle log"; exit 0; fi
-          : > /tmp/errors.txt
-          grep -nE "^e: |error:|FAILURE:|What went wrong|Caused by:|Unexpected failure|Lint found|> Task .*FAILED|Execution failed" "$LOG" | head -120 >> /tmp/errors.txt || true
-          # 失败任务前后的日志切片，便于还原 lint/frontend 的异常首行
-          for MARK in "lintVitalAnalyze FAILED" "compileReleaseKotlin FAILED"; do
-            LINE=$(grep -n "$MARK" "$LOG" | head -1 | cut -d: -f1)
-            if [ -n "$LINE" ]; then
-              START=$((LINE-140)); [ "$START" -lt 1 ] && START=1
-              printf '\n===== around %s (line %s) =====\n' "$MARK" "$LINE" >> /tmp/errors.txt
-              sed -n "${START},$((LINE+40))p" "$LOG" >> /tmp/errors.txt
-            fi
-          done
-          printf '\n----- tail -----\n' >> /tmp/errors.txt
-          tail -c 2500 "$LOG" >> /tmp/errors.txt
-          # 只保留与错误相关的行，控制体积
-          awk 'NR<=400' /tmp/errors.txt > /tmp/errors.trim && mv /tmp/errors.trim /tmp/errors.txt
-          wc -c /tmp/errors.txt
-          {
-            printf '{"name":"gradle-errors","head_sha":"%s","status":"completed","conclusion":"neutral","output":{"title":"Gradle errors","summary":' "$GITHUB_SHA"
-            python3 -c "import json;print(json.dumps(open('/tmp/errors.txt',errors='replace').read()[:60000]))"
-            printf '}}'
-          } > /tmp/payload.json
-          gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" --input /tmp/payload.json && echo "check-run posted" || echo "check-run failed"
-          MSG=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(open('/tmp/errors.txt',errors='replace').read()[:30000]))")
-          echo "::error title=gradle-errors::$MSG"
+          ./gradlew TCL:assemble${{ inputs.variant }} -Darch=${{ matrix.arch }}
 
       - name: Upload Release APK for ${{ matrix.arch }}
         if: inputs.variant == 'Release'
