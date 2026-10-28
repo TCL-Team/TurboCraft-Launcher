@@ -18,27 +18,22 @@
 
 package com.movtery.petlib
 
-import android.graphics.SurfaceTexture
-import android.view.Surface
-import android.view.TextureView
-import android.view.View
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import kotlinx.coroutines.delay
 import kotlin.math.PI
+import kotlin.math.roundToInt
 
 /**
  * 点按模型命中时的反馈形式
@@ -57,16 +52,35 @@ enum class PetTapReaction {
 /**
  * 玩家模型预览组件
  *
+ * 直接绘制在组件自身的画布上：模型由控制器光栅到内部帧缓冲，
+ * 这里每帧把它贴到界面画布，因此不依赖 TextureView/Surface 的
+ * 生命周期与画布锁定，界面一定可见、触摸事件也一定可达。
+ *
  * @param tapReaction 点按模型命中时的反馈形式
  * @param dragYaw 是否响应拖拽旋转偏航
+ * @param active 宿主界面是否可见，不可见时暂停推进动画
  */
 @Composable
 fun PetPreview(
     controller: PetController,
     modifier: Modifier = Modifier,
     tapReaction: PetTapReaction = PetTapReaction.Squash,
-    dragYaw: Boolean = true
+    dragYaw: Boolean = true,
+    active: Boolean = true
 ) {
+    // 帧时钟：推进动画并触发重绘
+    var frameTime by remember(controller) { mutableStateOf(0L) }
+
+    LaunchedEffect(controller, active) {
+        if (!active) return@LaunchedEffect
+        controller.resetFrameClock()
+        while (true) {
+            withFrameNanos { nanos ->
+                frameTime = nanos
+            }
+        }
+    }
+
     val gestureModifier = Modifier.let {
         if (tapReaction != PetTapReaction.None) {
             it.then(Modifier.pointerInput(controller, tapReaction) {
@@ -111,118 +125,14 @@ fun PetPreview(
         }
     }
 
-    var textureView by remember { mutableStateOf<TextureView?>(null) }
-    AndroidView(
-        modifier = modifier.then(gestureModifier),
-        factory = { context ->
-            TextureView(context).apply {
-                isOpaque = false
-                textureView = this
-            }
-        }
-    )
-
-    DisposableEffect(controller, textureView) {
-        val view = textureView
-        if (view == null) {
-            onDispose { }
-        } else {
-            val listener = TextureLifecycle(controller)
-            view.surfaceTextureListener = listener
-            // 视图附着即渲染、分离即停止：窗口分离时宿主会废弃底层缓冲队列，
-            // 该信号不依赖导航实现与生命周期分发，是停帧的最后防线。
-            val attachStateListener = object : View.OnAttachStateChangeListener {
-                override fun onViewAttachedToWindow(v: View) {
-                    val st = (v as? TextureView)?.surfaceTexture ?: return
-                    listener.ensureAttached(st, v.width, v.height)
-                }
-
-                override fun onViewDetachedFromWindow(v: View) {
-                    controller.detachSurface()
-                }
-            }
-            view.addOnAttachStateChangeListener(attachStateListener)
-            // 视图复用时 SurfaceTexture 可能已就绪，直接补挂
-            view.surfaceTexture?.let { st ->
-                listener.ensureAttached(st, view.width, view.height)
-            }
-            onDispose {
-                view.removeOnAttachStateChangeListener(attachStateListener)
-                view.surfaceTextureListener = null
-                controller.detachSurface()
-            }
+    Canvas(modifier = modifier.then(gestureModifier)) {
+        val width = size.width.roundToInt()
+        val height = size.height.roundToInt()
+        if (width <= 0 || height <= 0) return@Canvas
+        val frame = controller.renderFrame(width, height, frameTime) ?: return@Canvas
+        if (frame.isRecycled) return@Canvas
+        drawIntoCanvas { canvas ->
+            canvas.nativeCanvas.drawBitmap(frame, 0f, 0f, null)
         }
     }
-
-    // 首帧看门狗：表面若在尺寸未就绪时就被附着，出帧循环会停住，
-    // 这里在头几秒内持续补挂，直到真正提交过一帧为止。
-    LaunchedEffect(controller, textureView) {
-        val view = textureView ?: return@LaunchedEffect
-        repeat(25) {
-            delay(200)
-            if (controller.hasRenderedFrame()) return@LaunchedEffect
-            val st = view.surfaceTexture ?: return@repeat
-            if (view.width > 0 && view.height > 0) {
-                (view.surfaceTextureListener as? TextureLifecycle)
-                    ?.ensureAttached(st, view.width, view.height)
-            }
-        }
-    }
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, controller, textureView) {
-        val observer = LifecycleEventObserver { _, event ->
-            val view = textureView ?: return@LifecycleEventObserver
-            when (event) {
-                Lifecycle.Event.ON_PAUSE -> {
-                    controller.detachSurface()
-                }
-                Lifecycle.Event.ON_RESUME -> {
-                    val st = view.surfaceTexture ?: return@LifecycleEventObserver
-                    (view.surfaceTextureListener as? TextureLifecycle)?.ensureAttached(
-                        st, view.width, view.height
-                    )
-                }
-                else -> Unit
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-}
-
-private class TextureLifecycle(private val controller: PetController) :
-    TextureView.SurfaceTextureListener {
-    private var surface: Surface? = null
-
-    fun ensureAttached(st: SurfaceTexture, width: Int, height: Int) {
-        val existing = surface
-        if (existing != null) {
-            controller.attachSurface(existing, width, height)
-        } else {
-            val wrapped = Surface(st)
-            surface = wrapped
-            controller.attachSurface(wrapped, width, height)
-        }
-    }
-
-    override fun onSurfaceTextureAvailable(st: SurfaceTexture, width: Int, height: Int) {
-        ensureAttached(st, width, height)
-    }
-
-    override fun onSurfaceTextureSizeChanged(st: SurfaceTexture, width: Int, height: Int) {
-        controller.updateSurfaceSize(width, height)
-    }
-
-    override fun onSurfaceTextureDestroyed(st: SurfaceTexture): Boolean {
-        controller.detachSurface()
-        surface?.release()
-        surface = null
-        return true
-    }
-
-    override fun onSurfaceTextureUpdated(st: SurfaceTexture) = Unit
 }

@@ -117,9 +117,6 @@ fun PetModelView(
         petController.setModelYaw(yaw)
     }
 
-    LaunchedEffect(petController, active) {
-        petController.setPaused(!active)
-    }
 
     var previewBounds by remember { mutableStateOf<Rect?>(null) }
     DisposableEffect(petController, gazeEnabled, active) {
@@ -145,6 +142,7 @@ fun PetModelView(
         controller = petController,
         modifier = modifier.onGloballyPositioned { previewBounds = it.boundsInWindow() },
         tapReaction = tapReaction,
-        dragYaw = dragYaw
+        dragYaw = dragYaw,
+        active = active
     )
 }

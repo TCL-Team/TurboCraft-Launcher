@@ -20,21 +20,13 @@ package com.movtery.petlib
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.util.Log
-import android.view.Choreographer
-import android.view.Surface
 import androidx.annotation.FloatRange
 
 private const val TAG = "PetLib"
 
-/** 连续锁画布失败达到该次数后，判定表面已失效并停止帧驱动 */
-private const val SURFACE_FAILURE_LIMIT = 10
-
-/** 帧间隔下限，避免高刷屏上过度绘制 */
-private const val MIN_FRAME_INTERVAL_NANOS = 1_000_000_000L / 60L * 9L / 10L
+/** 单帧时间步长上限（秒），宿主卡顿后不做大跨度跳变 */
+private const val MAX_STEP_SECONDS = 0.1f
 
 /**
  * PetLib 控制器
@@ -72,30 +64,13 @@ class PetController(
     @Volatile
     private var released = false
 
-    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private var frameCallback: Choreographer.FrameCallback? = null
-
-    private var surface: Surface? = null
-    private var surfaceWidth = 0
-    private var surfaceHeight = 0
-
-    private var lastFrameNanos = 0L
-    private var surfaceFailures = 0
-
-    /** 已成功提交的帧数，供宿主判断首帧是否真正出图 */
-    private var renderedFrames = 0
-
-    /** 离屏帧缓冲：先软件光栅到 ARGB 位图，再整幅覆盖到表面画布 */
+    /** 离屏帧缓冲：软件光栅到 ARGB 位图，由宿主组件直接绘到界面上 */
     private var frameBitmap: Bitmap? = null
     private var frameCanvas: Canvas? = null
 
-    /** 覆盖式拷贝，保留帧缓冲自身的透明度 */
-    private val blitPaint = Paint().apply {
-        isAntiAlias = false
-        isFilterBitmap = false
-        isDither = false
-        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC)
-    }
+    private var lastFrameNanos = 0L
+    private var viewWidth = 0
+    private var viewHeight = 0
 
     init {
         animator.defaultYaw = defaultYaw
@@ -219,8 +194,8 @@ class PetController(
         if (target == null) {
             animator.setGaze(null, null)
         } else {
-            val width = surfaceWidth.coerceAtLeast(1)
-            val height = surfaceHeight.coerceAtLeast(1)
+            val width = viewWidth.coerceAtLeast(1)
+            val height = viewHeight.coerceAtLeast(1)
             animator.setGaze(target.first / width, target.second / height)
         }
     }
@@ -296,122 +271,39 @@ class PetController(
 
     //</editor-fold>
 
-    //<editor-fold desc="渲染循环">
+    //<editor-fold desc="渲染">
 
     /**
-     * 绑定绘制表面，之后开始逐帧渲染
+     * 把当前姿态光栅到内部帧缓冲并返回该位图
+     *
+     * 由宿主组件在自身的绘制阶段调用；渲染结果直接绘到界面画布上，
+     * 不依赖 TextureView/Surface 这一层间接传递。
+     *
+     * @param width 目标宽（像素）
+     * @param height 目标高（像素）
+     * @param frameTimeNanos 帧时间戳，来自宿主帧时钟
+     * @return 已绘制的帧位图，尺寸非法或已释放时为 null
      */
-    internal fun attachSurface(surface: Surface, width: Int, height: Int) {
-        if (released) return
-        mainHandler.post {
-            if (released) return@post
-            if (width > 0 && height > 0) {
-                this.surfaceWidth = width
-                this.surfaceHeight = height
-            }
-            if (this.surface === surface) {
-                if (this.surfaceWidth > 0 && this.surfaceHeight > 0) startFrameLoop()
-                return@post
-            }
-            this.surface = surface
-            surfaceFailures = 0
-            lastFrameNanos = 0L
-            // 尺寸未知时先不启动：等 onSurfaceTextureSizeChanged 补上尺寸后自动出帧
-            if (this.surfaceWidth > 0 && this.surfaceHeight > 0) startFrameLoop()
-        }
-    }
-
-    /**
-     * 暂停/恢复渲染。宿主界面不可见时应暂停，避免后台持续占用 GPU。
-     */
-    fun setPaused(paused: Boolean) {
-        if (released) return
-        mainHandler.post {
-            if (paused) {
-                stopFrameLoop()
-            } else if (surface != null) {
-                lastFrameNanos = 0L
-                startFrameLoop()
-            }
-        }
-    }
-
-    internal fun updateSurfaceSize(width: Int, height: Int) {
-        if (released) return
-        mainHandler.post {
-            if (width > 0 && height > 0) {
-                this.surfaceWidth = width
-                this.surfaceHeight = height
-                if (surface != null && frameCallback == null) {
-                    lastFrameNanos = 0L
-                    startFrameLoop()
-                }
-            }
-        }
-    }
-
-    /** 是否已经真正提交过至少一帧 */
-    internal fun hasRenderedFrame(): Boolean = renderedFrames > 0
-
-    /**
-     * 解绑绘制表面并停止渲染；表面由宿主视图持有，这里只借用，不负责释放
-     */
-    internal fun detachSurface() {
-        if (released) return
-        mainHandler.post {
-            surface = null
-            stopFrameLoop()
-        }
-    }
-
-    private fun startFrameLoop() {
-        if (frameCallback != null || released) return
-        val callback = object : Choreographer.FrameCallback {
-            override fun doFrame(frameTimeNanos: Long) {
-                if (released || surface == null) {
-                    frameCallback = null
-                    return
-                }
-                if (frameTimeNanos - lastFrameNanos >= MIN_FRAME_INTERVAL_NANOS) {
-                    renderOneFrame(frameTimeNanos)
-                }
-                if (surface != null && !released) {
-                    Choreographer.getInstance().postFrameCallback(this)
-                } else {
-                    frameCallback = null
-                }
-            }
-        }
-        frameCallback = callback
-        Choreographer.getInstance().postFrameCallback(callback)
-    }
-
-    private fun stopFrameLoop() {
-        frameCallback?.let { Choreographer.getInstance().removeFrameCallback(it) }
-        frameCallback = null
-        lastFrameNanos = 0L
-    }
-
-    private fun renderOneFrame(frameTimeNanos: Long) {
-        val target = surface ?: return
-        val width = surfaceWidth
-        val height = surfaceHeight
-        if (width <= 0 || height <= 0) return
+    fun renderFrame(width: Int, height: Int, frameTimeNanos: Long): Bitmap? {
+        if (released) return null
+        if (width <= 0 || height <= 0) return null
+        viewWidth = width
+        viewHeight = height
 
         // 首帧把姿态直接对齐到目标，避免从零姿态漫入
         if (lastFrameNanos == 0L) {
             animator.snap()
         } else {
-            val dt = (frameTimeNanos - lastFrameNanos) / 1_000_000_000f
+            val dt = ((frameTimeNanos - lastFrameNanos) / 1_000_000_000f)
+                .coerceIn(0f, MAX_STEP_SECONDS)
             animator.update(dt)
         }
         lastFrameNanos = frameTimeNanos
 
-        val frame = obtainFrameBuffer(width, height) ?: return
-        // 软件光栅到离屏位图：不依赖表面是否支持硬件画布，绘制结果可预期
-        try {
+        val canvas = obtainFrameBuffer(width, height) ?: return null
+        return try {
             renderer.draw(
-                canvas = frame,
+                canvas = canvas,
                 width = width,
                 height = height,
                 skin = skin,
@@ -420,34 +312,15 @@ class PetController(
                 outerLayer = outerLayer,
                 lighting = lighting
             )
+            frameBitmap
         } catch (e: Exception) {
             Log.w(TAG, "Frame draw failed", e)
-            return
-        }
-
-        val canvas = lockCanvas(target)
-        if (canvas == null) {
-            onSurfaceFailure(null)
-            return
-        }
-        try {
-            // 整幅覆盖：帧缓冲已按 SRC 清成透明，直接拷入即可正确做透明合成
-            canvas.drawBitmap(frameBitmap ?: return, 0f, 0f, blitPaint)
-        } catch (e: Exception) {
-            Log.w(TAG, "Frame blit failed", e)
-        } finally {
-            try {
-                target.unlockCanvasAndPost(canvas)
-                surfaceFailures = 0
-                renderedFrames++
-            } catch (e: Exception) {
-                onSurfaceFailure(e)
-            }
+            null
         }
     }
 
     /**
-     * 取得与表面等大的离屏帧画布，尺寸变化时重建
+     * 取回上一次缓存的帧缓冲尺寸变化时的旧位图不再使用
      */
     private fun obtainFrameBuffer(width: Int, height: Int): Canvas? {
         val existing = frameBitmap
@@ -471,30 +344,9 @@ class PetController(
         return canvas
     }
 
-    /**
-     * 锁定软件画布。
-     *
-     * 纹理视图的表面不保证支持硬件画布（部分设备上 lockHardwareCanvas 会抛异常
-     * 或提交出空帧），因此统一走软件画布 + 离屏位图拷入的路径。
-     */
-    private fun lockCanvas(target: Surface): Canvas? {
-        return try {
-            target.lockCanvas(null)
-        } catch (e: Exception) {
-            Log.w(TAG, "Unable to lock canvas", e)
-            null
-        }
-    }
-
-    private fun onSurfaceFailure(error: Exception?) {
-        surfaceFailures++
-        if (error != null) {
-            Log.w(TAG, "Surface unavailable (${surfaceFailures}/$SURFACE_FAILURE_LIMIT)", error)
-        }
-        if (surfaceFailures >= SURFACE_FAILURE_LIMIT) {
-            surface = null
-            stopFrameLoop()
-        }
+    /** 重置帧计时，用于宿主恢复绘制时避免一次大跨度推进 */
+    fun resetFrameClock() {
+        lastFrameNanos = 0L
     }
 
     //</editor-fold>
@@ -502,15 +354,11 @@ class PetController(
     override fun close() {
         if (released) return
         released = true
-        stopFrameLoop()
-        surface = null
-        mainHandler.post {
-            skin.texture.recycle()
-            cape?.recycle()
-            cape = null
-            frameBitmap?.recycle()
-            frameBitmap = null
-            frameCanvas = null
-        }
+        skin.texture.recycle()
+        cape?.recycle()
+        cape = null
+        frameBitmap?.recycle()
+        frameBitmap = null
+        frameCanvas = null
     }
 }
