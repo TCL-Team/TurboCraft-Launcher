@@ -95,24 +95,30 @@ jobs:
           ./gradlew TCL:assemble${{ inputs.variant }} -Darch=${{ matrix.arch }}
 
       - name: Verify PetLib native library
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: inputs.variant == 'Release'
         run: |
-          APK=$(ls TCL/build/outputs/apk/release/*.apk 2>/dev/null | head -1)
-          {
-            echo "apk: ${APK:-none}"
-            if [ -n "$APK" ]; then
-              unzip -l "$APK" | grep -i "libpetlib\.so" || echo "libpetlib.so MISSING"
-            fi
-          } > /tmp/petlib.txt 2>&1
-          cat /tmp/petlib.txt
-          {
-            printf '{"name":"petlib-native","head_sha":"%s","status":"completed","conclusion":"neutral","output":{"title":"PetLib natives","summary":' "$GITHUB_SHA"
-            python3 -c "import json;print(json.dumps(open('/tmp/petlib.txt',errors='replace').read()[:5000]))"
-            printf '}}'
-          } > /tmp/petlib.json
-          gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" --input /tmp/petlib.json > /dev/null && echo "posted" || echo "post failed"
+          set -e
+          APK=$(ls TCL/build/outputs/apk/release/*.apk | head -1)
+          echo "APK: $APK"
+          FOUND=$(unzip -l "$APK" | grep -c "libpetlib\.so" || true)
+          echo "libpetlib.so entries: $FOUND"
+          unzip -l "$APK" | grep "libpetlib\.so" || true
+          if [ "$FOUND" -lt 1 ]; then
+            echo "::error title=petlib-missing::libpetlib.so is not packaged in $APK"
+            exit 1
+          fi
+          ABIS=$(unzip -l "$APK" | grep "libpetlib\.so" | awk '{print $4}' | cut -d/ -f2 | sort -u | tr '\n' ' ')
+          echo "ABIs: $ABIS"
+          case "${{ matrix.arch }}" in
+            all) EXPECT=4 ;;
+            *) EXPECT=1 ;;
+          esac
+          COUNT=$(echo $ABIS | wc -w)
+          if [ "$COUNT" -lt "$EXPECT" ]; then
+            echo "::error title=petlib-abi::${{ matrix.arch }} APK has $COUNT ABI(s), expected $EXPECT"
+            exit 1
+          fi
+          echo "OK: $COUNT ABI(s) with libpetlib.so"
 
       - name: Upload Release APK for ${{ matrix.arch }}
         if: inputs.variant == 'Release'
