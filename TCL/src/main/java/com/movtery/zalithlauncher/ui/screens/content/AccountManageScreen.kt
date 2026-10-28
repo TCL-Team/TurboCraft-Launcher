@@ -52,7 +52,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -60,10 +59,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.nonInteractiveScrollbar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -80,7 +79,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.movtery.zalithlauncher.R
@@ -100,7 +98,10 @@ import com.movtery.zalithlauncher.ui.components.BackgroundCard
 import com.movtery.zalithlauncher.ui.components.MarqueeText
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.SimpleEditDialog
-import com.movtery.zalithlauncher.ui.components.PlayerSkin
+import com.movtery.petlib.PetAnimation
+import com.movtery.petlib.PetTapReaction
+import com.movtery.zalithlauncher.game.account.wardrobe.toArmModel
+import com.movtery.zalithlauncher.ui.components.PetModelView
 import com.movtery.zalithlauncher.ui.components.ScalingActionButton
 import com.movtery.zalithlauncher.ui.components.ScalingLabel
 import com.movtery.zalithlauncher.ui.components.SimpleListDialog
@@ -277,18 +278,24 @@ private fun AccountManageContent(
     val context = LocalContext.current
 
 
-    val accountSkin = remember(currentAccount, refreshWardrobe) {
-        currentAccount?.getSkinFile()?.takeIf { it.exists() }
-    }
-    val accountCape = remember(currentAccount, refreshWardrobe) {
+    // 当前账号的皮肤与披风文件，缺失时由 PetLib 回落到默认皮肤
+    val skinFile = remember(currentAccount) { currentAccount?.getSkinFile() }
+    val capeFile = remember(currentAccount, refreshWardrobe) {
         currentAccount?.getSelectedCapeFile()
     }
-    val playerSkin = remember { PlayerSkin(context) }
-    var pageFinished by remember { mutableStateOf(false) }
-
-    DisposableEffect(Unit) {
-        onDispose { playerSkin.destroy() }
+    val skinStamp = skinFile?.lastModified()
+    val capeStamp = capeFile?.lastModified()
+    val skinBytes by produceState<ByteArray?>(null, skinFile, refreshWardrobe, skinStamp) {
+        value = withContext(Dispatchers.IO) {
+            skinFile?.takeIf { it.isFile }?.inputStream()?.use { it.readBytes() }
+        }
     }
+    val capeBytes by produceState<ByteArray?>(null, capeFile, refreshWardrobe, capeStamp) {
+        value = withContext(Dispatchers.IO) {
+            capeFile?.takeIf { it.isFile }?.inputStream()?.use { it.readBytes() }
+        }
+    }
+    val armModel = currentAccount?.skinModelType?.toArmModel()
 
     Row(
         modifier = Modifier
@@ -310,44 +317,19 @@ private fun AccountManageContent(
                 shape = MaterialTheme.shapes.extraLarge
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // 3D skin preview
-                    Box(
+                    // 3D 玩家模型预览：跟随光标、可拖拽旋转、点按招手
+                    PetModelView(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        AndroidView(
-                            modifier = Modifier.fillMaxSize(),
-                            factory = { ctx ->
-                                playerSkin.loadWebView(
-                                    context = ctx,
-                                    onPageFinished = {
-                                        pageFinished = true
-                                        playerSkin.startAnimationCycle()
-                                        playerSkin.setAzimuthAndPitch(-35, 10)
-                                    }
-                                )
-                            },
-                            update = {
-                                if (pageFinished) {
-                                    runCatching {
-                                        accountSkin?.inputStream().use { inputStream ->
-                                            playerSkin.loadSkin(inputStream, currentAccount?.skinModelType)
-                                        }
-                                    }
-                                    runCatching {
-                                        accountCape?.inputStream().use { inputStream ->
-                                            playerSkin.loadCape(inputStream)
-                                        }
-                                    }
-                                }
-                            }
-                        )
-                        if (!pageFinished) {
-                            LoadingIndicator()
-                        }
-                    }
+                        active = isVisible,
+                        skin = skinBytes,
+                        cape = capeBytes,
+                        arm = armModel,
+                        yaw = Math.toRadians(35.0).toFloat(),
+                        animation = PetAnimation.Idle,
+                        tapReaction = PetTapReaction.Interact
+                    )
 
                     HorizontalDivider(modifier = Modifier.alpha(0.2f))
 

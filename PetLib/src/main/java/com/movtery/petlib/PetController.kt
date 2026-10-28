@@ -18,7 +18,11 @@
 
 package com.movtery.petlib
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.util.Log
 import android.view.Choreographer
 import android.view.Surface
@@ -77,6 +81,21 @@ class PetController(
 
     private var lastFrameNanos = 0L
     private var surfaceFailures = 0
+
+    /** 已成功提交的帧数，供宿主判断首帧是否真正出图 */
+    private var renderedFrames = 0
+
+    /** 离屏帧缓冲：先软件光栅到 ARGB 位图，再整幅覆盖到表面画布 */
+    private var frameBitmap: Bitmap? = null
+    private var frameCanvas: Canvas? = null
+
+    /** 覆盖式拷贝，保留帧缓冲自身的透明度 */
+    private val blitPaint = Paint().apply {
+        isAntiAlias = false
+        isFilterBitmap = false
+        isDither = false
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC)
+    }
 
     init {
         animator.defaultYaw = defaultYaw
@@ -286,16 +305,19 @@ class PetController(
         if (released) return
         mainHandler.post {
             if (released) return@post
-            this.surfaceWidth = width
-            this.surfaceHeight = height
+            if (width > 0 && height > 0) {
+                this.surfaceWidth = width
+                this.surfaceHeight = height
+            }
             if (this.surface === surface) {
-                startFrameLoop()
+                if (this.surfaceWidth > 0 && this.surfaceHeight > 0) startFrameLoop()
                 return@post
             }
             this.surface = surface
             surfaceFailures = 0
             lastFrameNanos = 0L
-            startFrameLoop()
+            // 尺寸未知时先不启动：等 onSurfaceTextureSizeChanged 补上尺寸后自动出帧
+            if (this.surfaceWidth > 0 && this.surfaceHeight > 0) startFrameLoop()
         }
     }
 
@@ -317,10 +339,19 @@ class PetController(
     internal fun updateSurfaceSize(width: Int, height: Int) {
         if (released) return
         mainHandler.post {
-            this.surfaceWidth = width
-            this.surfaceHeight = height
+            if (width > 0 && height > 0) {
+                this.surfaceWidth = width
+                this.surfaceHeight = height
+                if (surface != null && frameCallback == null) {
+                    lastFrameNanos = 0L
+                    startFrameLoop()
+                }
+            }
         }
     }
+
+    /** 是否已经真正提交过至少一帧 */
+    internal fun hasRenderedFrame(): Boolean = renderedFrames > 0
 
     /**
      * 解绑绘制表面并停止渲染；表面由宿主视图持有，这里只借用，不负责释放
@@ -376,14 +407,11 @@ class PetController(
         }
         lastFrameNanos = frameTimeNanos
 
-        val canvas = lockCanvas(target)
-        if (canvas == null) {
-            onSurfaceFailure(null)
-            return
-        }
+        val frame = obtainFrameBuffer(width, height) ?: return
+        // 软件光栅到离屏位图：不依赖表面是否支持硬件画布，绘制结果可预期
         try {
             renderer.draw(
-                canvas = canvas,
+                canvas = frame,
                 width = width,
                 height = height,
                 skin = skin,
@@ -394,10 +422,24 @@ class PetController(
             )
         } catch (e: Exception) {
             Log.w(TAG, "Frame draw failed", e)
+            return
+        }
+
+        val canvas = lockCanvas(target)
+        if (canvas == null) {
+            onSurfaceFailure(null)
+            return
+        }
+        try {
+            // 整幅覆盖：帧缓冲已按 SRC 清成透明，直接拷入即可正确做透明合成
+            canvas.drawBitmap(frameBitmap ?: return, 0f, 0f, blitPaint)
+        } catch (e: Exception) {
+            Log.w(TAG, "Frame blit failed", e)
         } finally {
             try {
                 target.unlockCanvasAndPost(canvas)
                 surfaceFailures = 0
+                renderedFrames++
             } catch (e: Exception) {
                 onSurfaceFailure(e)
             }
@@ -405,14 +447,37 @@ class PetController(
     }
 
     /**
-     * 优先使用硬件画布（GPU 光栅化），不可用时回落到软件画布
+     * 取得与表面等大的离屏帧画布，尺寸变化时重建
+     */
+    private fun obtainFrameBuffer(width: Int, height: Int): Canvas? {
+        val existing = frameBitmap
+        if (existing != null && !existing.isRecycled &&
+            existing.width == width && existing.height == height
+        ) {
+            return frameCanvas
+        }
+        existing?.recycle()
+        val bitmap = try {
+            Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        } catch (e: Exception) {
+            Log.w(TAG, "Unable to allocate frame buffer", e)
+            frameBitmap = null
+            frameCanvas = null
+            return null
+        }
+        val canvas = Canvas(bitmap)
+        frameBitmap = bitmap
+        frameCanvas = canvas
+        return canvas
+    }
+
+    /**
+     * 锁定软件画布。
+     *
+     * 纹理视图的表面不保证支持硬件画布（部分设备上 lockHardwareCanvas 会抛异常
+     * 或提交出空帧），因此统一走软件画布 + 离屏位图拷入的路径。
      */
     private fun lockCanvas(target: Surface): Canvas? {
-        try {
-            return target.lockHardwareCanvas()
-        } catch (_: Exception) {
-            // 硬件画布不可用，继续尝试软件画布
-        }
         return try {
             target.lockCanvas(null)
         } catch (e: Exception) {
@@ -443,6 +508,9 @@ class PetController(
             skin.texture.recycle()
             cape?.recycle()
             cape = null
+            frameBitmap?.recycle()
+            frameBitmap = null
+            frameCanvas = null
         }
     }
 }

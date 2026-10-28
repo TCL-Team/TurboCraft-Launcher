@@ -71,7 +71,6 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -79,9 +78,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -116,7 +115,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.graphics.createBitmap
@@ -141,7 +139,12 @@ import com.movtery.zalithlauncher.game.account.wardrobe.AccountCapeCollection
 import com.movtery.zalithlauncher.game.account.wardrobe.EmptyCape
 import com.movtery.zalithlauncher.game.account.wardrobe.SkinModelType
 import com.movtery.zalithlauncher.game.account.wardrobe.capeLocalRes
+import com.movtery.petlib.ArmModel
+import com.movtery.petlib.PetAnimation
+import com.movtery.zalithlauncher.game.account.wardrobe.toArmModel
 import com.movtery.zalithlauncher.game.account.yggdrasil.PlayerProfile
+import com.movtery.zalithlauncher.game.account.yggdrasil.getFile
+import com.movtery.zalithlauncher.ui.components.PetModelView
 import com.movtery.zalithlauncher.game.account.yggdrasil.findUsing
 import com.movtery.zalithlauncher.game.account.yggdrasil.getFile
 import com.movtery.zalithlauncher.path.PathManager
@@ -154,7 +157,6 @@ import com.movtery.zalithlauncher.ui.components.BaseIconTextButton
 import com.movtery.zalithlauncher.ui.components.IconTextButton
 import com.movtery.zalithlauncher.ui.components.MarqueeText
 import com.movtery.zalithlauncher.ui.components.OwnOutlinedTextField
-import com.movtery.zalithlauncher.ui.components.PlayerSkin
 import com.movtery.zalithlauncher.ui.components.RadioCard
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.SimpleListDialog
@@ -170,6 +172,8 @@ import com.movtery.zalithlauncher.utils.PlayTimeUtils
 import com.movtery.zalithlauncher.utils.animation.getAnimateTween
 import com.movtery.zalithlauncher.utils.logging.Logger
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.nio.file.Files
 import java.util.regex.Pattern
@@ -1295,13 +1299,6 @@ fun ChangeSkinDialog(
     onInstallCapes: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    val playerSkin = remember { PlayerSkin(context) }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            playerSkin.destroy()
-        }
-    }
 
     var showCapeSelector by remember { mutableStateOf(false) }
     var showCapeCollectionSelector by remember { mutableStateOf(false) }
@@ -1312,8 +1309,6 @@ fun ChangeSkinDialog(
 
     var currentCapeToLoad by remember { mutableStateOf(EmptyCape) }
     var currentUsingCape by remember { mutableStateOf(EmptyCape) }
-
-    var pageFinished by remember { mutableStateOf(false) }
 
     LaunchedEffect(availableCapes) {
         if (account.isMicrosoftAccount()) {
@@ -1339,130 +1334,74 @@ fun ChangeSkinDialog(
             uri?.let { onCapePicked(account, it) }
         }
 
-    /**
-     * 初始化账号设置的皮肤
-     */
-    fun loadSkin() {
-        val capeFile = account.getSelectedCapeFile()
-        val skinFile = account.getSkinFile()
-
-        if (skinFile.exists() && capeFile?.isFile == true) {
-            runCatching {
-                skinFile.inputStream().use { skinStream ->
-                    capeFile.inputStream().use { capeStream ->
-                        playerSkin.loadSkinAndCape(skinStream, account.skinModelType, capeStream)
-                    }
-                }
-            }.onFailure {
-                playerSkin.loadSkin(
-                    skinId = account.uniqueUUID.takeIf { account.hasSkinFile },
-                    model = account.skinModelType
-                )
+    // 皮肤预览：跟随当前未保存的选择实时刷新（PetLib 直接按 PNG 数据渲染）
+    val previewSkin by produceState<ByteArray?>(null, skinState, account, capeRefreshKey) {
+        value = withContext(Dispatchers.IO) {
+            when (skinState) {
+                ChangeSkin.None -> account.getSkinFile()
+                    .takeIf { it.exists() }
+                    ?.inputStream()
+                    ?.use { it.readBytes() }
+                is ChangeSkin.ChangeSkinData -> runCatching {
+                    skinState.cacheFile.inputStream().use { it.readBytes() }
+                }.getOrNull()
+                ChangeSkin.ResetSkin -> null
             }
-        } else {
-            playerSkin.loadSkin(
-                skinId = account.uniqueUUID.takeIf { account.hasSkinFile },
-                model = account.skinModelType
-            )
-            capeFile?.takeIf { it.isFile }?.inputStream()?.use { capeStream ->
-                playerSkin.loadCape(capeStream)
-            } ?: playerSkin.loadCape(cape = null)
         }
     }
-
-    /**
-     * 重置皮肤预览
-     */
-    fun resetSkin() {
-        playerSkin.resetSkin()
+    val previewCape by produceState<ByteArray?>(
+        null, capeState, currentCapeToLoad, capeRefreshKey
+    ) {
+        value = withContext(Dispatchers.IO) {
+            when (capeState) {
+                is ChangeCape.SelectedCape -> if (account.isMicrosoftAccount()) {
+                    runCatching {
+                        capeState.cape.getFile(PathManager.DIR_ACCOUNT_CAPE)
+                            .inputStream()
+                            .use { it.readBytes() }
+                    }.getOrNull()
+                } else {
+                    runCatching {
+                        account.getSelectedCapeFile()
+                            ?.takeIf { it.isFile }
+                            ?.inputStream()
+                            ?.use { it.readBytes() }
+                    }.getOrNull()
+                }
+                is ChangeCape.SelectedCustomCape -> runCatching {
+                    capeState.capeFile.inputStream().use { it.readBytes() }
+                }.getOrNull()
+                ChangeCape.ResetCape -> null
+                ChangeCape.None -> if (account.isMicrosoftAccount()) {
+                    if (currentCapeToLoad != EmptyCape) {
+                        runCatching {
+                            currentCapeToLoad.getFile(PathManager.DIR_ACCOUNT_CAPE)
+                                .inputStream()
+                                .use { it.readBytes() }
+                        }.getOrNull()
+                    } else {
+                        runCatching {
+                            account.getCapeFile()
+                                .takeIf { it.isFile }
+                                ?.inputStream()
+                                ?.use { it.readBytes() }
+                        }.getOrNull()
+                    }
+                } else {
+                    runCatching {
+                        account.getSelectedCapeFile()
+                            ?.takeIf { it.isFile }
+                            ?.inputStream()
+                            ?.use { it.readBytes() }
+                    }.getOrNull()
+                }
+            }
+        }
     }
-
-    LaunchedEffect(pageFinished, skinState, capeState, currentCapeToLoad, capeRefreshKey) {
-        if (!pageFinished) return@LaunchedEffect
-
-        // Determine skin stream and model
-        var skinStream: java.io.InputStream? = null
-        var skinModel: SkinModelType = account.skinModelType
-        var skinId: String? = null
-        var isReset = false
-
-        when (skinState) {
-            ChangeSkin.None -> {
-                skinId = account.uniqueUUID.takeIf { account.hasSkinFile }
-                if (skinId == null) skinStream = null // Steve
-                else {
-                    val file = account.getSkinFile()
-                    if (file.exists()) skinStream = file.inputStream()
-                }
-            }
-            is ChangeSkin.ChangeSkinData -> {
-                skinStream = skinState.cacheFile.inputStream()
-                skinModel = skinState.skinModel
-            }
-            ChangeSkin.ResetSkin -> {
-                isReset = true
-            }
-        }
-
-        // Determine cape stream or ID
-        var capeStream: java.io.InputStream? = null
-        var capeObj: PlayerProfile.Cape? = null
-
-        when (capeState) {
-            is ChangeCape.SelectedCape -> {
-                if (account.isMicrosoftAccount()) {
-                    capeObj = capeState.cape
-                }
-            }
-            is ChangeCape.SelectedCustomCape -> {
-                capeStream = capeState.capeFile.inputStream()
-            }
-            ChangeCape.ResetCape -> {
-                capeStream = null
-                capeObj = null
-            }
-            ChangeCape.None -> {
-                if (account.isMicrosoftAccount()) {
-                    capeObj = currentCapeToLoad
-                } else {
-                    account.getSelectedCapeFile()?.let { file ->
-                        capeStream = file.inputStream()
-                    }
-                }
-            }
-        }
-
-        if (isReset) {
-            playerSkin.resetSkin()
-        } else if (skinStream != null && (capeStream != null || capeState == ChangeCape.ResetCape)) {
-            skinStream.use { ss ->
-                if (capeStream != null) {
-                    capeStream.use { cs ->
-                        playerSkin.loadSkinAndCape(ss, skinModel, cs)
-                    }
-                } else {
-                    playerSkin.loadSkin(ss, skinModel)
-                    playerSkin.loadCape(cape = null)
-                }
-            }
-        } else if (skinStream != null) {
-            skinStream.use { ss ->
-                playerSkin.loadSkin(ss, skinModel)
-            }
-            if (capeObj != null) playerSkin.loadCape(capeObj)
-            else if (capeStream == null && (capeState == ChangeCape.None || capeState == ChangeCape.ResetCape) && !account.isMicrosoftAccount()) {
-                // Already handled above if file exists, if not we might want to clear it if it was there
-                playerSkin.loadCape(cape = null)
-            }
-        } else {
-            playerSkin.loadSkin(skinId, skinModel)
-            if (capeObj != null) playerSkin.loadCape(capeObj)
-            else if (capeStream != null) {
-                capeStream.use { cs -> playerSkin.loadCape(cs) }
-            } else if (capeState == ChangeCape.ResetCape) {
-                playerSkin.loadCape(cape = null)
-            }
-        }
+    val previewArm = when (skinState) {
+        ChangeSkin.None -> account.skinModelType.toArmModel()
+        is ChangeSkin.ChangeSkinData -> skinState.skinModel.toArmModel()
+        ChangeSkin.ResetSkin -> ArmModel.Classic
     }
 
     Dialog(
@@ -1506,24 +1445,14 @@ fun ChangeSkinDialog(
                                 .background(itemColor(false)),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (!pageFinished) {
-                                //加载皮肤预览中
-                                LoadingIndicator()
-                            }
-
-                            AndroidView(
-                                factory = { context ->
-                                    playerSkin.loadWebView(
-                                        context = context,
-                                        onPageFinished = {
-                                            pageFinished = true
-                                            playerSkin.startAnimationCycle()
-                                            playerSkin.setAzimuthAndPitch(0, 10, 50)
-                                        }
-                                    )
-                                },
-                                update = {},
-                                modifier = Modifier.fillMaxSize()
+                            PetModelView(
+                                modifier = Modifier.fillMaxSize(),
+                                skin = previewSkin,
+                                cape = previewCape,
+                                arm = previewArm,
+                                animation = PetAnimation.Walking,
+                                animationSpeed = 0.8f,
+                                gazeEnabled = false
                             )
                         }
 
@@ -1780,23 +1709,11 @@ fun ChangeSkinDialog(
                 capeCollectionChanged = true
                 capeRefreshKey++
                 AccountsManager.refreshWardrobe()
-                val f = account.getSelectedCapeFile()
-                if (f?.isFile == true) {
-                    f.inputStream().use { playerSkin.loadCape(it) }
-                } else {
-                    playerSkin.loadCape(cape = null)
-                }
             },
             onCapeDeleted = {
                 capeCollectionChanged = true
                 capeRefreshKey++
                 AccountsManager.refreshWardrobe()
-                val f = account.getSelectedCapeFile()
-                if (f?.isFile == true) {
-                    f.inputStream().use { playerSkin.loadCape(it) }
-                } else {
-                    playerSkin.loadCape(cape = null)
-                }
             }
         )
     }

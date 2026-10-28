@@ -26,6 +26,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,6 +37,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.delay
 import kotlin.math.PI
 
 /**
@@ -146,6 +148,21 @@ fun PetPreview(
                 view.removeOnAttachStateChangeListener(attachStateListener)
                 view.surfaceTextureListener = null
                 controller.detachSurface()
+            }
+        }
+    }
+
+    // 首帧看门狗：表面若在尺寸未就绪时就被附着，出帧循环会停住，
+    // 这里在头几秒内持续补挂，直到真正提交过一帧为止。
+    LaunchedEffect(controller, textureView) {
+        val view = textureView ?: return@LaunchedEffect
+        repeat(25) {
+            delay(200)
+            if (controller.hasRenderedFrame()) return@LaunchedEffect
+            val st = view.surfaceTexture ?: return@repeat
+            if (view.width > 0 && view.height > 0) {
+                (view.surfaceTextureListener as? TextureLifecycle)
+                    ?.ensureAttached(st, view.width, view.height)
             }
         }
     }
