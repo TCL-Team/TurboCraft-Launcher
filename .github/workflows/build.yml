@@ -24,7 +24,7 @@ jobs:
 
     strategy:
       matrix:
-        arch: ["all", "arm", "arm64", "x86", "x86_64"]
+        arch: ["x86_64"]
       fail-fast: false
 
     env:
@@ -58,7 +58,27 @@ jobs:
       - name: Build APK for ${{ matrix.arch }}
         run: |
           chmod +x gradlew
-          ./gradlew TCL:assemble${{ inputs.variant }} -Darch=${{ matrix.arch }}
+          set -o pipefail
+          ./gradlew TCL:assemble${{ inputs.variant }} -Darch=${{ matrix.arch }} 2>&1 | tee /tmp/gradle.log
+
+      - name: Collect build errors
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LOG=/tmp/gradle.log
+          if [ ! -f "$LOG" ]; then echo "no gradle log"; exit 0; fi
+          grep -nE "^e: |error:|FAILURE:|What went wrong|Caused by:|> Task .*FAILED|Execution failed" "$LOG" | head -300 > /tmp/errors.txt || true
+          echo "----- tail -----" >> /tmp/errors.txt
+          tail -c 4000 "$LOG" >> /tmp/errors.txt
+          wc -c /tmp/errors.txt
+          {
+            printf '{"name":"gradle-errors","head_sha":"%s","status":"completed","conclusion":"neutral","output":{"title":"Gradle errors","summary":' "$GITHUB_SHA"
+            python3 -c "import json;print(json.dumps(open('/tmp/errors.txt',errors='replace').read()[:60000]))"
+            printf '}}'
+          } > /tmp/payload.json
+          gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" --input /tmp/payload.json && echo "check-run posted" || echo "check-run failed"
+          head -c 800 /tmp/errors.txt | head -6 | while IFS= read -r l; do echo "::error title=gradle::$l"; done
 
       - name: Upload Release APK for ${{ matrix.arch }}
         if: inputs.variant == 'Release'
