@@ -94,6 +94,26 @@ jobs:
           chmod +x gradlew
           ./gradlew TCL:assemble${{ inputs.variant }} -Darch=${{ matrix.arch }}
 
+      - name: Verify PetLib native library
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK=$(ls TCL/build/outputs/apk/release/*.apk 2>/dev/null | head -1)
+          {
+            echo "apk: ${APK:-none}"
+            if [ -n "$APK" ]; then
+              unzip -l "$APK" | grep -i "libpetlib\.so" || echo "libpetlib.so MISSING"
+            fi
+          } > /tmp/petlib.txt 2>&1
+          cat /tmp/petlib.txt
+          {
+            printf '{"name":"petlib-native","head_sha":"%s","status":"completed","conclusion":"neutral","output":{"title":"PetLib natives","summary":' "$GITHUB_SHA"
+            python3 -c "import json;print(json.dumps(open('/tmp/petlib.txt',errors='replace').read()[:5000]))"
+            printf '}}'
+          } > /tmp/petlib.json
+          gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" --input /tmp/petlib.json > /dev/null && echo "posted" || echo "post failed"
+
       - name: Upload Release APK for ${{ matrix.arch }}
         if: inputs.variant == 'Release'
         continue-on-error: true
