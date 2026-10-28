@@ -78,7 +78,8 @@ jobs:
             printf '}}'
           } > /tmp/payload.json
           gh api -X POST "repos/$GITHUB_REPOSITORY/check-runs" --input /tmp/payload.json && echo "check-run posted" || echo "check-run failed"
-          head -c 800 /tmp/errors.txt | head -6 | while IFS= read -r l; do echo "::error title=gradle::$l"; done
+          MSG=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(open('/tmp/errors.txt',errors='replace').read()[:30000]))")
+          echo "::error title=gradle-errors::$MSG"
 
       - name: Upload Release APK for ${{ matrix.arch }}
         if: inputs.variant == 'Release'

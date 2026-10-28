@@ -540,7 +540,9 @@ internal class PetRenderer {
                     (face.screen[2] - face.screen[0]) * (face.screen[7] - face.screen[1]) -
                         (face.screen[6] - face.screen[0]) * (face.screen[3] - face.screen[1])
                 )
-                if (pixelArea < (if (part.inflate > 0f) 6f else 0.5f)) {
+                // 半透明外层的边缘细条会被拉伸成条纹，给更高的面积阈值
+                val minArea = if (part.inflate > 0f) 6f else 0.5f
+                if (pixelArea < minArea) {
                     face.valid = false
                     continue
                 }
