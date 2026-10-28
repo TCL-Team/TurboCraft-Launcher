@@ -129,6 +129,12 @@ internal class PetRenderer {
     private val sortedFaces = ArrayList<Face>()
     private var faceCount = 0
 
+    /** 绘制顺序：不透明层按深度由远及近，半透明外层最后绘制 */
+    private val faceOrder = Comparator<Face> { a, b ->
+        val byOuter = (if (a.outer) 1 else 0) - (if (b.outer) 1 else 0)
+        if (byOuter != 0) byOuter else a.depth.compareTo(b.depth)
+    }
+
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         isAntiAlias = false
         isFilterBitmap = false
@@ -534,7 +540,7 @@ internal class PetRenderer {
                     (face.screen[2] - face.screen[0]) * (face.screen[7] - face.screen[1]) -
                         (face.screen[6] - face.screen[0]) * (face.screen[3] - face.screen[1])
                 )
-                if (pixelArea < 0.5f) {
+                if (pixelArea < (if (part.inflate > 0f) 6f else 0.5f)) {
                     face.valid = false
                     continue
                 }
@@ -638,9 +644,7 @@ internal class PetRenderer {
             val face = faces[i]
             if (face.valid) sortedFaces.add(face)
         }
-        sortedFaces.sortWith(
-            compareBy<Face> { if (it.outer) 1 else 0 }.thenBy { it.depth }
-        )
+        sortedFaces.sortWith(faceOrder)
 
         for (face in sortedFaces) {
             val texture: PetTexture = if (face.cape) cape ?: continue else skin.texture

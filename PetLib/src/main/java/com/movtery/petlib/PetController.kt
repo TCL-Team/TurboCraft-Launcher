@@ -397,11 +397,11 @@ class PetController(
         } finally {
             try {
                 target.unlockCanvasAndPost(canvas)
+                surfaceFailures = 0
             } catch (e: Exception) {
                 onSurfaceFailure(e)
             }
         }
-        surfaceFailures = 0
     }
 
     /**
