@@ -25,11 +25,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     steps:
+      - name: Checkout this repository (for the build request)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          path: self
+          fetch-depth: 1
+
       - name: Read build request
         id: req
         run: |
           set -euo pipefail
-          FILE=".mg-build-request"
+          FILE="self/.mg-build-request"
           [ -f "$FILE" ] || echo '{"mg_ref":"7bb2325befc47a687305374b839b49ba4f82a47b","abis":["arm64-v8a"],"target_branch":"arena/e61cca19-turbocraft-launcher"}' > "$FILE"
           MG_REF=$(python3 -c "import json;print(json.load(open('$FILE'))['mg_ref'])")
           ABIS=$(python3 -c "import json;print(','.join(json.load(open('$FILE'))['abis']))")
