@@ -69,6 +69,7 @@ import com.movtery.zalithlauncher.ui.screens.content.elements.MemoryPreview
 import com.movtery.zalithlauncher.ui.screens.content.elements.MicrophoneCheckOperation
 import com.movtery.zalithlauncher.ui.screens.content.elements.MicrophoneCheckState
 import com.movtery.zalithlauncher.ui.screens.content.settings.DriverSummaryLayout
+import com.movtery.zalithlauncher.ui.screens.content.settings.RendererConfigDialog
 import com.movtery.zalithlauncher.ui.screens.content.settings.RendererSummaryLayout
 import com.movtery.zalithlauncher.ui.screens.content.settings.layouts.CardPosition
 import com.movtery.zalithlauncher.ui.screens.content.settings.layouts.EnumSettingsCard
