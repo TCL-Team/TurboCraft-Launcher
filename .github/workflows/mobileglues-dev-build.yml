@@ -5,13 +5,15 @@ name: Build patched MobileGlues
 # the resulting libmobileglues.so files on the branch, so they can be dropped
 # into TCL/libs/MobileGlues-release.aar.
 #
-# Triggered by editing .mg-build-request (JSON) and pushing, because
-# workflow_dispatch is only available once this file sits on the default branch.
+# The libs currently in TCL/libs/MobileGlues-release.aar were built from
+# MobileGL-Dev/MobileGlues commit 7bb2325 (the uniform-initialiser fix) for all
+# four ABIs, then stripped with the NDK's llvm-strip.
+#
+# workflow_dispatch only becomes usable once this file is on the default branch;
+# until then, re-add a `push: paths: [".mg-build-request"]` trigger and push a
+# request file with {"mg_ref": ..., "abis": [...], "target_branch": ...}.
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - ".mg-build-request"
 
 permissions:
   contents: write

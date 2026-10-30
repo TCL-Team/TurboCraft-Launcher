@@ -140,6 +140,22 @@ jobs:
           fi
           echo "OK: $COUNT ABI(s) with libpetlib.so"
 
+      - name: Verify bundled MobileGlues version
+        run: |
+          set -e
+          # Minecraft 26.3+ renders through the new pipeline whose shaders declare
+          # uniform blocks with member initialisers. MobileGlues 2.0.0 cut those
+          # blocks apart while stripping the initialisers, which broke the terrain
+          # shaders and left a black screen; the token-aware rewrite landed in
+          # 2.0.1 (version code 2010). Never ship anything older.
+          MG_VERSION=$(unzip -p TCL/libs/MobileGlues-release.aar jni/arm64-v8a/libmobileglues.so \
+            | strings | grep -m1 'MG_MOBILEGLUES_VERSION' | awk '{print $3}')
+          echo "Bundled MobileGlues version code: ${MG_VERSION:-unknown}"
+          if [ -z "${MG_VERSION:-}" ] || [ "$MG_VERSION" -lt 2010 ]; then
+            echo "::error title=mobileglues-too-old::bundled MobileGlues is ${MG_VERSION:-unknown}, need 2010 (2.0.1) or newer"
+            exit 1
+          fi
+
       - name: Verify bundled renderers
         if: inputs.variant == 'Release'
         run: |

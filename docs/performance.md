@@ -13,6 +13,7 @@ TurboCraft Launcher 的渲染栈与 ZalithLauncher 2 保持一致。本文记录
 | **渲染器配置对话框** | 渲染器列表右侧的齿轮图标，可调 ANGLE 后端、FSR1 超分、GL 版本、GLSL 缓存等 |
 | **VirGL OSMesa 缓冲修复** | 之前把 `setbuffer` 符号当成颜色缓冲传给 OSMesa，首帧 flush 可能崩溃 |
 | **NeoForge 早期窗口修复** | `config/fml.toml` 写入 `earlyWindowControl = false`，避免模组扫描期启动器卡死 |
+| **MobileGlues 2.0.1（内置）** | 内置的原生库已从上游 `MobileGL-Dev/MobileGlues` 的 2.0.1 分支重新构建（commit `7bb2325`，四个 ABI 全部更新） |
 
 ## 推荐设置（按收益排序）
 
@@ -28,6 +29,9 @@ TurboCraft Launcher 的渲染栈与 ZalithLauncher 2 保持一致。本文记录
 
 ## 排查
 
+- 黑屏但游戏进程还在（MC 26.3+）：这是 MobileGlues 2.0.0 的老问题 —— 它剥除 uniform 初值时会
+  把新版渲染管线的 uniform block 一起截断，地形着色器编译失败。本项目内置的已经是修好的
+  2.0.1，如果你用外置插件/旧包遇到，请更新到 2.0.1 或更新的构建。
 - 游戏内仍卡：先确认版本用的渲染器没有被「按版本覆盖」成别的（版本设置 → 渲染器）。
 - 想确认实际使用的渲染器：启动日志里搜 `Renderer loaded:`。内置 Renderer 日志里搜
   `DLOPEN Renderer` 也能看到加载的库名。
