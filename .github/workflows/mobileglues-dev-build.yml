@@ -93,6 +93,8 @@ jobs:
             } > "build-$ABI.log" 2>&1
             if [ $? -eq 0 ]; then
               cp "build-$ABI/libmobileglues.so" "out/libmobileglues-$ABI.so"
+              STRIP="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
+              [ -x "$STRIP" ] && "$STRIP" --strip-unneeded "out/libmobileglues-$ABI.so" || echo "no llvm-strip found"
               echo "built $ABI: $(stat -c%s "out/libmobileglues-$ABI.so") bytes"
               # Publish right away so the important ABI is available early.
               rm -rf pubbranch

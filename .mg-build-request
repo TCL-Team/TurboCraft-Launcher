@@ -1,8 +1,11 @@
 {
   "mg_ref": "7bb2325befc47a687305374b839b49ba4f82a47b",
   "abis": [
-    "arm64-v8a"
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86",
+    "x86_64"
   ],
   "target_branch": "arena/e61cca19-turbocraft-launcher",
-  "note": "retry 2"
+  "note": "all four ABIs, stripped"
 }
