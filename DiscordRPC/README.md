@@ -15,7 +15,8 @@
 | --- | --- |
 | `ENABLED` | 总开关，默认 `true`，功能默认开启 |
 | `APPLICATION_ID` | 兜底 Application ID（Secret 优先） |
-| `DETAILS` / `STATE` | Discord 卡片上的两行文案（留空则该行不显示） |
+| `TITLE` | Discord 卡片标题，默认 `TurboCraft Launcher`（不设置会显示成 “Game”） |
+| `DETAILS` / `STATE` | 卡片上的两行文案（留空则该行不显示），默认第二行是 `Minecraft Java Edition` |
 | `PRIMARY_BUTTON_LABEL` / `PRIMARY_BUTTON_URL` | 第一个按钮，默认 “Download” → GitHub Releases |
 | `SECONDARY_BUTTON_LABEL` / `SECONDARY_BUTTON_URL` | 第二个按钮，默认 “GitHub” → 仓库主页 |
 

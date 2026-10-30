@@ -119,9 +119,12 @@ object DiscordPresenceManager {
             urls += it
         }
 
+        // Discord 没有显式标题时会显示成 “Game”，所以这里一定要带上启动器名称
+        val title = DiscordPresenceConfig.TITLE.trim().ifBlank { BuildKeys.LAUNCHER_NAME }
+
         applicationId = effectiveApplicationId()
         DiscordPresenceBridge.updatePresence(
-            name = BuildKeys.LAUNCHER_NAME,
+            name = title,
             details = limit(details, 128),
             state = limit(state, 128),
             activityType = 0, // Playing

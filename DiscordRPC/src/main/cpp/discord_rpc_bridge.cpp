@@ -123,7 +123,9 @@ void ApplyCommand(const PresenceCommand& cmd) {
 
     discordpp::Activity activity;
     activity.SetType(static_cast<discordpp::ActivityTypes>(cmd.activityType));
-    // Discord derives the activity name from the registered application, not this payload.
+    // Without an explicit name Discord falls back to a generic "Game" title, so the
+    // launcher's own name has to be sent with the activity.
+    if (!cmd.name.empty()) activity.SetName(cmd.name);
     if (!cmd.details.empty()) activity.SetDetails(cmd.details);
     if (!cmd.state.empty()) activity.SetState(cmd.state);
 

@@ -39,6 +39,11 @@ object DiscordPresenceConfig {
     const val APPLICATION_ID = "1565597159183753256"
 
     /**
+     * Discord 卡片标题（“Playing …”后面那一行）。留空则回退到启动器名称。
+     */
+    const val TITLE = "TurboCraft Launcher"
+
+    /**
      * 第二行文案（Discord 的 details）。留空则不显示这一行。
      */
     const val DETAILS = ""
@@ -46,7 +51,7 @@ object DiscordPresenceConfig {
     /**
      * 第三行文案（Discord 的 state）。留空则不显示这一行。
      */
-    const val STATE = "Minecraft: Java Edition"
+    const val STATE = "Minecraft Java Edition"
 
     /**
      * 第一个按钮：文字 + 链接（留空则不加这个按钮）。
