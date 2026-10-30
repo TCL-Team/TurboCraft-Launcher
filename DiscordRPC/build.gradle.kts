@@ -1,3 +1,5 @@
+import java.io.File
+import java.net.URI
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -24,7 +26,7 @@ if (!sdkAar.exists() || sdkAar.length() < 1_000_000L) {
     sdkAar.parentFile.mkdirs()
     logger.lifecycle("DiscordRPC: downloading Discord Social SDK from $sdkUrl")
     val temp = File(sdkAar.parentFile, "${sdkAar.name}.part")
-    java.net.URI(sdkUrl).toURL().openStream().use { input ->
+    URI(sdkUrl).toURL().openStream().use { input ->
         temp.outputStream().use { output -> input.copyTo(output) }
     }
     check(temp.length() > 1_000_000L) { "Discord Social SDK download looks truncated: ${temp.length()} bytes" }
