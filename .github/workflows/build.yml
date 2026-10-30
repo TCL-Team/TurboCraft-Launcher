@@ -16,6 +16,8 @@ on:
         required: false
       CURSEFORGE_API_KEY:
         required: false
+      DISCORD_APP_ID:
+        required: false
 
 jobs:
   build:
@@ -32,6 +34,8 @@ jobs:
       STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
       OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
       CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+      # Discord Rich Presence application id (public, not a credential). Empty = feature off.
+      DISCORD_APP_ID: ${{ secrets.DISCORD_APP_ID }}
 
     steps:
       - name: Checkout
@@ -83,6 +87,10 @@ jobs:
           echo "Using NDK at $ndk"
           test -f "$ndk/source.properties"
           echo "ANDROID_NDK_HOME=$ndk" >> "$GITHUB_ENV"
+          # CMake is only needed by :DiscordRPC (Discord Social SDK native bridge)
+          if [ ! -d "$ANDROID_HOME/cmake/3.22.1" ]; then
+            sdkmanager --install "cmake;3.22.1"
+          fi
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
@@ -119,6 +127,20 @@ jobs:
             exit 1
           fi
           echo "OK: $COUNT ABI(s) with libpetlib.so"
+
+      - name: Verify Discord Rich Presence native library
+        if: inputs.variant == 'Release'
+        run: |
+          set -e
+          APK=$(ls TCL/build/outputs/apk/release/*.apk | head -1)
+          echo "APK: $APK"
+          for LIB in libtcdiscordrpc.so libdiscord_partner_sdk.so; do
+            if ! unzip -l "$APK" | grep -q "$LIB"; then
+              echo "::error title=discord-missing::$LIB is not packaged in $APK"
+              exit 1
+            fi
+            echo "OK: $LIB packaged"
+          done
 
       - name: Upload Release APK for ${{ matrix.arch }}
         if: inputs.variant == 'Release'

@@ -66,6 +66,7 @@ import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionsManager
 import com.movtery.zalithlauncher.ui.activities.EXTRA_LAUNCH_VERSION
 import com.movtery.zalithlauncher.ui.activities.EXTRA_OPEN_LOG
+import com.movtery.zalithlauncher.discord.DiscordPresenceManager
 import com.movtery.zalithlauncher.notification.NotificationManager
 import com.movtery.zalithlauncher.path.PathManager
 import com.movtery.zalithlauncher.path.URL_SUPPORT
@@ -219,6 +220,9 @@ class MainActivity : BaseAppCompatActivity() {
 
         //初始化通知管理（创建渠道）
         NotificationManager.initManager(this)
+
+        //Discord 状态展示（Rich Presence）
+        DiscordPresenceManager.start(this)
 
         //检查更新
         if (!isImporting && launcherUpgradeViewModel.operation == LauncherUpgradeOperation.None) {
@@ -887,6 +891,9 @@ class MainActivity : BaseAppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (isFinishing) {
+            DiscordPresenceManager.stop()
+        }
         fmEventRegistrar?.stop()
         fmEventRegistrar = null
         super.onDestroy()

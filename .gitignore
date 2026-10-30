@@ -31,3 +31,6 @@ LWJGL/*/build/
 .ampersand/
 
 .vscode/
+
+# Discord Social SDK: proprietary binary, downloaded on demand (see DiscordRPC/build.gradle.kts)
+DiscordRPC/libs/

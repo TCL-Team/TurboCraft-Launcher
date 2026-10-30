@@ -2085,6 +2085,13 @@
     <string name="settings_launcher_mirror_mirror_first">Prefer Mirror Source</string>
 
     <string name="settings_launcher_show_snapshot_versions_title">Show Snapshot Versions</string>
+    <string name="settings_discord_presence_title">Discord Rich Presence</string>
+    <string name="settings_discord_presence_summary">Show "Playing TurboCraft Launcher" on your Discord profile.</string>
+    <string name="settings_discord_presence_not_configured">No Discord Application ID configured.</string>
+    <string name="settings_discord_presence_details_title">Presence text</string>
+    <string name="settings_discord_presence_download_title">Download link button</string>
+    <string name="settings_discord_presence_app_id_title">Discord Application ID</string>
+    <string name="settings_discord_presence_default_value">Default</string>
 
     <string name="settings_launcher_show_snapshot_versions_summary">Display snapshot, old, and experimental versions in the asset download page version filter</string>
 
