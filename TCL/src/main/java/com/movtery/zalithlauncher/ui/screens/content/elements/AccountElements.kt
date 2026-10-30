@@ -50,6 +50,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -1446,8 +1447,11 @@ fun ChangeSkinDialog(
                                 .background(itemColor(false)),
                             contentAlignment = Alignment.Center
                         ) {
+                            // 模型按视图宽度等比缩放，用 44:36 约束宽度避免上下裁切
                             PetModelView(
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .aspectRatio(44f / 36f, matchHeightConstraintsFirst = true),
                                 skin = previewSkin,
                                 cape = previewCape,
                                 arm = previewArm,

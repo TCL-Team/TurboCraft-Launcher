@@ -28,6 +28,7 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -49,7 +50,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialExpressiveTheme
@@ -301,70 +301,68 @@ private fun AccountManageContent(
             .padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ── Left panel: skin preview + add account ──
+        // ── Left panel: 玩家模型预览 + 添加账号（与 ZalithLauncher 2 布局一致）──
         Column(
             modifier = Modifier
-                .weight(0.35f)
+                .weight(0.3f)
                 .fillMaxHeight(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            BackgroundCard(
+            // 模型按视图宽度等比缩放（width/44），预览区不够高就会被上下裁掉，
+            // 因此这里按 44:36 的模型比例约束宽度，保证全身始终完整可见
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                PetModelView(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(44f / 36f, matchHeightConstraintsFirst = true),
+                    skin = skinBytes,
+                    cape = capeBytes,
+                    arm = armModel,
+                    yaw = Math.toRadians(35.0).toFloat()
+                )
+            }
+
+            BackgroundCard(
+                modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.extraLarge
             ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    //玩家模型预览
-                    PetModelView(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        skin = skinBytes,
-                        cape = capeBytes,
-                        arm = armModel,
-                        yaw = Math.toRadians(35.0).toFloat()
-                    )
-
-                    HorizontalDivider(modifier = Modifier.alpha(0.2f))
-
-                    // Account info + chroma
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        if (currentAccount != null) {
-                            Text(
-                                text = currentAccount.username,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = getAccountTypeName(context, currentAccount),
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.alpha(0.7f)
-                            )
-                            val totalMs = AllSettings.playTime.getValue()
-                            val rank = PlayTimeUtils.getRankName(context, totalMs)
-                            Text(
-                                text = rank,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        } else {
-                            Text(
-                                text = stringResource(R.string.account_no_account),
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.alpha(0.6f)
-                            )
-                        }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (currentAccount != null) {
+                        Text(
+                            text = currentAccount.username,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = getAccountTypeName(context, currentAccount),
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.alpha(0.7f)
+                        )
+                        Text(
+                            text = PlayTimeUtils.getRankName(context, AllSettings.playTime.getValue()),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(R.string.account_no_account),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.alpha(0.6f)
+                        )
                     }
-
                 }
             }
 
@@ -446,7 +444,7 @@ private fun AccountManageContent(
         // ── Right panel: account cards with drag-and-drop ──
         BackgroundCard(
             modifier = Modifier
-                .weight(0.65f)
+                .weight(0.7f)
                 .fillMaxHeight(),
             shape = MaterialTheme.shapes.extraLarge
         ) {
