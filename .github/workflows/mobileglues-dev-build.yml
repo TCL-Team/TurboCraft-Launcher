@@ -82,13 +82,16 @@ jobs:
           IFS=',' read -ra ABI_LIST <<< "$ABIS"
           for ABI in "${ABI_LIST[@]}"; do
             echo "::group::Building $ABI"
-            if cmake -S mg/MobileGlues-cpp -B "build-$ABI" \
-                 -DCMAKE_TOOLCHAIN_FILE="$NDK_DIR/build/cmake/android.toolchain.cmake" \
-                 -DANDROID_ABI="$ABI" \
-                 -DANDROID_PLATFORM=android-21 \
-                 -DANDROID_STL=c++_static \
-                 -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-               && cmake --build "build-$ABI" --target mobileglues -j"$(nproc)"; then
+            {
+              cmake -S mg/MobileGlues-cpp -B "build-$ABI" \
+                -DCMAKE_TOOLCHAIN_FILE="$NDK_DIR/build/cmake/android.toolchain.cmake" \
+                -DANDROID_ABI="$ABI" \
+                -DANDROID_PLATFORM=android-21 \
+                -DANDROID_STL=c++_static \
+                -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+              && cmake --build "build-$ABI" --target mobileglues -j"$(nproc)"
+            } > "build-$ABI.log" 2>&1
+            if [ $? -eq 0 ]; then
               cp "build-$ABI/libmobileglues.so" "out/libmobileglues-$ABI.so"
               echo "built $ABI: $(stat -c%s "out/libmobileglues-$ABI.so") bytes"
               # Publish right away so the important ABI is available early.
@@ -106,6 +109,18 @@ jobs:
             else
               echo "::error::Build failed for $ABI"
               failed="$failed $ABI"
+              tail -n 200 "build-$ABI.log" || true
+              rm -rf pubbranch
+              git clone --depth 1 --branch "$TARGET_BRANCH" \
+                "https://x-access-token:$TOKEN@github.com/${{ github.repository }}.git" pubbranch
+              mkdir -p pubbranch/.mg-build
+              tail -n 400 "build-$ABI.log" > "pubbranch/.mg-build/build-log-$ABI.txt" || true
+              ( cd pubbranch \
+                && git config user.name "tcl-ci" \
+                && git config user.email "ci@turbocraft-launcher.local" \
+                && git add .mg-build \
+                && { git commit -m "chore(mg-build): failure log for $ABI" || true; } \
+                && git push ) || true
             fi
             echo "::endgroup::"
           done
