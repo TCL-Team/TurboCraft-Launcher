@@ -4,35 +4,46 @@ name: Build patched MobileGlues
 # carries the "strip uniform initialisers by token" fix) for Android and parks
 # the resulting libmobileglues.so files on the branch, so they can be dropped
 # into TCL/libs/MobileGlues-release.aar.
+#
+# Triggered by editing .mg-build-request (JSON) and pushing, because
+# workflow_dispatch is only available once this file sits on the default branch.
 on:
   workflow_dispatch:
-    inputs:
-      mg_ref:
-        description: "MobileGlues commit / branch to build"
-        default: "7bb2325befc47a687305374b839b49ba4f82a47b"
-        required: true
-      abis:
-        description: "Comma separated ABIs"
-        default: "arm64-v8a,armeabi-v7a,x86,x86_64"
-        required: true
-      target_branch:
-        description: "Branch that receives the built .so files"
-        default: "arena/e61cca19-turbocraft-launcher"
-        required: true
+  push:
+    paths:
+      - ".mg-build-request"
 
 permissions:
   contents: write
+
+concurrency:
+  group: mg-build
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     steps:
+      - name: Read build request
+        id: req
+        run: |
+          set -euo pipefail
+          FILE=".mg-build-request"
+          [ -f "$FILE" ] || echo '{"mg_ref":"7bb2325befc47a687305374b839b49ba4f82a47b","abis":["arm64-v8a"],"target_branch":"arena/e61cca19-turbocraft-launcher"}' > "$FILE"
+          MG_REF=$(python3 -c "import json;print(json.load(open('$FILE'))['mg_ref'])")
+          ABIS=$(python3 -c "import json;print(','.join(json.load(open('$FILE'))['abis']))")
+          TARGET=$(python3 -c "import json;print(json.load(open('$FILE'))['target_branch'])")
+          echo "mg_ref=$MG_REF" >> "$GITHUB_OUTPUT"
+          echo "abis=$ABIS" >> "$GITHUB_OUTPUT"
+          echo "target_branch=$TARGET" >> "$GITHUB_OUTPUT"
+          echo "Building $MG_REF for $ABIS -> $TARGET"
+
       - name: Checkout MobileGlues
         uses: actions/checkout@v4
         with:
           repository: MobileGL-Dev/MobileGlues
-          ref: ${{ inputs.mg_ref }}
+          ref: ${{ steps.req.outputs.mg_ref }}
           path: mg
           submodules: false
           fetch-depth: 1
@@ -61,12 +72,15 @@ jobs:
       - name: Build and publish each ABI
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MG_REF: ${{ steps.req.outputs.mg_ref }}
+          ABIS: ${{ steps.req.outputs.abis }}
+          TARGET_BRANCH: ${{ steps.req.outputs.target_branch }}
         run: |
           set -uo pipefail
           mkdir -p out
           failed=""
-          IFS=',' read -ra ABIS <<< "${{ inputs.abis }}"
-          for ABI in "${ABIS[@]}"; do
+          IFS=',' read -ra ABI_LIST <<< "$ABIS"
+          for ABI in "${ABI_LIST[@]}"; do
             echo "::group::Building $ABI"
             if cmake -S mg/MobileGlues-cpp -B "build-$ABI" \
                  -DCMAKE_TOOLCHAIN_FILE="$NDK_DIR/build/cmake/android.toolchain.cmake" \
@@ -79,7 +93,7 @@ jobs:
               echo "built $ABI: $(stat -c%s "out/libmobileglues-$ABI.so") bytes"
               # Publish right away so the important ABI is available early.
               rm -rf pubbranch
-              git clone --depth 1 --branch "${{ inputs.target_branch }}" \
+              git clone --depth 1 --branch "$TARGET_BRANCH" \
                 "https://x-access-token:$TOKEN@github.com/${{ github.repository }}.git" pubbranch
               mkdir -p pubbranch/.mg-build
               cp "out/libmobileglues-$ABI.so" pubbranch/.mg-build/
@@ -87,7 +101,7 @@ jobs:
                 && git config user.name "tcl-ci" \
                 && git config user.email "ci@turbocraft-launcher.local" \
                 && git add .mg-build \
-                && { git commit -m "chore(mg-build): libmobileglues $ABI from ${{ inputs.mg_ref }}" || true; } \
+                && { git commit -m "chore(mg-build): libmobileglues $ABI from $MG_REF" || true; } \
                 && git push )
             else
               echo "::error::Build failed for $ABI"

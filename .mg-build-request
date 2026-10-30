@@ -1,0 +1,5 @@
+{
+  "mg_ref": "7bb2325befc47a687305374b839b49ba4f82a47b",
+  "abis": ["arm64-v8a"],
+  "target_branch": "arena/e61cca19-turbocraft-launcher"
+}
