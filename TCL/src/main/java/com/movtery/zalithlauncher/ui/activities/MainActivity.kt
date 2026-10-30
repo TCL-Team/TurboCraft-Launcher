@@ -30,6 +30,10 @@ import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -67,6 +71,7 @@ import com.movtery.zalithlauncher.game.version.installed.VersionsManager
 import com.movtery.zalithlauncher.ui.activities.EXTRA_LAUNCH_VERSION
 import com.movtery.zalithlauncher.ui.activities.EXTRA_OPEN_LOG
 import com.movtery.zalithlauncher.discord.DiscordPresenceManager
+import com.movtery.zalithlauncher.game.account.AccountsManager
 import com.movtery.zalithlauncher.notification.NotificationManager
 import com.movtery.zalithlauncher.path.PathManager
 import com.movtery.zalithlauncher.path.URL_SUPPORT
@@ -88,6 +93,7 @@ import com.movtery.zalithlauncher.ui.screens.content.elements.LaunchGameOperatio
 import com.movtery.zalithlauncher.ui.screens.content.navigateToLogView
 import com.movtery.zalithlauncher.ui.screens.content.navigateToWeb
 import com.movtery.zalithlauncher.ui.screens.main.MainScreen
+import com.movtery.zalithlauncher.ui.screens.welcome.WelcomeScreen
 import com.movtery.zalithlauncher.ui.screens.main.crashlogs.LogShareMenu
 import com.movtery.zalithlauncher.ui.screens.main.crashlogs.LogShareMenuOperation
 import com.movtery.zalithlauncher.ui.screens.main.crashlogs.ShareLinkOperation
@@ -348,6 +354,10 @@ class MainActivity : BaseAppCompatActivity() {
                 festivals = festivals
             ) {
                 ObserveFullScreenSetting(AllSettings.launcherFullScreen.state)
+
+                //每次打开启动器都先展示欢迎页；外部导入（分享文件 / 快捷方式指定版本）时跳过
+                var welcomeDone by remember { mutableStateOf(false) }
+                val showWelcome = !isImporting && intent.getStringExtra(EXTRA_LAUNCH_VERSION).isNullOrEmpty()
                 //新手引导画布：承载主界面的引导流，并渲染遮罩、镂空与引导内容
                 val guides = rememberAppGuides(eventViewModel)
                 Box {
@@ -536,6 +546,20 @@ class MainActivity : BaseAppCompatActivity() {
                 )
 
                 PlayerNoticeDialog()
+
+                //欢迎页：每次打开启动器先展示，之后淡出显示主界面
+                AnimatedVisibility(
+                    visible = !welcomeDone && showWelcome,
+                    enter = EnterTransition.None,
+                    exit = fadeOut(animationSpec = tween(durationMillis = 450))
+                ) {
+                    val currentAccount by AccountsManager.currentAccountFlow.collectAsStateWithLifecycle()
+                    WelcomeScreen(
+                        userName = currentAccount?.username,
+                        buttonText = stringResource(R.string.welcome_enter),
+                        onEnter = { welcomeDone = true }
+                    )
+                }
             }
         }
     }

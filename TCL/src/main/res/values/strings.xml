@@ -2085,6 +2085,10 @@
     <string name="settings_launcher_mirror_mirror_first">Prefer Mirror Source</string>
 
     <string name="settings_launcher_show_snapshot_versions_title">Show Snapshot Versions</string>
+    <string name="welcome_title">TURBOCRAFT</string>
+    <string name="welcome_subtitle_user">Ready to play, %1$s?</string>
+    <string name="welcome_subtitle_guest">Your worlds are waiting</string>
+    <string name="welcome_enter">Enter Launcher</string>
 
     <string name="settings_launcher_show_snapshot_versions_summary">Display snapshot, old, and experimental versions in the asset download page version filter</string>
 
