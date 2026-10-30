@@ -73,6 +73,7 @@ import kotlinx.coroutines.withContext
 import com.movtery.zalithlauncher.game.plugin.driver.Driver
 import com.movtery.zalithlauncher.game.plugin.driver.DriverPluginManager
 import com.movtery.zalithlauncher.game.plugin.renderer_v2.RendererV2Data
+import com.movtery.zalithlauncher.game.renderer.ConfigurableRenderer
 import com.movtery.zalithlauncher.game.renderer.RendererInterface
 import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.renderer.renderers.KopperZinkRenderer
@@ -175,6 +176,14 @@ fun RendererSettingsScreen(
                             ?.env?.getConfigurableUnits()?.takeIf { it.isNotEmpty() }
                     }
                     var showV2ConfigDialog by remember { mutableStateOf(false) }
+                    //内置渲染器（MobileGlues / SimpleFPEWrapper）的可配置项
+                    val configurableRenderer = remember(currentRendererId) {
+                        Renderers.getRenderers()
+                            .filterIsInstance<ConfigurableRenderer>()
+                            .find { it.getUniqueIdentifier() == currentRendererId }
+                            ?.takeIf { it.configSpec.entries.isNotEmpty() }
+                    }
+                    var showBuiltinConfigDialog by remember { mutableStateOf(false) }
 
                     ListSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -189,6 +198,17 @@ fun RendererSettingsScreen(
                             RendererSummaryLayout(it)
                         },
                         trailingIcon = {
+                            //选中内置渲染器且存在可配置项时，提供配置入口
+                            if (v2PluginEnvUnits == null && configurableRenderer != null) {
+                                IconButton(
+                                    onClick = { showBuiltinConfigDialog = true }
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_settings_filled),
+                                        contentDescription = stringResource(R.string.settings_renderer_config_title)
+                                    )
+                                }
+                            }
                             //选中新一代渲染器插件且存在可配置项时，提供配置入口
                             if (v2PluginEnvUnits != null) {
                                 IconButton(
@@ -220,6 +240,14 @@ fun RendererSettingsScreen(
                             }
                         }
                     )
+
+                    //内置渲染器配置对话框
+                    if (showBuiltinConfigDialog && configurableRenderer != null) {
+                        RendererConfigDialog(
+                            renderer = configurableRenderer,
+                            onDismissRequest = { showBuiltinConfigDialog = false }
+                        )
+                    }
 
                     //新一代渲染器插件的环境变量配置对话框
                     if (showV2ConfigDialog && v2PluginEnvUnits != null) {

@@ -42,8 +42,15 @@ import com.movtery.zalithlauncher.game.plugin.Plugin
 import com.movtery.zalithlauncher.game.plugin.driver.DriverPluginManager
 import com.movtery.zalithlauncher.game.plugin.renderer.RendererPluginManager
 import com.movtery.zalithlauncher.game.renderer.Renderers
+import com.movtery.zalithlauncher.game.renderer.ConfigurableRenderer
+import com.movtery.zalithlauncher.game.renderer.config.GlobalRendererConfigStore
+import com.movtery.zalithlauncher.game.renderer.config.VersionRendererConfigStore
+import com.movtery.zalithlauncher.game.renderer.config.removeStaleEntries
+import com.movtery.zalithlauncher.game.renderer.config.resolveRendererConfig
 import com.movtery.zalithlauncher.game.renderer.renderers.GL4ESRenderer
+import com.movtery.zalithlauncher.game.renderer.renderers.MobileGluesRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.NGGL4ESRenderer
+import com.movtery.zalithlauncher.game.renderer.renderers.SimpleFPEWrapperRenderer
 import com.movtery.zalithlauncher.game.support.touch_controller.ControllerProxy
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionInfoParser
@@ -57,6 +64,8 @@ import com.movtery.zalithlauncher.utils.file.child
 import com.movtery.zalithlauncher.utils.file.ensureDirectorySilently
 import com.movtery.zalithlauncher.utils.logging.Logger
 import com.movtery.zalithlauncher.utils.string.isBiggerTo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.movtery.zalithlauncher.utils.string.isEqualTo
 import kotlinx.parcelize.Parcelize
 import org.lwjgl.glfw.CallbackBridge
@@ -94,6 +103,8 @@ class GameLauncher(
         config.account
     }
 
+    private var configuredRendererEnv: Map<String, String>? = null
+
     override fun exit() {
         offlineServer.stop()
     }
@@ -102,6 +113,21 @@ class GameLauncher(
         if (!Renderers.isCurrentRendererValid()) {
             Renderers.setCurrentRenderer(version.getRenderer())
         }
+        configuredRendererEnv = withContext(Dispatchers.IO) {
+            val renderer = Renderers.getCurrentRenderer()
+            if (renderer is ConfigurableRenderer) {
+                val rendererId = renderer.getUniqueIdentifier()
+                GlobalRendererConfigStore.migrateLegacy(rendererId, renderer.legacyConfigKeys)
+                GlobalRendererConfigStore.removeStaleEntries(rendererId, renderer.configSpec)
+                val versionStore = if (version.getVersionConfig().renderer == rendererId) {
+                    VersionRendererConfigStore(version.getVersionPath(), Renderers.getLegacyRendererIds())
+                        .apply { removeStaleEntries(rendererId, renderer.configSpec) }
+                } else null
+                val config = resolveRendererConfig(rendererId, renderer.configSpec, versionStore)
+                renderer.getConfiguredEnv(config)
+            } else null
+        }
+
 
         val manifest = GSON.fromJson(File(version.getVersionPath(), "${version.getVersionName()}.json").readText(), GameManifest::class.java)
         val clientJar = manifest.inheritsFrom?.let { inheritsFrom ->
@@ -191,7 +217,7 @@ class GameLauncher(
             }
         }
         if (Renderers.isCurrentRendererValid()) {
-            setRendererEnv(envMap)
+            setRendererEnv(envMap, configuredRendererEnv)
         }
         envMap["ZALITH_VERSION_CODE"] = BuildConfig.VERSION_CODE.toString()
 
@@ -391,7 +417,10 @@ private fun checkAndUsedJSPH(envMap: MutableMap<String, String>, runtime: Runtim
     }
 }
 
-private fun setRendererEnv(envMap: MutableMap<String, String>) {
+private fun setRendererEnv(
+    envMap: MutableMap<String, String>,
+    configuredRendererEnv: Map<String, String>?
+) {
     val renderer = Renderers.getCurrentRenderer()
     val rendererId = renderer.getRendererId()
 
@@ -406,7 +435,11 @@ private fun setRendererEnv(envMap: MutableMap<String, String>) {
         envMap["LIBGL_NORMALIZE"] = "1"
     }
 
-    envMap += renderer.getRendererEnv().value
+    if (renderer is ConfigurableRenderer) {
+        envMap += checkNotNull(configuredRendererEnv) { "Renderer configuration has not been prepared" }
+    } else {
+        envMap += renderer.getRendererEnv().value
+    }
 
     renderer.getRendererEGL()?.let { eglName ->
         envMap["POJAVEXEC_EGL"] = eglName
@@ -424,7 +457,9 @@ private fun setRendererEnv(envMap: MutableMap<String, String>) {
 
     if (RendererPluginManager.selectedRendererPlugin != null) return
 
-    if (renderer != GL4ESRenderer && renderer != NGGL4ESRenderer) {
+    //MobileGlues / SimpleFPEWrapper 自带完整 GL 栈，不能叠加 Mesa 的 zink 覆盖
+    if (renderer != GL4ESRenderer && renderer != NGGL4ESRenderer &&
+        renderer != MobileGluesRenderer && renderer != SimpleFPEWrapperRenderer) {
         envMap["MESA_LOADER_DRIVER_OVERRIDE"] = "zink"
         envMap["MESA_GLSL_CACHE_DIR"] = PathManager.DIR_CACHE.absolutePath
         envMap["MESA_GL_VERSION_OVERRIDE"] = "4.6"

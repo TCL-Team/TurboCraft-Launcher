@@ -28,6 +28,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +46,8 @@ import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.game.control.ControlManager
 import com.movtery.zalithlauncher.game.multirt.RuntimesManager
 import com.movtery.zalithlauncher.game.plugin.driver.DriverPluginManager
+import androidx.compose.ui.res.painterResource
+import com.movtery.zalithlauncher.game.renderer.ConfigurableRenderer
 import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.support.touch_controller.VibrationHandler
 import com.movtery.zalithlauncher.game.version.installed.GraphicsApi
@@ -194,11 +198,32 @@ private fun VersionConfigs(
 
         val renderers = Renderers.getRenderers()
         val renderersIdList = getIDList(renderers) { IDItem(it.getUniqueIdentifier(), it.getRendererName()) }
+        var currentRendererId by remember { mutableStateOf(config.renderer) }
+        //当前版本选中的内置渲染器是否存在可配置项
+        val configurableRenderer = remember(currentRendererId) {
+            if (currentRendererId.isNotEmpty()) {
+                renderers.filterIsInstance<ConfigurableRenderer>()
+                    .find { it.getUniqueIdentifier() == currentRendererId }
+                    ?.takeIf { it.configSpec.entries.isNotEmpty() }
+            } else null
+        }
+        var showRendererConfigDialog by remember { mutableStateOf(false) }
+
         ListSettingsCard(
             modifier = Modifier.fillMaxWidth(),
             position = CardPosition.Middle,
             items = renderersIdList,
-            currentId = config.renderer,
+            currentId = currentRendererId,
+            trailingIcon = {
+                if (configurableRenderer != null) {
+                    IconButton(onClick = { showRendererConfigDialog = true }) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_settings_filled),
+                            contentDescription = stringResource(R.string.settings_renderer_config_title)
+                        )
+                    }
+                }
+            },
             defaultId = "",
             title = stringResource(R.string.versions_config_renderer),
             getItemText = { it.title },
@@ -211,10 +236,19 @@ private fun VersionConfigs(
             onValueChange = { item ->
                 if (config.renderer != item.id) {
                     config.renderer = item.id
+                    currentRendererId = item.id
                     config.saveOrShowError(submitError)
                 }
             }
         )
+
+        if (showRendererConfigDialog && configurableRenderer != null) {
+            RendererConfigDialog(
+                renderer = configurableRenderer,
+                versionFolder = config.getVersionPath(),
+                onDismissRequest = { showRendererConfigDialog = false }
+            )
+        }
 
         val drivers = DriverPluginManager.getDriverList()
         val driversIdList = getIDList(drivers) { IDItem(it.id, it.name) }
