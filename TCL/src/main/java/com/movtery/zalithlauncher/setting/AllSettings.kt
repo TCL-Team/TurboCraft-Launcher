@@ -815,25 +815,4 @@ object AllSettings : SettingsRegistry() {
      */
     val showSnapshotVersions = boolSetting("showSnapshotVersions", false)
 
-    //Discord Rich Presence
-    /**
-     * 在 Discord 个人资料中显示“正在玩 TurboCraft Launcher”
-     */
-    val discordRichPresence = boolSetting("discordRichPresence", true)
-
-    /**
-     * Discord Application ID 覆盖值（留空则使用构建时注入的值）
-     */
-    val discordApplicationIdOverride = stringSetting("discordApplicationIdOverride", "")
-
-    /**
-     * 用户自定义的 Rich Presence 详情文案（留空则使用默认文案）
-     */
-    val discordCustomDetails = stringSetting("discordCustomDetails", "")
-
-    /**
-     * Rich Presence 展示的下载地址（留空则使用默认 GitHub 地址）
-     */
-    val discordCustomDownloadUrl = stringSetting("discordCustomDownloadUrl", "")
-
 }

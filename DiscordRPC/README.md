@@ -6,18 +6,33 @@
 不使用 Discord 机器人、不需要任何账号令牌或 OAuth：只通过 **Discord Social SDK** 的
 本地 RPC 通道，把状态发给**同一台手机上已登录的 Discord 客户端**。
 
-## Application ID 的配置方式
+## 默认值放在哪
 
-Application ID 来源（优先级从上到下）：
+启动器**设置界面里没有**任何 Discord 选项（普通用户看不到、也改不了），所有默认值都在
+一个文件里：`TCL/src/main/java/com/movtery/zalithlauncher/discord/DiscordPresenceConfig.kt`
 
-1. 启动器设置里的 **Discord Application ID** 覆盖值（给测试/自编译用户用）；
-2. 构建时注入的 `DISCORD_APP_ID`：
+| 常量 | 作用 |
+| --- | --- |
+| `ENABLED` | 总开关，默认 `true`，功能默认开启 |
+| `APPLICATION_ID` | 兜底 Application ID（Secret 优先） |
+| `DETAILS` / `STATE` | Discord 卡片上的两行文案（留空则该行不显示） |
+| `PRIMARY_BUTTON_LABEL` / `PRIMARY_BUTTON_URL` | 第一个按钮，默认 “Download” → GitHub Releases |
+| `SECONDARY_BUTTON_LABEL` / `SECONDARY_BUTTON_URL` | 第二个按钮，默认 “GitHub” → 仓库主页 |
+
+改完重新打包即可生效。
+
+## Application ID 的来源
+
+优先级（从上到下）：
+
+1. 构建时注入的 `DISCORD_APP_ID`：
    - CI：GitHub 仓库 → Settings → Secrets and variables → Actions → 新建 secret
      `DISCORD_APP_ID`，值填 Discord Developer Portal 里应用的 Application ID；
    - 本地构建：环境变量 `DISCORD_APP_ID=...`，或者项目根目录放一个
      `.discord_app_id.txt`（已被 `.gitignore` 忽略）。
+2. 没有 secret 时回退到 `DiscordPresenceConfig.APPLICATION_ID`。
 
-三者都为空时，Rich Presence 静默关闭，其他功能不受影响。仓库里**不写死**任何 ID。
+两者都为空时 Rich Presence 静默关闭，其他功能不受影响。
 
 ## Discord 应用侧需要做的事
 

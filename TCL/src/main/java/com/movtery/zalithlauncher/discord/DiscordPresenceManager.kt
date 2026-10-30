@@ -21,7 +21,6 @@ package com.movtery.zalithlauncher.discord
 import android.app.Activity
 import com.movtery.zalithlauncher.BuildConfig
 import com.movtery.zalithlauncher.BuildKeys
-import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.utils.logging.Logger
 import java.lang.ref.WeakReference
 
@@ -31,8 +30,9 @@ import java.lang.ref.WeakReference
  * 启动器在前台时，通过 Discord Social SDK 向同设备上已登录的 Discord 客户端广播
  * “正在玩 TurboCraft Launcher”；不需要任何 Discord 账号令牌，也不涉及机器人。
  *
- * Application ID 优先取设置里的覆盖值，其次取构建时注入的 [BuildConfig.DISCORD_APP_ID]
- * （CI 从仓库 Secret 传入）。两者都为空时功能静默关闭。
+ * 所有文案、按钮和开关都在 [DiscordPresenceConfig] 里，启动器设置界面不暴露任何相关选项。
+ * Application ID 优先取构建时注入的 [BuildConfig.DISCORD_APP_ID]（CI 从仓库 Secret 传入），
+ * 没有时用配置文件的兜底值；两者都为空则功能静默关闭。
  */
 object DiscordPresenceManager {
     private const val TAG = "DiscordPresence"
@@ -47,27 +47,24 @@ object DiscordPresenceManager {
     private var applicationId = ""
     private var activityRef: WeakReference<Activity>? = null
 
-    private val defaultDownloadUrl: String
-        get() = BuildKeys.URL_HOME.trimEnd('/') + "/releases/latest"
-
     /**
-     * 当前生效的 Discord Application ID（设置覆盖 > 构建注入），为空表示未配置。
+     * 当前生效的 Discord Application ID。
+     *
+     * 优先使用构建时注入的值（`DISCORD_APP_ID`，CI 里来自仓库 Secret），
+     * 没有配置时回退到 [DiscordPresenceConfig.APPLICATION_ID]。
+     * 两者都为空表示功能关闭。
      */
-    fun effectiveApplicationId(): String =
-        AllSettings.discordApplicationIdOverride.getValue().trim().ifBlank {
-            BuildConfig.DISCORD_APP_ID.trim()
-        }
+    fun effectiveApplicationId(): String = BuildConfig.DISCORD_APP_ID.trim()
+        .ifBlank { DiscordPresenceConfig.APPLICATION_ID.trim() }
 
     fun isConfigured(): Boolean = effectiveApplicationId().isNotEmpty()
 
     /**
-     * 在 Activity 创建时调用。功能关闭或未配置 Application ID 时什么都不做。
+     * 在 Activity 创建时调用。[DiscordPresenceConfig.ENABLED] 关闭或没有 Application ID
+     * 时什么都不做。
      */
     fun start(activity: Activity) {
-        // 即使当前关闭，也记住 Activity，方便用户稍后在设置里开启时立即生效
-        activityRef = WeakReference(activity)
-        if (started) return
-        if (!AllSettings.discordRichPresence.getValue()) return
+        if (started || !DiscordPresenceConfig.ENABLED) return
 
         val id = effectiveApplicationId()
         if (id.isEmpty()) {
@@ -76,6 +73,7 @@ object DiscordPresenceManager {
         }
 
         runCatching {
+            activityRef = WeakReference(activity)
             if (!DiscordPresenceBridge.prepare(activity)) return
             if (!DiscordPresenceBridge.init(id.toLongOrNull() ?: return)) return
             started = true
@@ -86,21 +84,11 @@ object DiscordPresenceManager {
     }
 
     /**
-     * 设置变更后重新推送一次（开关、文案、下载地址）。
+     * 重新推送一次状态（例如从后台回到前台后 Discord 才启动）。
      */
     fun refresh() {
+        if (!DiscordPresenceConfig.ENABLED) return
         if (!started) {
-            activityRef?.get()?.let { start(it) }
-            return
-        }
-        if (!AllSettings.discordRichPresence.getValue()) {
-            stop()
-            return
-        }
-        val id = effectiveApplicationId()
-        if (id.isEmpty() || id != applicationId) {
-            // Application ID 变了：只能重开客户端。
-            shutdown()
             activityRef?.get()?.let { start(it) }
             return
         }
@@ -116,28 +104,18 @@ object DiscordPresenceManager {
         started = false
     }
 
-    private fun shutdown() {
-        runCatching {
-            if (started) DiscordPresenceBridge.clear()
-            DiscordPresenceBridge.shutdown()
-        }
-        started = false
-    }
-
     private fun pushPresence() {
-        val details = AllSettings.discordCustomDetails.getValue().trim()
-            .ifBlank { "TurboCraft Launcher ${BuildConfig.VERSION_NAME}" }
-        val downloadUrl = AllSettings.discordCustomDownloadUrl.getValue().trim()
-            .ifBlank { defaultDownloadUrl }
+        val details = DiscordPresenceConfig.DETAILS.trim()
+        val state = DiscordPresenceConfig.STATE.trim()
 
         val labels = mutableListOf<String>()
         val urls = mutableListOf<String>()
-        sanitizeUrl(downloadUrl)?.let {
-            labels += "Download"
+        sanitizeUrl(DiscordPresenceConfig.PRIMARY_BUTTON_URL)?.let {
+            labels += DiscordPresenceConfig.PRIMARY_BUTTON_LABEL.trim()
             urls += it
         }
-        sanitizeUrl(BuildKeys.URL_HOME)?.let {
-            labels += "GitHub"
+        sanitizeUrl(DiscordPresenceConfig.SECONDARY_BUTTON_URL)?.let {
+            labels += DiscordPresenceConfig.SECONDARY_BUTTON_LABEL.trim()
             urls += it
         }
 
@@ -145,7 +123,7 @@ object DiscordPresenceManager {
         DiscordPresenceBridge.updatePresence(
             name = BuildKeys.LAUNCHER_NAME,
             details = limit(details, 128),
-            state = limit("Minecraft Java Edition", 128),
+            state = limit(state, 128),
             activityType = 0, // Playing
             startTimestampMs = startedAt,
             largeImage = "",

@@ -48,7 +48,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -70,7 +69,6 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -79,9 +77,7 @@ import com.materialkolor.PaletteStyle
 import com.movtery.colorpicker.ColorPickerController
 import com.movtery.colorpicker.components.HueBarPicker
 import com.movtery.colorpicker.rememberColorPickerController
-import com.movtery.zalithlauncher.BuildConfig
 import com.movtery.zalithlauncher.R
-import com.movtery.zalithlauncher.discord.DiscordPresenceManager
 import com.movtery.zalithlauncher.contract.MediaPickerContract
 import com.movtery.zalithlauncher.coroutine.Task
 import com.movtery.zalithlauncher.coroutine.TaskSystem
@@ -726,110 +722,6 @@ fun LauncherSettingsScreen(
                     )
                 }
             }
-
-            //Discord 状态展示（Rich Presence）
-            AnimatedItem(scope) { yOffset ->
-                val defaultText = stringResource(R.string.settings_discord_presence_default_value)
-                val notConfiguredText = stringResource(R.string.settings_discord_presence_not_configured)
-                var detailsValue by remember { mutableStateOf(AllSettings.discordCustomDetails.getValue()) }
-                var downloadValue by remember { mutableStateOf(AllSettings.discordCustomDownloadUrl.getValue()) }
-                var appIdValue by remember { mutableStateOf(AllSettings.discordApplicationIdOverride.getValue()) }
-                var presenceEnabled by remember { mutableStateOf(AllSettings.discordRichPresence.getValue()) }
-                val effectiveAppId = appIdValue.ifBlank { BuildConfig.DISCORD_APP_ID }
-
-                var editing by remember { mutableStateOf(DiscordPresenceEdit.None) }
-
-                SettingsCardColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset { IntOffset(x = 0, y = yOffset.roundToPx()) }
-                ) {
-                    SwitchSettingsCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        position = CardPosition.Middle,
-                        checked = presenceEnabled,
-                        onCheckedChange = { checked ->
-                            presenceEnabled = checked
-                            AllSettings.discordRichPresence.save(checked)
-                            DiscordPresenceManager.refresh()
-                        },
-                        title = stringResource(R.string.settings_discord_presence_title),
-                        summary = stringResource(
-                            if (effectiveAppId.isNotBlank()) R.string.settings_discord_presence_summary
-                            else R.string.settings_discord_presence_not_configured
-                        )
-                    )
-                    SettingsCard(
-                        position = CardPosition.Middle,
-                        title = stringResource(R.string.settings_discord_presence_details_title),
-                        summary = detailsValue.ifBlank { defaultText },
-                        enabled = presenceEnabled,
-                        onClick = { editing = DiscordPresenceEdit.Details }
-                    )
-                    SettingsCard(
-                        position = CardPosition.Middle,
-                        title = stringResource(R.string.settings_discord_presence_download_title),
-                        summary = downloadValue.ifBlank { defaultText },
-                        enabled = presenceEnabled,
-                        onClick = { editing = DiscordPresenceEdit.DownloadUrl }
-                    )
-                    SettingsCard(
-                        position = CardPosition.Bottom,
-                        title = stringResource(R.string.settings_discord_presence_app_id_title),
-                        summary = effectiveAppId.ifBlank { notConfiguredText },
-                        onClick = { editing = DiscordPresenceEdit.ApplicationId }
-                    )
-                }
-
-                when (editing) {
-                    DiscordPresenceEdit.None -> {}
-
-                    DiscordPresenceEdit.Details -> SimpleEditDialog(
-                        title = stringResource(R.string.settings_discord_presence_details_title),
-                        value = detailsValue,
-                        onValueChange = { detailsValue = it },
-                        maxLines = 2,
-                        onDismissRequest = { editing = DiscordPresenceEdit.None },
-                        onCancel = { editing = DiscordPresenceEdit.None },
-                        onConfirm = {
-                            editing = DiscordPresenceEdit.None
-                            AllSettings.discordCustomDetails.save(detailsValue)
-                            DiscordPresenceManager.refresh()
-                        }
-                    )
-
-                    DiscordPresenceEdit.DownloadUrl -> SimpleEditDialog(
-                        title = stringResource(R.string.settings_discord_presence_download_title),
-                        value = downloadValue,
-                        onValueChange = { downloadValue = it },
-                        singleLine = true,
-                        onDismissRequest = { editing = DiscordPresenceEdit.None },
-                        onCancel = { editing = DiscordPresenceEdit.None },
-                        onConfirm = {
-                            editing = DiscordPresenceEdit.None
-                            AllSettings.discordCustomDownloadUrl.save(downloadValue)
-                            DiscordPresenceManager.refresh()
-                        }
-                    )
-
-                    DiscordPresenceEdit.ApplicationId -> SimpleEditDialog(
-                        title = stringResource(R.string.settings_discord_presence_app_id_title),
-                        value = appIdValue,
-                        onValueChange = { appIdValue = it },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number
-                        ),
-                        onDismissRequest = { editing = DiscordPresenceEdit.None },
-                        onCancel = { editing = DiscordPresenceEdit.None },
-                        onConfirm = {
-                            editing = DiscordPresenceEdit.None
-                            AllSettings.discordApplicationIdOverride.save(appIdValue.trim())
-                            DiscordPresenceManager.refresh()
-                        }
-                    )
-                }
-            }
         }
     }
 }
@@ -1215,12 +1107,4 @@ private fun BackgroundOperation(
             }
         }
     }
-}
-
-/** Discord Rich Presence 设置项中当前正在编辑的对话框。 */
-private enum class DiscordPresenceEdit {
-    None,
-    Details,
-    DownloadUrl,
-    ApplicationId
 }
