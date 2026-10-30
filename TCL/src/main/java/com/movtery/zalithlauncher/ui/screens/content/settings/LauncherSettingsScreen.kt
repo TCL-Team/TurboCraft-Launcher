@@ -750,7 +750,7 @@ fun LauncherSettingsScreen(
                         checked = presenceEnabled,
                         onCheckedChange = { checked ->
                             presenceEnabled = checked
-                            AllSettings.discordRichPresence.saveValue(checked)
+                            AllSettings.discordRichPresence.save(checked)
                             DiscordPresenceManager.refresh()
                         },
                         title = stringResource(R.string.settings_discord_presence_title),
@@ -793,7 +793,7 @@ fun LauncherSettingsScreen(
                         onCancel = { editing = DiscordPresenceEdit.None },
                         onConfirm = {
                             editing = DiscordPresenceEdit.None
-                            AllSettings.discordCustomDetails.saveValue(detailsValue)
+                            AllSettings.discordCustomDetails.save(detailsValue)
                             DiscordPresenceManager.refresh()
                         }
                     )
@@ -807,7 +807,7 @@ fun LauncherSettingsScreen(
                         onCancel = { editing = DiscordPresenceEdit.None },
                         onConfirm = {
                             editing = DiscordPresenceEdit.None
-                            AllSettings.discordCustomDownloadUrl.saveValue(downloadValue)
+                            AllSettings.discordCustomDownloadUrl.save(downloadValue)
                             DiscordPresenceManager.refresh()
                         }
                     )
@@ -824,7 +824,7 @@ fun LauncherSettingsScreen(
                         onCancel = { editing = DiscordPresenceEdit.None },
                         onConfirm = {
                             editing = DiscordPresenceEdit.None
-                            AllSettings.discordApplicationIdOverride.saveValue(appIdValue.trim())
+                            AllSettings.discordApplicationIdOverride.save(appIdValue.trim())
                             DiscordPresenceManager.refresh()
                         }
                     )
