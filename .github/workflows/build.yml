@@ -140,6 +140,20 @@ jobs:
           fi
           echo "OK: $COUNT ABI(s) with libpetlib.so"
 
+      - name: Verify bundled renderers
+        if: inputs.variant == 'Release'
+        run: |
+          set -e
+          APK=$(ls TCL/build/outputs/apk/release/*.apk | head -1)
+          echo "APK: $APK"
+          for LIB in libmobileglues.so libSimpleFPEWrapper.so; do
+            if ! unzip -l "$APK" | grep -q "$LIB"; then
+              echo "::error title=renderer-missing::$LIB is not packaged in $APK"
+              exit 1
+            fi
+            echo "OK: $LIB packaged"
+          done
+
       - name: Verify Discord Rich Presence native library
         if: inputs.variant == 'Release'
         run: |
