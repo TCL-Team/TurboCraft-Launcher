@@ -57,13 +57,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -192,7 +192,18 @@ fun WelcomeScreen(
                 fontSize = if (compact) 28.sp else 40.sp
             )
 
-            Spacer(modifier = Modifier.height(if (compact) 4.dp else 8.dp))
+            Text(
+                modifier = Modifier
+                    .alpha(titleAlpha.value)
+                    .padding(top = if (compact) 0.dp else 2.dp),
+                text = stringResource(R.string.welcome_brand_suffix),
+                color = TurboGreen.copy(alpha = 0.9f),
+                fontSize = if (compact) 9.sp else 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = if (compact) 6.sp else 8.sp
+            )
+
+            Spacer(modifier = Modifier.height(if (compact) 6.dp else 12.dp))
 
             Text(
                 modifier = Modifier
@@ -274,17 +285,18 @@ fun WelcomeScreen(
 }
 
 /**
- * 背景：深绿到黑的渐变 + 两团模糊的品牌色光斑，缓慢呼吸。
+ * 背景：深绿到黑的渐变 + 两团品牌色柔光（径向渐变，任何 Android 版本都能正常显示）。
  */
 @Composable
 private fun BackgroundGlow(
     modifier: Modifier = Modifier,
     unit: Dp
 ) {
+    val density = LocalDensity.current.density
     val infinite = rememberInfiniteTransition(label = "welcome-glow")
     val breathe by infinite.animateFloat(
-        initialValue = 0.82f,
-        targetValue = 1.12f,
+        initialValue = 0.85f,
+        targetValue = 1.1f,
         animationSpec = infiniteRepeatable(
             animation = tween(4200, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
@@ -299,27 +311,39 @@ private fun BackgroundGlow(
             )
         )
     ) {
+        //左上角柔光
         Box(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .offset(x = -(unit * 0.28f), y = -(unit * 0.34f))
-                .size(unit * 0.95f)
+                .offset(x = -(unit * 0.42f), y = -(unit * 0.48f))
+                .size(unit * 1.35f)
                 .scale(breathe)
-                .blur(120.dp)
-                .background(TurboGreenDeep.copy(alpha = 0.34f), CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(TurboGreenDeep.copy(alpha = 0.42f), Color.Transparent),
+                        radius = unit.value * 0.68f * density
+                    ),
+                    CircleShape
+                )
         )
+        //右下角柔光
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .offset(x = unit * 0.24f, y = unit * 0.30f)
-                .size(unit * 0.85f)
+                .offset(x = unit * 0.34f, y = unit * 0.38f)
+                .size(unit * 1.1f)
                 .scale(breathe)
-                .blur(120.dp)
-                .background(TurboGreen.copy(alpha = 0.16f), CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(TurboGreen.copy(alpha = 0.18f), Color.Transparent),
+                        radius = unit.value * 0.55f * density
+                    ),
+                    CircleShape
+                )
         )
 
         //极细网格纹理，让纯色背景不显得空
-        Canvas(modifier = Modifier.fillMaxSize().alpha(0.05f)) {
+        Canvas(modifier = Modifier.fillMaxSize().alpha(0.045f)) {
             val step = size.minDimension / 12f
             var x = 0f
             while (x < size.width) {
