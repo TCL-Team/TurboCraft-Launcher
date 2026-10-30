@@ -51,6 +51,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -99,11 +101,11 @@ fun WelcomeScreen(
     onEnter: () -> Unit
 ) {
     //手势或按钮进入后，屏蔽自动跳转，避免重复回调
-    val entered = remember { Animatable(0f) }
+    var enterFired by remember { mutableStateOf(false) }
     val enterOnce: () -> Unit = remember {
         {
-            if (entered.targetValue == 0f) {
-                entered.snapTo(1f)
+            if (!enterFired) {
+                enterFired = true
                 onEnter()
             }
         }
@@ -142,8 +144,8 @@ fun WelcomeScreen(
         launch { progress.animateTo(1f, tween(WELCOME_DURATION_MS, easing = LinearEasing)) }
         //进度条走完自动进入主界面
         delay(WELCOME_DURATION_MS.toLong())
-        if (entered.targetValue == 0f) {
-            entered.snapTo(1f)
+        if (!enterFired) {
+            enterFired = true
             onEnter()
         }
     }
