@@ -114,6 +114,7 @@ import com.movtery.zalithlauncher.ui.components.IconTextButton
 import com.movtery.zalithlauncher.ui.components.MarqueeText
 import com.movtery.zalithlauncher.ui.components.OwnOutlinedTextField
 import com.movtery.zalithlauncher.ui.components.ScalingLabel
+import com.movtery.zalithlauncher.ui.screens.content.home.server.ServerCardManager
 import com.movtery.zalithlauncher.ui.components.ShimmerBox
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.SimpleTextInputField
@@ -690,6 +691,7 @@ private fun ServerListBody(
     onPlay: (String) -> Unit,
     onEdit: (ServerData) -> Unit,
     onDelete: (ServerData) -> Unit,
+    onAddToHome: (ServerData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     servers?.let { list ->
@@ -718,7 +720,8 @@ private fun ServerListBody(
                         onCopy = { onCopy(server.originIp) },
                         onPlay = { onPlay(server.originIp) },
                         onEdit = { onEdit(server) },
-                        onDelete = { onDelete(server) }
+                        onDelete = { onDelete(server) },
+                        onAddToHome = { onAddToHome(server) }
                     )
                 }
             }
@@ -753,6 +756,7 @@ private fun ServerItem(
     onPlay: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onAddToHome: () -> Unit,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
     shape: Shape = MaterialTheme.shapes.large,
@@ -968,6 +972,27 @@ private fun ServerItem(
                             },
                             onClick = {
                                 onRefresh()
+                                expanded = false
+                            }
+                        )
+
+                        //添加到主页
+                        val homeCards by ServerCardManager.cards.collectAsStateWithLifecycle()
+                        val addedToHome = remember(homeCards, item.originIp) {
+                            homeCards.any { it.record.cardId == item.originIp }
+                        }
+                        DropdownMenuItem(
+                            enabled = !addedToHome,
+                            text = { Text(text = stringResource(R.string.home_add_version_card)) },
+                            leadingIcon = {
+                                Icon(
+                                    modifier = Modifier.size(20.dp),
+                                    painter = painterResource(R.drawable.ic_add_box_filled),
+                                    contentDescription = stringResource(R.string.home_add_version_card)
+                                )
+                            },
+                            onClick = {
+                                onAddToHome()
                                 expanded = false
                             }
                         )

@@ -432,87 +432,75 @@ fun ResourcePackManageScreen(
         ) {
             val operationScope = rememberCoroutineScope()
 
-            PullToRefreshBox(
-                modifier = Modifier.fillMaxSize(),
-                isRefreshing = false,
-                enabled = viewModel.packState !is LoadingState.Loading,
-                onRefresh = viewModel::refresh,
-            ) {
-                when (viewModel.packState) {
-                    is LoadingState.None -> {
-                        var resourcePackOperation by remember { mutableStateOf<ResourcePackOperation>(ResourcePackOperation.None) }
-                        fun runProgress(task: () -> Unit) {
-                            operationScope.launch(Dispatchers.IO) {
-                                resourcePackOperation = ResourcePackOperation.Progress
-                                task()
-                                resourcePackOperation = ResourcePackOperation.None
-                                viewModel.refresh()
+            when (viewModel.packState) {
+                is LoadingState.None -> {
+                    var resourcePackOperation by remember { mutableStateOf<ResourcePackOperation>(ResourcePackOperation.None) }
+                    fun runProgress(task: () -> Unit) {
+                        operationScope.launch(Dispatchers.IO) {
+                            resourcePackOperation = ResourcePackOperation.Progress
+                            task()
+                            resourcePackOperation = ResourcePackOperation.None
+                            viewModel.refresh()
+                        }
+                    }
+                    ResourcePackOperationHandler(
+                        resourcePackOperation = resourcePackOperation,
+                        updateOperation = { resourcePackOperation = it },
+                        onDelete = { packInfo ->
+                            runProgress {
+                                FileUtils.deleteQuietly(packInfo.file)
                             }
                         }
-                        ResourcePackOperation(
+                    )
+
+                    Column {
+                        ResourcePackHeader(
+                            modifier = Modifier.fillMaxWidth(),
+                            packFilter = viewModel.packFilter,
+                            changePackFilter = { viewModel.updateFilter(it) },
+                            supportedSortByEnums = viewModel.supportedSortByEnums,
+                            sortByEnum = viewModel.sortByEnum,
+                            onSortByChanged = { viewModel.updateSortBy(it) },
+                            isAscending = viewModel.isAscending,
+                            onToggleSortOrder = { viewModel.updateSortOrder() },
+                            allPacksCount = viewModel.allPacks.size,
+                            enabledCount = viewModel.enabledCount.takeIf { it >= 0 },
+                            disabledCount = viewModel.disabledCount.takeIf { it >= 0 },
                             resourcePackDir = resourcePackDir,
-                            resourcePackOperation = resourcePackOperation,
-                            updateOperation = { resourcePackOperation = it },
-                            onRename = { newName, packInfo ->
-                                runProgress {
-                                    val extension = if (packInfo.file.isFile) {
-                                        ".${packInfo.file.extension}"
-                                    } else ""
-                                    packInfo.file.renameTo(File(resourcePackDir, "$newName$extension"))
+                            onDeleteAll = {
+                                val selected = viewModel.selectedPacks
+                                if (
+                                    viewModel.deleteAllOperation == DeleteAllOperation.None &&
+                                    selected.isNotEmpty()
+                                ) {
+                                    viewModel.deleteAllOperation = DeleteAllOperation.Warning(
+                                        files = selected.map { pack -> pack.info.file }
+                                    )
                                 }
                             },
-                            onDelete = { packInfo ->
-                                runProgress {
-                                    FileUtils.deleteQuietly(packInfo.file)
-                                }
-                            }
+                            isFilesSelected = viewModel.selectedPacks.isNotEmpty(),
+                            onSelectAll = { viewModel.selectAllFiles() },
+                            onClearFilesSelected = { viewModel.clearSelected() },
+                            onEnableAll = { viewModel.enableSelectedPacks() },
+                            onDisableAll = { viewModel.disableSelectedPacks() },
+                            swapToDownload = swapToDownload,
+                            onRefresh = { viewModel.refresh() },
+                            submitError = submitError,
                         )
 
-                        Column {
-                            ResourcePackHeader(
-                                modifier = Modifier.fillMaxWidth(),
-                                packFilter = viewModel.packFilter,
-                                changePackFilter = { viewModel.updateFilter(it) },
-                                supportedSortByEnums = viewModel.supportedSortByEnums,
-                                sortByEnum = viewModel.sortByEnum,
-                                onSortByChanged = { viewModel.updateSortBy(it) },
-                                isAscending = viewModel.isAscending,
-                                onToggleSortOrder = { viewModel.updateSortOrder() },
-                                resourcePackDir = resourcePackDir,
-                                onDeleteAll = {
-                                    val selected = viewModel.selectedPacks
-                                    if (
-                                        viewModel.deleteAllOperation == DeleteAllOperation.None &&
-                                        selected.isNotEmpty()
-                                    ) {
-                                        viewModel.deleteAllOperation = DeleteAllOperation.Warning(
-                                            files = selected.map { pack ->
-                                                pack.file
-                                            }
-                                        )
-                                    }
-                                },
-                                isFilesSelected = viewModel.selectedPacks.isNotEmpty(),
-                                onSelectAll = { viewModel.selectAllFiles() },
-                                onClearFilesSelected = { viewModel.clearSelected() },
-                                swapToDownload = swapToDownload,
-                                onRefresh = {
-                                    viewModel.refresh()
-                                },
-                                submitError = submitError,
-                            )
-
-                            ResourcePackList(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                packList = viewModel.filteredPacks,
-                                selectedPacks = viewModel.selectedPacks,
-                                removeFromSelected = { viewModel.selectedPacks.remove(it) },
-                                addToSelected = { viewModel.selectedPacks.add(it) },
-                                updateOperation = { resourcePackOperation = it }
-                            )
-                        }
+                        ResourcePackList(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            packList = viewModel.filteredPacks,
+                            selectedPacks = viewModel.selectedPacks,
+                            removeFromSelected = { viewModel.selectedPacks.remove(it) },
+                            addToSelected = { viewModel.selectedPacks.add(it) },
+                            onToggleEnabled = { viewModel.togglePackEnabled(it) },
+                            updateOperation = { resourcePackOperation = it },
+                            onSwapMoreInfo = onSwapMoreInfo,
+                            onLoad = { viewModel.loadResourcePack(it) }
+                        )
                     }
                     is LoadingState.Loading -> {
                         Box(
