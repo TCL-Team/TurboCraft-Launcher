@@ -39,7 +39,6 @@ import com.movtery.zalithlauncher.game.launch.loadLanguage
 import com.movtery.zalithlauncher.game.sdl.SdlBridge
 import com.movtery.zalithlauncher.game.sdl.handleGamepadKeyEvent
 import com.movtery.zalithlauncher.game.version.installed.GraphicsApi
-import com.movtery.zalithlauncher.utils.logging.Logger
 import com.movtery.zalithlauncher.game.version.installed.utils.isLowerVer
 import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.setting.enums.GamepadInputMode
@@ -57,8 +56,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.libsdl.app.SDLActivity
 import org.lwjgl.glfw.CallbackBridge
-
-private const val TAG = "GameHandler"
 
 class GameHandler(
     val activity: Activity,
@@ -121,18 +118,16 @@ class GameHandler(
             set("overrideWidth", screenSize.width.toString())
             set("overrideHeight", screenSize.height.toString())
 
-            //启动器自带的所有渲染器（MobileGlues、GL4ES、NG-GL4ES、Zink、VirGL、Freedreno、
-            //Panfrost）都是 OpenGL/EGL 实现，没有给游戏提供 Vulkan 设备的能力。
-            //所以这里无条件写 OpenGL：Minecraft 26.4+ 的 renderpearl 就不会去试 Vulkan，
-            //也就不会出现 “No supported graphics backend was found.” 的崩溃对话框。
-            if (version.getGraphicsApi() == GraphicsApi.VULKAN) {
-                Logger.warning(
-                    TAG,
-                    "Vulkan backend is not provided by the selected renderer for " +
-                            "${version.getVersionName()}; using OpenGL."
-                )
+            val graphicsApi = version.getGraphicsApi()
+            val graphicsOption = "preferredGraphicsBackend"
+            when (graphicsApi) {
+                GraphicsApi.DEFAULT, GraphicsApi.DEFAULT_OPENGL -> {
+                    if (!containsKey(graphicsOption)) {
+                        set(graphicsOption, graphicsApi.option)
+                    }
+                }
+                else -> set(graphicsOption, graphicsApi.option)
             }
-            set("preferredGraphicsBackend", GraphicsApi.OPENGL.option)
 
             loadLanguage(version.getVersionInfo()!!.minecraftVersion)
             save()

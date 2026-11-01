@@ -72,40 +72,6 @@ data class VulkanCheckRecord(
     }
 }
 
-/**
- * Vulkan 检测缓存：判断“上次检测的结果”在当前驱动状态下是否仍然适用于某个版本。
- *
- * 供启动流程使用：用户强制选择 Vulkan、但设备/驱动实际上拿不到 Vulkan 设备时，
- * 游戏会直接崩溃（Minecraft 26.4+ 的 renderpearl 后端拿不到设备就会抛
- * BackendCreationException）。这种情况下需要退回 OpenGL，而不是把 Vulkan 写进游戏设置。
- */
-object VulkanCheckCache {
-    /**
-     * @return 当前驱动状态下，该版本是否确定可以使用 Vulkan
-     */
-    fun isSupported(version: Version): Boolean {
-        val record = load() ?: return false
-        if (record.version != VulkanRequirements.VULKAN_REQUIREMENTS_VERSION) return false
-
-        val driver = DriverPluginManager.getDriver(version.getDriver())
-        val useTurnip = !driver.isLauncher
-        val path = if (useTurnip) driver.path else ""
-        if (record.useTurnip != useTurnip || record.driverPath != path) return false
-
-        val mcVersion = version.getVersionInfo()?.minecraftVersion
-            ?.let { normalizeMcVersion(it) }
-            ?: return false
-        return record.isSupported(mcVersion)
-    }
-
-    private fun load(): VulkanCheckRecord? {
-        val json = launcherMMKV().getString(KEY_VULKAN_CHECK_RECORD, null) ?: return null
-        return runCatching {
-            GSON.fromJson(json, VulkanCheckRecord::class.java)
-        }.getOrNull()
-    }
-}
-
 class VulkanCheckerViewModel: ViewModel() {
     private val _vcOperation = MutableStateFlow<VCOperation>(VCOperation.None)
     val vcOperation = _vcOperation.asStateFlow()
