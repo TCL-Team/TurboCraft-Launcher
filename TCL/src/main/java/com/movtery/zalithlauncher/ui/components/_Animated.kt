@@ -282,6 +282,20 @@ interface AnimatedColumnScope : ColumnScope {
         delay: Int? = null,
         content: @Composable ColumnScope.(ctx: AnimatedContext) -> Unit
     )
+
+    /**
+     * 兼容旧 API：显式传入 [ColumnScope] 与位移回调
+     */
+    @Composable
+    fun AnimatedItem(
+        columnScope: ColumnScope,
+        modifier: Modifier = Modifier,
+        delay: Int? = null,
+        targetValue: Int = -40,
+        content: @Composable ColumnScope.(yOffset: Dp) -> Unit
+    ) = AnimatedItem(delay = delay) { ctx ->
+        columnScope.content((targetValue.dp * (1f - ctx.progress.value)).coerceAtLeast(0.dp))
+    }
 }
 
 private class AnimatedColumnScopeImpl(
@@ -339,6 +353,20 @@ interface AnimatedRowScope : RowScope {
         delay: Int? = null,
         content: @Composable RowScope.(ctx: AnimatedContext) -> Unit
     )
+
+    /**
+     * 兼容旧 API：显式传入 [RowScope] 与位移回调
+     */
+    @Composable
+    fun AnimatedItem(
+        rowScope: RowScope,
+        modifier: Modifier = Modifier,
+        delay: Int? = null,
+        targetValue: Int = 40,
+        content: @Composable RowScope.(yOffset: Dp) -> Unit
+    ) = AnimatedItem(delay = delay) { ctx ->
+        rowScope.content((targetValue.dp * (1f - ctx.progress.value)).coerceAtLeast(0.dp))
+    }
 }
 
 private class AnimatedRowScopeImpl(
@@ -414,6 +442,33 @@ interface AnimatedLazyListScope {
         key: ((item: T) -> Any)? = null,
         content: @Composable LazyItemScope.(index: Int, item: T, ctx: AnimatedContext) -> Unit
     )
+
+    /**
+     * 兼容旧 API：显式传入 [LazyListScope] 与位移回调
+     */
+    fun animatedItem(
+        lazyListScope: LazyListScope,
+        key: Any? = null,
+        delay: Int? = null,
+        targetValue: Int = -40,
+        content: @Composable LazyItemScope.(yOffset: Dp) -> Unit
+    ) = animatedItem(key = key, delay = delay) { ctx ->
+        content((targetValue.dp * (1f - ctx.progress.value)).coerceAtLeast(0.dp))
+    }
+
+    /**
+     * 兼容旧 API：批量添加子项并回传位移
+     */
+    fun <T> animatedItems(
+        lazyListScope: LazyListScope,
+        items: List<T>,
+        delay: Int = 0,
+        key: ((item: T) -> Any)? = null,
+        targetValue: Int = -40,
+        content: @Composable LazyItemScope.(index: Int, item: T, yOffset: Dp) -> Unit
+    ) = animatedItems(items = items, delay = delay, key = key) { index, item, ctx ->
+        content(index, item, (targetValue.dp * (1f - ctx.progress.value)).coerceAtLeast(0.dp))
+    }
 }
 
 private class AnimatedLazyListScopeImpl(

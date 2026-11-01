@@ -178,7 +178,7 @@ sealed interface NormalNavKey : TitledNavKey {
         /** 选择附加内容屏幕 */
         @Serializable data class Addons(
             val gameVersion: String,
-            val type: MinecraftVersion.Type
+            val type: MinecraftVersion.Type = MinecraftVersion.Type.Release
         ) : Versions
     }
 

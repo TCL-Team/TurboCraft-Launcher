@@ -19,6 +19,7 @@
 package com.movtery.zalithlauncher.game.download.game
 
 import com.movtery.zalithlauncher.game.addons.modloader.fabriclike.fabric.FabricVersion
+import com.movtery.zalithlauncher.game.addons.modloader.cleanroom.CleanroomVersion
 import com.movtery.zalithlauncher.game.addons.modloader.fabriclike.babric.BabricVersion
 import com.movtery.zalithlauncher.game.addons.modloader.fabriclike.legacyfabric.LegacyFabricVersion
 import com.movtery.zalithlauncher.game.addons.modloader.fabriclike.quilt.QuiltVersion
@@ -43,5 +44,7 @@ data class GameDownloadInfo(
     val legacyFabricAPI: ModVersion? = null,
     val quilt: QuiltVersion? = null,
     val quiltAPI: ModVersion? = null,
+    /** Cleanroom 加载器 */
+    val cleanroom: CleanroomVersion? = null,
     val babric: BabricVersion? = null,
 )
