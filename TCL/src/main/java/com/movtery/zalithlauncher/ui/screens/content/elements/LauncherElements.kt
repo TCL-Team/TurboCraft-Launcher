@@ -50,7 +50,6 @@ import coil3.request.crossfade
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.coroutine.TaskSystem
 import com.movtery.zalithlauncher.game.account.Account
-import com.movtery.zalithlauncher.game.account.FirstLoginMenu
 import com.movtery.zalithlauncher.game.account.AccountsManager
 import com.movtery.zalithlauncher.game.account.auth_server.AuthServerHelper
 import com.movtery.zalithlauncher.game.account.isMicrosoftAccount
