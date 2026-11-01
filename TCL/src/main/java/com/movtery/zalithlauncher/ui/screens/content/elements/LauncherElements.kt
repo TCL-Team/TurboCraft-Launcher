@@ -48,8 +48,11 @@ import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import coil3.request.crossfade
 import com.movtery.zalithlauncher.R
+import com.movtery.zalithlauncher.coroutine.TaskSystem
 import com.movtery.zalithlauncher.game.account.Account
+import com.movtery.zalithlauncher.game.account.FirstLoginMenu
 import com.movtery.zalithlauncher.game.account.AccountsManager
+import com.movtery.zalithlauncher.game.account.auth_server.AuthServerHelper
 import com.movtery.zalithlauncher.game.account.isMicrosoftAccount
 import com.movtery.zalithlauncher.game.launch.LaunchGame
 import com.movtery.zalithlauncher.game.plugin.ApkPlugin
@@ -169,7 +172,7 @@ fun LaunchGameOperation(
     toAccountManageScreen: (FirstLoginMenu) -> Unit = {},
     toVersionManageScreen: () -> Unit = {}
 ) {
-    when (launchGameOperation) {
+    when (val operation = launchGameOperation) {
         is LaunchGameOperation.None -> {}
         is LaunchGameOperation.NoVersion -> {
             LaunchedEffect(Unit) {
@@ -179,7 +182,7 @@ fun LaunchGameOperation(
             }
         }
         is LaunchGameOperation.InvalidVersionName -> {
-            val th = launchGameOperation.th
+            val th = operation.th
             SimpleAlertDialog(
                 title = stringResource(R.string.versions_manage_invalid),
                 text = th.getInvalidSummary(),
@@ -198,7 +201,7 @@ fun LaunchGameOperation(
             }
         }
         is LaunchGameOperation.AccountRelogin -> {
-            val account = launchGameOperation.account
+            val account = operation.account
             val message = if (account.isMicrosoftAccount()) {
                 stringResource(R.string.account_relogin_microsoft_message)
             } else {
@@ -222,7 +225,7 @@ fun LaunchGameOperation(
         }
         is LaunchGameOperation.AccountRefreshFailed -> {
             val baseMessage = stringResource(R.string.account_refresh_failed_skip_message)
-            val errorMessage = launchGameOperation.th.localizedMessage
+            val errorMessage = operation.th.localizedMessage
                 ?.takeIf { it.isNotBlank() }
             val message = if (errorMessage != null) "$baseMessage\n\n$errorMessage" else baseMessage
             SimpleAlertDialog(
@@ -234,8 +237,8 @@ fun LaunchGameOperation(
                 onConfirm = {
                     updateOperation(
                         LaunchGameOperation.RealLaunch(
-                            version = launchGameOperation.version,
-                            quickPlay = launchGameOperation.quickPlay,
+                            version = operation.version,
+                            quickPlay = operation.quickPlay,
                             skipAccountRefresh = true
                         )
                     )
@@ -243,8 +246,8 @@ fun LaunchGameOperation(
                 onDismiss = {
                     updateOperation(
                         LaunchGameOperation.TryLaunch(
-                            version = launchGameOperation.version,
-                            quickPlay = launchGameOperation.quickPlay
+                            version = operation.version,
+                            quickPlay = operation.quickPlay
                         )
                     )
                 }
@@ -252,9 +255,9 @@ fun LaunchGameOperation(
         }
         is LaunchGameOperation.RendererNoStoragePermission -> {
             LaunchedEffect(Unit) {
-                val renderer = launchGameOperation.renderer
-                val version = launchGameOperation.version
-                val quickPlay = launchGameOperation.quickPlay
+                val renderer = operation.renderer
+                val version = operation.version
+                val quickPlay = operation.quickPlay
                 withContext(Dispatchers.Main) {
                     checkStoragePermissions(
                         activity = activity,
@@ -270,9 +273,9 @@ fun LaunchGameOperation(
             }
         }
         is LaunchGameOperation.UnsupportedRenderer -> {
-            val renderer = launchGameOperation.renderer
-            val version = launchGameOperation.version
-            val quickPlay = launchGameOperation.quickPlay
+            val renderer = operation.renderer
+            val version = operation.version
+            val quickPlay = operation.quickPlay
             SimpleAlertDialog(
                 title = stringResource(R.string.generic_warning),
                 text = stringResource(R.string.renderer_version_unsupported_warning, renderer.getRendererName()),
@@ -286,9 +289,9 @@ fun LaunchGameOperation(
             )
         }
         is LaunchGameOperation.UnsupportedPlugins -> {
-            val plugins = launchGameOperation.plugins
-            val version = launchGameOperation.version
-            val quickPlay = launchGameOperation.quickPlay
+            val plugins = operation.plugins
+            val version = operation.version
+            val quickPlay = operation.quickPlay
             SimpleAlertDialog(
                 title = stringResource(R.string.generic_warning),
                 text = stringResource(R.string.plugin_unsupported_warning, plugins.joinToString(", ") { it.appName }),
@@ -302,8 +305,8 @@ fun LaunchGameOperation(
             )
         }
         is LaunchGameOperation.MicrophonePermission -> {
-            val version = launchGameOperation.version
-            val quickPlay = launchGameOperation.quickPlay
+            val version = operation.version
+            val quickPlay = operation.quickPlay
 
             val requestPermissionLauncher =
                 rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -333,7 +336,7 @@ fun LaunchGameOperation(
         }
         is LaunchGameOperation.TryLaunch -> {
             LaunchedEffect(Unit) {
-                val version = launchGameOperation.version ?: run {
+                val version = operation.version ?: run {
                     updateOperation(LaunchGameOperation.NoVersion)
                     return@LaunchedEffect
                 }
@@ -345,7 +348,7 @@ fun LaunchGameOperation(
                     return@LaunchedEffect
                 }
 
-                val quickPlay = launchGameOperation.quickPlay
+                val quickPlay = operation.quickPlay
 
                 AccountsManager.currentAccountFlow.value ?: run {
                     updateOperation(LaunchGameOperation.NoAccount)
@@ -525,8 +528,8 @@ fun LaunchGameOperation(
         }
         is LaunchGameOperation.RealLaunch -> {
             LaunchedEffect(Unit) {
-                val version = launchGameOperation.version
-                val quickPlay = launchGameOperation.quickPlay
+                val version = operation.version
+                val quickPlay = operation.quickPlay
                 version.apply {
                     offlineAccountLogin = false
                     quickPlaySingle = quickPlay
@@ -536,7 +539,7 @@ fun LaunchGameOperation(
                     version = version,
                     exitActivity = exitActivity,
                     submitError = submitError,
-                    skipAccountRefresh = launchGameOperation.skipAccountRefresh
+                    skipAccountRefresh = operation.skipAccountRefresh
                 )
                 updateOperation(LaunchGameOperation.None)
             }
