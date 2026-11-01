@@ -82,7 +82,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -97,6 +96,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color.Companion.Transparent
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -125,6 +125,7 @@ import com.movtery.petlib.PetAnimation
 import com.movtery.zalithlauncher.BuildKeys
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.game.account.Account
+import com.movtery.zalithlauncher.game.account.accountErrorText
 import com.movtery.zalithlauncher.game.account.AccountType
 import com.movtery.zalithlauncher.game.account.AccountsManager
 import com.movtery.zalithlauncher.game.account.accountUUID
@@ -142,14 +143,11 @@ import com.movtery.zalithlauncher.game.account.wardrobe.AccountCapeCollection
 import com.movtery.zalithlauncher.game.account.wardrobe.EmptyCape
 import com.movtery.zalithlauncher.game.account.wardrobe.SkinModelType
 import com.movtery.zalithlauncher.game.account.wardrobe.capeLocalRes
-import com.movtery.petlib.ArmModel
-import com.movtery.petlib.PetAnimation
 import com.movtery.zalithlauncher.game.account.wardrobe.toArmModel
 import com.movtery.zalithlauncher.game.account.yggdrasil.PlayerProfile
 import com.movtery.zalithlauncher.game.account.yggdrasil.getFile
 import com.movtery.zalithlauncher.ui.components.PetModelView
 import com.movtery.zalithlauncher.game.account.yggdrasil.findUsing
-import com.movtery.zalithlauncher.game.account.yggdrasil.getFile
 import com.movtery.zalithlauncher.path.PathManager
 import com.movtery.zalithlauncher.path.URL_MINECRAFT_PURCHASE
 import com.movtery.zalithlauncher.setting.AllSettings
@@ -163,7 +161,6 @@ import com.movtery.zalithlauncher.ui.components.MarqueeText
 import com.movtery.zalithlauncher.ui.components.ImePanContainer
 import com.movtery.zalithlauncher.ui.components.rememberDialogMaxHeight
 import com.movtery.zalithlauncher.ui.components.OwnOutlinedTextField
-import com.movtery.zalithlauncher.ui.components.PetModelView
 import com.movtery.zalithlauncher.ui.components.PositionButton
 import com.movtery.zalithlauncher.ui.components.PositionFilledTonalButton
 import com.movtery.zalithlauncher.ui.components.RadioCard
@@ -184,8 +181,6 @@ import com.movtery.zalithlauncher.utils.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.nio.file.Files
 import java.util.regex.Pattern
@@ -1341,52 +1336,6 @@ fun OtherServerLoginDialog(
         }
     }
 }
-
-/**
- * 更改皮肤流程需要让 uri 与皮肤模型深度绑定
- * 重置或者确认更改时，能更方便的处理数据
- */
-sealed interface ChangeSkin {
-    data object None : ChangeSkin
-
-    data class ChangeSkinData(
-        val cacheFile: File,
-        val data: SkinModel
-    ) : ChangeSkin
-
-    /**
-     * 重置离线皮肤
-     */
-    data object ResetSkin : ChangeSkin
-
-    sealed interface SkinModel {
-        /** 拒绝选择皮肤模型 */
-        data object Rejected : SkinModel
-        data class Model(val model: SkinModelType): SkinModel
-        /** @return 获取模型类型 */
-        fun getModelType(): SkinModelType = when (this) {
-            is Rejected -> SkinModelType.STEVE
-            is Model -> model
-        }
-
-        /** @return 获取模型类型 */
-        fun getModelTypeNullable(): SkinModelType? = when (this) {
-            is Rejected -> null
-            is Model -> model
-        }
-    }
-}
-
-/**
- * 更改披风流程
- */
-sealed interface ChangeCape {
-    data object None : ChangeCape
-    data class SelectedCape(val cape: PlayerProfile.Cape) : ChangeCape
-    data class SelectedCustomCape(val capeFile: File) : ChangeCape
-    data object ResetCape : ChangeCape
-}
-
 
 @Composable
 fun MicrosoftReloginDialog(
