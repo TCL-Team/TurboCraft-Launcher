@@ -64,6 +64,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -100,7 +101,10 @@ import com.movtery.zalithlauncher.ui.components.BackgroundCard
 import com.movtery.zalithlauncher.ui.components.MarqueeText
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.SimpleEditDialog
-import com.movtery.zalithlauncher.ui.components.PlayerSkin
+import com.movtery.zalithlauncher.ui.components.PetModelView
+import com.movtery.zalithlauncher.game.account.wardrobe.toArmModel
+import com.movtery.petlib.PetAnimation
+import com.movtery.petlib.PetTapReaction
 import com.movtery.zalithlauncher.ui.components.ScalingActionButton
 import com.movtery.zalithlauncher.ui.components.ScalingLabel
 import com.movtery.zalithlauncher.ui.components.SimpleListDialog
@@ -281,17 +285,24 @@ private fun AccountManageContent(
     val context = LocalContext.current
 
 
-    val accountSkin = remember(currentAccount, refreshWardrobe) {
-        currentAccount?.getSkinFile()?.takeIf { it.exists() }
+    val petArm = currentAccount?.skinModelType?.toArmModel()
+    val skinStamp = currentAccount?.getSkinFile()?.lastModified()
+    val capeStamp = currentAccount?.getSelectedCapeFile()?.lastModified()
+    val petSkin by produceState<ByteArray?>(
+        null, currentAccount, refreshWardrobe, skinStamp, petArm
+    ) {
+        value = withContext(Dispatchers.IO) {
+            currentAccount?.getSkinFile()?.takeIf { it.exists() }
+                ?.inputStream()?.use { it.readBytes() }
+        }
     }
-    val accountCape = remember(currentAccount, refreshWardrobe) {
-        currentAccount?.getSelectedCapeFile()
-    }
-    val playerSkin = remember { PlayerSkin(context) }
-    var pageFinished by remember { mutableStateOf(false) }
-
-    DisposableEffect(Unit) {
-        onDispose { playerSkin.destroy() }
+    val petCape by produceState<ByteArray?>(
+        null, currentAccount, refreshWardrobe, capeStamp
+    ) {
+        value = withContext(Dispatchers.IO) {
+            currentAccount?.getSelectedCapeFile()?.takeIf { it.exists() }
+                ?.inputStream()?.use { it.readBytes() }
+        }
     }
 
     Row(
@@ -314,44 +325,18 @@ private fun AccountManageContent(
                 shape = MaterialTheme.shapes.extraLarge
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // 3D skin preview
-                    Box(
+                    // 3D 玩家模型预览（PetLib）
+                    PetModelView(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        AndroidView(
-                            modifier = Modifier.fillMaxSize(),
-                            factory = { ctx ->
-                                playerSkin.loadWebView(
-                                    context = ctx,
-                                    onPageFinished = {
-                                        pageFinished = true
-                                        playerSkin.startAnimationCycle()
-                                        playerSkin.setAzimuthAndPitch(-35, 10)
-                                    }
-                                )
-                            },
-                            update = {
-                                if (pageFinished) {
-                                    runCatching {
-                                        accountSkin?.inputStream().use { inputStream ->
-                                            playerSkin.loadSkin(inputStream, currentAccount?.skinModelType)
-                                        }
-                                    }
-                                    runCatching {
-                                        accountCape?.inputStream().use { inputStream ->
-                                            playerSkin.loadCape(inputStream)
-                                        }
-                                    }
-                                }
-                            }
-                        )
-                        if (!pageFinished) {
-                            LoadingIndicator()
-                        }
-                    }
+                        skin = petSkin,
+                        cape = petCape,
+                        arm = petArm,
+                        yaw = Math.toRadians(35.0).toFloat(),
+                        animation = PetAnimation.Idle,
+                        tapReaction = PetTapReaction.Interact
+                    )
 
                     HorizontalDivider(modifier = Modifier.alpha(0.2f))
 

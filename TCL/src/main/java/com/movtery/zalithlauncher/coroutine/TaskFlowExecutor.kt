@@ -67,6 +67,28 @@ class TaskFlowExecutor(
     /** 当前任务流阶段索引 */
     private var currentPhaseIndex: Int = -1
 
+    /** 当前已挂到任务栏（[TaskSystem]）上的任务 id，切换阶段或结束时摘掉 */
+    private val publishedTaskIds: MutableList<String> = mutableListOf()
+
+    /**
+     * 把当前阶段的任务挂到任务栏，让用户能在启动器侧边看到进度并取消
+     */
+    private fun publishTasks(tasks: List<TitledTask>) {
+        clearPublishedTasks()
+        tasks.forEach { titledTask ->
+            publishedTaskIds += titledTask.task.id
+            TaskSystem.attachTask(titledTask.task) { cancel() }
+        }
+    }
+
+    /**
+     * 从任务栏摘掉本任务流挂上的任务
+     */
+    private fun clearPublishedTasks() {
+        publishedTaskIds.forEach { TaskSystem.detachTask(it) }
+        publishedTaskIds.clear()
+    }
+
     /**
      * 获取下一个阶段
      */
@@ -99,12 +121,15 @@ class TaskFlowExecutor(
     ) = withContext(Dispatchers.IO) {
         currentPhaseIndex = -1
 
+        try {
         while (true) {
             try {
                 ensureActive()
                 val phase = getNextPhase() ?: break
                 //更新当前任务列表
                 _tasksFlow.update { phase.tasks }
+                //同步到任务栏，侧边可以看到进度、也可以取消
+                publishTasks(phase.tasks)
 
                 //执行阶段内的所有任务
                 for (task in phase.tasks) {
@@ -159,6 +184,9 @@ class TaskFlowExecutor(
         }
 
         onComplete()
+        } finally {
+            clearPublishedTasks()
+        }
     }
 
     /**
@@ -212,6 +240,7 @@ class TaskFlowExecutor(
         job = null
 
         _tasksFlow.update { emptyList() }
+        clearPublishedTasks()
         currentPhaseIndex = -1
     }
 }

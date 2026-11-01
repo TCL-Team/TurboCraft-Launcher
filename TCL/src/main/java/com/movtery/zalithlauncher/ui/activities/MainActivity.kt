@@ -354,6 +354,12 @@ class MainActivity : BaseAppCompatActivity() {
             ) {
                 ObserveFullScreenSetting(AllSettings.launcherFullScreen.state)
 
+                //把当前选中的版本同步到 Discord Rich Presence 卡片
+                val discordVersion by VersionsManager.currentVersion.collectAsStateWithLifecycle()
+                LaunchedEffect(discordVersion) {
+                    DiscordPresenceManager.updateVersion(discordVersion?.getVersionName().orEmpty())
+                }
+
                 //每次打开启动器都先展示欢迎页；外部导入（分享文件 / 快捷方式指定版本）时跳过
                 var welcomeDone by remember { mutableStateOf(false) }
                 val showWelcome = !isImporting && intent.getStringExtra(EXTRA_LAUNCH_VERSION).isNullOrEmpty()

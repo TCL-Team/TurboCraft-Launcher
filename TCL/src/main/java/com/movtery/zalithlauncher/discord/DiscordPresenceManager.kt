@@ -47,6 +47,10 @@ object DiscordPresenceManager {
     private var applicationId = ""
     private var activityRef: WeakReference<Activity>? = null
 
+    /** 当前选中的游戏版本名，用于在 Rich Presence 里显示正在准备的版本 */
+    @Volatile
+    private var versionLabel: String = ""
+
     /**
      * 当前生效的 Discord Application ID。
      *
@@ -96,6 +100,17 @@ object DiscordPresenceManager {
     }
 
     /**
+     * 记录当前选中的游戏版本；版本变化时重新推送一次状态。
+     * Rich presence 是常驻的卡片，这里只更新展示文案，不涉及任何账号数据。
+     */
+    fun updateVersion(label: String) {
+        val normalized = label.trim()
+        if (normalized == versionLabel) return
+        versionLabel = normalized
+        if (started) pushPresence()
+    }
+
+    /**
      * 关闭启动器时清理正在显示的 Rich Presence。
      */
     fun stop() {
@@ -105,7 +120,9 @@ object DiscordPresenceManager {
     }
 
     private fun pushPresence() {
+        //第一行显示正在准备的版本，第二行保留配置里的固定文案
         val details = DiscordPresenceConfig.DETAILS.trim()
+            .ifEmpty { versionLabel }
         val state = DiscordPresenceConfig.STATE.trim()
 
         val labels = mutableListOf<String>()
