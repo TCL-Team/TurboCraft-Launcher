@@ -114,6 +114,7 @@ import com.movtery.zalithlauncher.viewmodel.ModifyVersionViewModel
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import java.io.File
+import com.movtery.zalithlauncher.ui.components.offsetDp
 
 private const val TAG = "ModifyVersionScreen"
 
@@ -219,8 +220,9 @@ private fun ModifyVersionContent(
             isVisible = isVisible,
             contentPadding = PaddingValues(all = 12.dp),
             state = scrollState,
-        ) { scope ->
-            animatedItem(scope) { yOffset ->
+        ) {
+            animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                 MCVersionRow(
                     modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     current = originalGameVersion,
@@ -231,7 +233,8 @@ private fun ModifyVersionContent(
 
             // Minecraft 版本变更，给出提示
             if (targetGameVersion != originalGameVersion) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     ModifyTipItem(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         title = stringResource(R.string.versions_modify_mc_changed_title),
@@ -248,7 +251,8 @@ private fun ModifyVersionContent(
                 emptyList()
             }
             if (unrecognizedInstalled.isNotEmpty()) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     ModifyTipItem(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         title = stringResource(R.string.versions_modify_unrecognized_title),
@@ -257,7 +261,8 @@ private fun ModifyVersionContent(
                 }
             }
     
-            animatedItem(scope) { yOffset ->
+            animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                 OptiFineList(
                     modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     currentAddon = addonsVM.currentAddon,
@@ -267,7 +272,8 @@ private fun ModifyVersionContent(
                 )
             }
     
-            animatedItem(scope) { yOffset ->
+            animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                 ForgeList(
                     modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     currentAddon = addonsVM.currentAddon,
@@ -278,7 +284,8 @@ private fun ModifyVersionContent(
             }
     
             if (loaderSupports.isNeoForgeSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     NeoForgeList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = addonsVM.currentAddon,
@@ -290,7 +297,8 @@ private fun ModifyVersionContent(
             }
     
             if (loaderSupports.isCleanroomSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     CleanroomList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = addonsVM.currentAddon,
@@ -302,7 +310,8 @@ private fun ModifyVersionContent(
             }
     
             if (loaderSupports.isFabricSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     FabricList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = addonsVM.currentAddon,
@@ -314,7 +323,8 @@ private fun ModifyVersionContent(
             }
     
             if (loaderSupports.isLegacyFabricSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     LegacyFabricList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = addonsVM.currentAddon,
@@ -326,7 +336,8 @@ private fun ModifyVersionContent(
             }
     
             if (loaderSupports.isQuiltSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     QuiltList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = addonsVM.currentAddon,
@@ -337,7 +348,8 @@ private fun ModifyVersionContent(
                 }
             }
     
-            animatedItem(scope) { yOffset ->
+            animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

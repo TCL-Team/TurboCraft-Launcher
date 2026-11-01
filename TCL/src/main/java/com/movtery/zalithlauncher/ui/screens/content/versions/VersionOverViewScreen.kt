@@ -80,6 +80,7 @@ import com.movtery.zalithlauncher.viewmodel.EventViewModel
 import kotlinx.coroutines.Dispatchers
 import org.apache.commons.io.FileUtils
 import java.io.File
+import com.movtery.zalithlauncher.ui.components.offsetDp
 
 private const val TAG = "VersionOverView"
 
@@ -137,8 +138,9 @@ fun VersionOverViewScreen(
                 .verticalScrollWithBar(state = rememberScrollState())
                 .padding(all = 12.dp),
             isVisible = isVisible
-        ) { scope ->
-            AnimatedItem(scope) { yOffset ->
+        ) {
+            AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                 VersionInfoLayout(
                     modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     version = version,
@@ -155,7 +157,8 @@ fun VersionOverViewScreen(
                 )
             }
 
-            AnimatedItem(scope) { yOffset ->
+            AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                 VersionManagementLayout(
                     modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     version = version,
@@ -171,7 +174,8 @@ fun VersionOverViewScreen(
                 )
             }
 
-            AnimatedItem(scope) { yOffset ->
+            AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                 VersionQuickActions(
                     modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     accessFolder = { path ->

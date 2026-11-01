@@ -80,6 +80,7 @@ import com.movtery.zalithlauncher.utils.logging.Logger
 import com.movtery.zalithlauncher.utils.platform.getMaxMemoryForSettings
 import com.movtery.zalithlauncher.utils.string.getMessageOrToString
 import com.movtery.zalithlauncher.viewmodel.ErrorViewModel
+import com.movtery.zalithlauncher.ui.components.offsetDp
 
 private const val TAG = "VersionConfigScreen"
 
@@ -112,8 +113,9 @@ fun VersionConfigScreen(
                 .verticalScrollWithBar(state = rememberScrollState())
                 .padding(all = 12.dp),
             isVisible = isVisible
-        ) { scope ->
-            AnimatedItem(scope) { yOffset ->
+        ) {
+            AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                 VersionConfigs(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -123,7 +125,8 @@ fun VersionConfigScreen(
                 )
             }
 
-            AnimatedItem(scope) { yOffset ->
+            AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                 GameConfigs(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -133,7 +136,8 @@ fun VersionConfigScreen(
                 )
             }
 
-            AnimatedItem(scope) { yOffset ->
+            AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                 SupportConfigs(
                     modifier = Modifier
                         .fillMaxWidth()

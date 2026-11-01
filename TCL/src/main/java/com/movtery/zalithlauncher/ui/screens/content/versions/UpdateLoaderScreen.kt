@@ -80,6 +80,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import com.movtery.zalithlauncher.ui.components.offsetDp
 
 private const val TAG = "UpdateLoaderScreen"
 
@@ -573,8 +574,9 @@ fun UpdateLoaderScreen(
             isVisible = isVisible,
             contentPadding = PaddingValues(all = 12.dp),
             state = scrollState,
-        ) { scope ->
-            animatedItem(scope) { yOffset ->
+        ) {
+            animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                 OptiFineList(
                     modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     currentAddon = viewModel.currentAddon,
@@ -585,7 +587,8 @@ fun UpdateLoaderScreen(
                 )
             }
 
-            animatedItem(scope) { yOffset ->
+            animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                 ForgeList(
                     modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     currentAddon = viewModel.currentAddon,
@@ -597,7 +600,8 @@ fun UpdateLoaderScreen(
             }
 
             if (loaderSupports.isNeoForgeSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     NeoForgeList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
@@ -610,7 +614,8 @@ fun UpdateLoaderScreen(
             }
 
             if (loaderSupports.isCleanroomSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     CleanroomList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
@@ -623,7 +628,8 @@ fun UpdateLoaderScreen(
             }
 
             if (loaderSupports.isFabricSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     FabricList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
@@ -639,7 +645,8 @@ fun UpdateLoaderScreen(
                         onReload = { viewModel.reloadFabric() }
                     )
                 }
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     FabricAPIList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
@@ -652,7 +659,8 @@ fun UpdateLoaderScreen(
             }
 
             if (loaderSupports.isLegacyFabricSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     LegacyFabricList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
@@ -665,7 +673,8 @@ fun UpdateLoaderScreen(
             }
 
             if (loaderSupports.isQuiltSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     QuiltList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
@@ -677,7 +686,8 @@ fun UpdateLoaderScreen(
                 }
             }
 
-            animatedItem(scope) { yOffset ->
+            animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

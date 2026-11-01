@@ -53,6 +53,7 @@ import com.movtery.zalithlauncher.ui.screens.NormalNavKey
 import com.movtery.zalithlauncher.ui.screens.TitledNavKey
 import com.movtery.zalithlauncher.ui.screens.content.settings.layouts.CardPosition
 import com.movtery.zalithlauncher.ui.screens.content.settings.layouts.rememberSettingsCardShape
+import com.movtery.zalithlauncher.ui.components.offsetDp
 
 /**
  * 整合包导出类型选择页
@@ -74,8 +75,9 @@ fun ExportTypeSelectScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(all = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) { scope ->
-            animatedItem(scope) { yOffset ->
+        ) {
+            animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                 WarningCard(
                     modifier = Modifier
                         .offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
@@ -112,7 +114,8 @@ fun ExportTypeSelectScreen(
                 )
             }
 
-            animatedItem(scope) { yOffset ->
+            animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                 Column(
                     modifier = Modifier
                         .offset { IntOffset(x = 0, y = yOffset.roundToPx()) }
