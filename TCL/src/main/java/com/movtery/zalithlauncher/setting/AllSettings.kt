@@ -75,6 +75,11 @@ object AllSettings : SettingsRegistry() {
     /**
      * 图形 API（Minecraft 26.2+）
      */
+    /**
+     * 是否使用 SurfaceView 渲染（TurboCraft）
+     */
+    val useSurfaceView = boolSetting("useSurfaceView", false)
+
     val graphicsApi = enumSetting("graphicsApi", GraphicsApi.DEFAULT_OPENGL)
 
     /**

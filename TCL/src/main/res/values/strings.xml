@@ -3836,4 +3836,17 @@
     <string name="social_youtube_description">Subscribe to our channel</string>
     <string name="about_discord_title">Discord</string>
     <string name="about_discord_text">If you would like to join our Discord server, you are more than welcome to! We would be happy to have you as part of our community.</string>
+    <string name="animate_type_bounce">Bounce</string>
+    <string name="animate_type_jelly_bounce">Jelly Bounce</string>
+    <string name="animate_type_slice_in">Slice In</string>
+    <string name="versions_export_type_multimc">MultiMC Modpack</string>
+    <string name="versions_export_type_multimc_summary">Can be imported by %s, MultiMC, and other launchers</string>
+    <string name="versions_export_pack_max_memory">Maximum Allocated Memory</string>
+    <string name="settings_renderer_env_title">Environment Variable: %s</string>
+    <string name="settings_renderer_surface_title">Use SurfaceView Rendering</string>
+    <string name="settings_renderer_surface_summary">Renders using a separate layer outside the UI</string>
+    <string name="settings_launcher_animate_extent_title">Animation Intensity</string>
+    <string name="settings_launcher_animate_extent_summary">Adjust the intensity of the launcher animations</string>
+    <string name="settings_launcher_swap_animate_type_title">Transition Animation</string>
+    <string name="settings_launcher_swap_animate_type_summary">Choose the page transition animation that best suits your preferences</string>
 </resources>

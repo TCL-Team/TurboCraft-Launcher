@@ -107,6 +107,8 @@ import com.movtery.zalithlauncher.utils.customResolutionRange
 import com.movtery.zalithlauncher.utils.ensureCustomResolutionInitialized
 import com.movtery.zalithlauncher.utils.getRealScreenSize
 import com.movtery.zalithlauncher.utils.animation.getAnimateTween
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun RendererSettingsScreen(
