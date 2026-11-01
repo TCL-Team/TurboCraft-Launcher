@@ -1520,9 +1520,9 @@ sealed interface ChangeSkin {
  */
 sealed interface ChangeCape {
     data object None : ChangeCape
-    data class ChangeCapeData(
-        val cape: PlayerProfile.Cape
-    ) : ChangeCape
+    data class SelectedCape(val cape: PlayerProfile.Cape) : ChangeCape
+    data class SelectedCustomCape(val capeFile: File) : ChangeCape
+    data object ResetCape : ChangeCape
 }
 
 

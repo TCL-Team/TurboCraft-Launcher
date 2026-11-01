@@ -20,6 +20,7 @@ package com.movtery.zalithlauncher.utils.animation
 
 import androidx.compose.animation.core.Easing
 import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.pow
 
 /**
@@ -50,4 +51,26 @@ val EnterTranslateEasing = Easing { fraction ->
     //进场位移第二段曲线
     val second = 11f * EaseOutBack(3).transform(fraction)
     (first + second) / 16f
+}
+
+/**
+ * 果冻回弹缓动
+ */
+val JellyBounce = Easing { t ->
+    (1 - 0.6f * exp(-8 * t) * cos(6 * Math.PI * t)).toFloat()
+}
+
+/**
+ * @see android.view.animation.BounceInterpolator
+ */
+val BounceEasing: Easing = Easing { t ->
+    fun bounce(x: Float): Float = x * x * 8.0f
+
+    var input = t * 1.1226f
+    when {
+        input < 0.3535f -> bounce(input)
+        input < 0.7408f -> bounce(input - 0.54719f) + 0.7f
+        input < 0.9644f -> bounce(input - 0.8526f) + 0.9f
+        else -> bounce(input - 1.0435f) + 0.95f
+    }
 }

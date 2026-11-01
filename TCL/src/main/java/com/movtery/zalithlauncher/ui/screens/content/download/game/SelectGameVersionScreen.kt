@@ -107,6 +107,9 @@ import kotlinx.coroutines.launch
 import java.net.ConnectException
 import java.net.UnknownHostException
 import java.nio.channels.UnresolvedAddressException
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.IntOffset
+import com.movtery.zalithlauncher.utils.animation.swapAnimateDpAsState
 
 private const val TAG = "SelectGameVersion"
 

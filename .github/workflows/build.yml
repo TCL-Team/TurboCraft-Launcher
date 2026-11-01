@@ -109,10 +109,38 @@ jobs:
         if: failure()
         run: |
           if [ ! -f gradle-build.log ]; then exit 0; fi
-          grep -nE "^(e:|w: .*error)|FAILURE:|What went wrong|Caused by|> Task .* FAILED|error:|CMake Error|Execution failed" gradle-build.log | tail -40 | while IFS= read -r line; do
-            line=$(echo "$line" | tr '%\r\n' '    ' | cut -c1-400)
-            echo "::error title=gradle::${line}"
-          done
+          # GitHub only renders 10 annotations per step, so pack many compiler errors into
+          # each annotation instead of emitting one per line. That way the whole error list
+          # stays readable through the check-run annotations API.
+          python3 - <<'PYEOF'
+          import re, sys
+
+          pat = re.compile(r"^(e: |w: .*error)|FAILURE:|What went wrong|Caused by|> Task .* FAILED|error:|CMake Error|Execution failed")
+          seen, lines = set(), []
+          with open("gradle-build.log", errors="ignore") as fh:
+              for raw in fh:
+                  line = raw.strip()
+                  if not line or not pat.search(line):
+                      continue
+                  line = re.sub(r"^\[\s*\d+%\]\s*", "", line)
+                  line = line.replace("file:///home/runner/work/TurboCraft-Launcher/TurboCraft-Launcher/", "")
+                  if line in seen:
+                      continue
+                  seen.add(line)
+                  lines.append(line)
+
+          summary = "\n".join(lines[:400])
+          with open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a") as fh:
+              fh.write("## Gradle errors\n\n```\n" + summary + "\n```\n")
+
+          chunk, size = [], 8
+          for i in range(0, len(lines[:200]), size):
+              chunk.append("\n".join(lines[i:i + size]))
+          for idx, text in enumerate(chunk[:10], 1):
+              safe = text.replace("%", "%25").replace("\r", " ").replace("\n", "%0A")[:4000]
+              if safe:
+                  print(f"::error title=gradle-{idx}::{safe}")
+          PYEOF
 
       - name: Verify PetLib native library
         if: inputs.variant == 'Release'
