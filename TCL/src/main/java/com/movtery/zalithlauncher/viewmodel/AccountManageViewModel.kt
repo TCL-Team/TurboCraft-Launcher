@@ -48,6 +48,7 @@ import com.movtery.zalithlauncher.game.account.wardrobe.capeLocalRes
 import com.movtery.zalithlauncher.game.account.wardrobe.getLocalUUIDWithSkinModel
 import com.movtery.zalithlauncher.game.account.wardrobe.isSlimModel
 import com.movtery.zalithlauncher.game.account.wardrobe.isValid
+import com.movtery.zalithlauncher.game.account.wardrobe.validateCapeFile
 import com.movtery.zalithlauncher.game.account.wardrobe.validateSkinFile
 import com.movtery.zalithlauncher.game.account.yggdrasil.PlayerProfile
 import com.movtery.zalithlauncher.game.account.yggdrasil.cacheAllCapes

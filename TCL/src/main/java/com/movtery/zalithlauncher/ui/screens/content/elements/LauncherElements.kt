@@ -211,6 +211,7 @@ fun LaunchGameOperation(
     backToMain: () -> Unit = {},
     checkIfInWebScreen: () -> Boolean = { false }
 ) {
+    val launchGameViewModel = viewModel<LaunchGameViewModel>()
     when (val operation = launchGameOperation) {
         is LaunchGameOperation.None -> {}
         is LaunchGameOperation.NoVersion -> {

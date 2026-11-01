@@ -109,6 +109,7 @@ import com.movtery.zalithlauncher.utils.getRealScreenSize
 import com.movtery.zalithlauncher.utils.animation.getAnimateTween
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import kotlin.math.roundToInt
 
 @Composable
 fun RendererSettingsScreen(

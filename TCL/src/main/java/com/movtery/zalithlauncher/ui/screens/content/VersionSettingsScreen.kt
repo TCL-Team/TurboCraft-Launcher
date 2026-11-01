@@ -120,6 +120,7 @@ import com.movtery.zalithlauncher.ui.components.MarqueeText
 import com.movtery.zalithlauncher.ui.components.NotificationCheck
 import com.movtery.zalithlauncher.ui.components.verticalScrollWithBar
 import com.movtery.zalithlauncher.ui.theme.createThemed
+import com.movtery.zalithlauncher.ui.theme.showThemed
 import com.movtery.zalithlauncher.utils.logging.Logger
 
 private const val TAG = "VersionSettings"
