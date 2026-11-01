@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -156,7 +156,7 @@ private fun update10To11(
 )
 
 /**
- * 11 -> 12: 保留摇杆控件兼容，并将启动器摇杆样式覆盖迁移为独立 special 数据
+ * 11 -> 12: 控件层支持摇杆控件
  */
 private fun update11To12(
     layout: ControlLayout

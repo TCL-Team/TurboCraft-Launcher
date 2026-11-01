@@ -780,13 +780,53 @@ private fun MicrosoftLoginOperation(
                     )
                     actions.onIntent(
                         AccountManageIntent.PerformMicrosoftLogin(
+                            useSystemBrowser = false,
                             toWeb = actions.navigateToWeb,
+                            toSystemBrowser = actions.openLink,
                             backToMain = actions.backToMainScreen,
                             checkIfInWebScreen = actions.checkIfInWebScreen
                         )
                     )
                 },
                 openLink = actions.openLink
+            )
+        }
+
+        is MicrosoftLoginOperation.SelectBrowser -> {
+            MicrosoftLoginMethodDialog(
+                onDismissRequest = {
+                    actions.onIntent(
+                        AccountManageIntent.UpdateMicrosoftLoginOp(MicrosoftLoginOperation.None)
+                    )
+                },
+                onSystemBrowser = {
+                    actions.onIntent(
+                        AccountManageIntent.UpdateMicrosoftLoginOp(MicrosoftLoginOperation.None)
+                    )
+                    actions.onIntent(
+                        AccountManageIntent.PerformMicrosoftLogin(
+                            useSystemBrowser = true,
+                            toWeb = actions.navigateToWeb,
+                            toSystemBrowser = actions.openLink,
+                            backToMain = actions.backToMainScreen,
+                            checkIfInWebScreen = actions.checkIfInWebScreen
+                        )
+                    )
+                },
+                onInternalBrowser = {
+                    actions.onIntent(
+                        AccountManageIntent.UpdateMicrosoftLoginOp(MicrosoftLoginOperation.None)
+                    )
+                    actions.onIntent(
+                        AccountManageIntent.PerformMicrosoftLogin(
+                            useSystemBrowser = false,
+                            toWeb = actions.navigateToWeb,
+                            toSystemBrowser = actions.openLink,
+                            backToMain = actions.backToMainScreen,
+                            checkIfInWebScreen = actions.checkIfInWebScreen
+                        )
+                    )
+                }
             )
         }
     }

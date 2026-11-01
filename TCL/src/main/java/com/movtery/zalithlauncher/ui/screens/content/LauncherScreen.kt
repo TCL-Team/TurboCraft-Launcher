@@ -401,61 +401,6 @@ private fun ContentMenu(
 private const val CHANGELOGS_URL = "https://raw.githubusercontent.com/TCL-Team/TurboCraft-Launcher/refs/heads/main/CHANGELOGS_UPDATE.md"
 private const val CHANGELOGS_UPDATE_TR = "https://raw.githubusercontent.com/TCL-Team/TurboCraft-Launcher/refs/heads/main/CHANGELOGS_UPDATE_TR.md"
 
-@Composable
-private fun StatsGrid(
-    modifier: Modifier = Modifier,
-    versionNames: List<String>,
-    onNavigateToStats: () -> Unit,
-    onNavigateToPlayTimeStats: () -> Unit = {},
-    onNavigateToLog: (String) -> Unit,
-) {
-    val ctx = rememberAnimatedContext(isVisible = isVisible)
-    val gridState = rememberCardGridState()
-
-    Column(
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        HomeGrid(
-            state = gridState,
-            isVisible = isVisible,
-            modifier = modifier
-                .fillMaxSize()
-                .animated(ctx)
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            WeeklyPlayTimeChart(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                versionNames = versionNames
-            )
-            ChangelogCard(
-                modifier = Modifier.weight(1f).fillMaxHeight()
-            )
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            DailyPlayTimeCard(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                versionNames = versionNames,
-                onClick = onNavigateToPlayTimeStats
-            )
-            LastLogCard(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                onNavigateToLog = onNavigateToLog
-            )
-        }
-    }
-}
-
 private enum class StatsSide {
     Left,
     Right

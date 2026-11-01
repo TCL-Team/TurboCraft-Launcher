@@ -86,7 +86,7 @@ fun AboutInfoScreen(
     settingsScreenKey: TitledNavKey?,
     mainScreenKey: TitledNavKey?,
     checkUpdate: () -> Unit,
-    onViewSponsors: () -> Unit,
+    onViewSponsors: () -> Unit = {},
     openLicense: (raw: Int) -> Unit,
     openLink: (url: String) -> Unit
 ) {

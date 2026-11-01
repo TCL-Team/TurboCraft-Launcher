@@ -58,14 +58,14 @@ fun <T> List<T>.searchRankWithChineseBias(
     val (chineseResults, englishResults) = partition { mod ->
         translations
             ?.getInfoByCurseForgeId(getSlug(mod))
-            ?.mainName()
+            ?.name
             ?.takeIf { it.isNotBlank() && it.containsChinese() } != null
     }
 
     val levCalculator = LevCalculator()
     val sortedChineseResults = chineseResults.map { mod ->
         val translation = translations?.getInfoByCurseForgeId(getSlug(mod))
-        val modName = translation?.mainName() ?: ""
+        val modName = translation?.name ?: ""
 
         val relevanceScore = when {
             searchFilter.isEmpty() || modName.isEmpty() ->

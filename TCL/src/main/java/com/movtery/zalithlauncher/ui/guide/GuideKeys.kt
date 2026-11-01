@@ -43,6 +43,10 @@ sealed interface GuideKeys : GuideKey {
             data object CardDrag : Step
             /** 卡片化自定义主界面引导 */
             data object CardTip : Step
+            /** 统计数据卡片入口 */
+            data object Stats : Step
+            /** 启动按钮 */
+            data object Launch : Step
         }
     }
 

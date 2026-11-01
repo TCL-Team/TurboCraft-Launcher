@@ -114,6 +114,13 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.nio.channels.UnresolvedAddressException
 import java.util.concurrent.TimeoutException
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.gson.JsonSyntaxException
+import com.movtery.zalithlauncher.ui.components.MarqueeText
+import com.movtery.zalithlauncher.ui.components.NotificationCheck
+import com.movtery.zalithlauncher.ui.components.verticalScrollWithBar
+import com.movtery.zalithlauncher.ui.theme.createThemed
+import com.movtery.zalithlauncher.utils.logging.Logger
 
 private const val TAG = "VersionSettings"
 
