@@ -142,10 +142,15 @@ object MobileGluesRenderer : ConfigurableRenderer {
 
     override fun getUniqueIdentifier(): String = "acaf8100-bbaf-4d68-b30d-38bf42fcd640"
 
+    override fun supportsSfpewByDefault(): Boolean = true
+
     override fun getRendererName(): String = "MobileGlues"
 
     override fun getRendererSummary(): String = "OpenGL 4.0"
 
+    // Note: upstream ZalithLauncher2 caps MobileGlues at MC 26.2 because it ships
+    // MobileGlues 2.0.0, whose uniform-initialiser stripper broke MC 26.3+ terrain
+    // shaders. We bundle the fixed 2.0.1 build, so the cap does not apply here.
     override fun getMinMCVersion(): String = "1.17"
 
     override fun getConfiguredEnv(config: ResolvedRendererConfig): Map<String, String> {

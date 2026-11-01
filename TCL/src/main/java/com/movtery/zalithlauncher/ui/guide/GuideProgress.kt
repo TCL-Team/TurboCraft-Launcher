@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -59,9 +59,11 @@ object GuideProgress {
     }
 
     /**
-     * @return 该组引导是否已经播放过当前版本
+     * @return 该组引导是否已播放过当前版本
      */
-    fun isPlayed(group: GuideKeys.Keys): Boolean = playedVersion(group) >= group.version
+    fun isPlayed(group: GuideKeys.Keys): Boolean {
+        return playedVersion(group) >= group.version
+    }
 
     /**
      * 标记该组引导已经播放到指定版本

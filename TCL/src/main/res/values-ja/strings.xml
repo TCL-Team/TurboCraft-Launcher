@@ -71,9 +71,6 @@
     <string name="crash_type_launcher">ランチャークラッシュ</string>
     <string name="crash_type_game">ゲームクラッシュ</string>
     <string name="theme_color_picker_title">カラーピッカー</string>
-    <string name="animate_type_bounce">跳ねる</string>
-    <string name="animate_type_jelly_bounce">弾む</string>
-    <string name="animate_type_slice_in">切り込む</string>
     <string name="crash_launcher_title">%s 致命的な問題が発生しました</string>
     <string name="crash_launcher_message">アプリケーションが予期せずクラッシュしました。以下のエラー情報は、開発者がアプリの改善をするのに役立ちます。</string>
     <string name="crash_exit_message">JVMがコード %d で終了しました。</string>
@@ -243,6 +240,7 @@
     <string name="url_wiki_minecraft_game_snapshot">https://minecraft.wiki/w/Java_Edition_%s</string>
     <string name="url_wiki_minecraft_game_release">https://minecraft.wiki/w/Java_Edition_%s</string>
     <string name="about_acknowledgements_pojav_text">%s はPojavLauncherの起動バックエンドを使用しています</string>
+    <string name="about_acknowledgements_modrinth_text">%s はModrinthのプレイヤーモデルアニメーションプリセットを移植しています</string>
     <string name="about_acknowledgements_pcl_text">%s はPCL2のコードの一部を参照しています</string>
     <string name="settings_launcher_full_screen_title">全画面モード</string>
     <string name="settings_control_gesture_trigger_mouse_left">左クリック</string>
@@ -399,7 +397,7 @@
     <string name="about_acknowledgements_hmcl_text">%s はHMCLのコードを組み込みその実装の一部を参照しています</string>
     <string name="control_keyboard_bind_summary">キーボードで割り当てたいキーを入力</string>
     <string name="settings_launcher_log_share_title">ランチャーログを共有</string>
-    <string name="settings_launcher_animate_speed_title">アニメーションの速度</string>
+    <string name="settings_launcher_animate_speed_title">アニメーション速度</string>
     <string name="settings_launcher_log_share_summary">タップしてランチャーのログファイルを共有すれば、開発者がランチャーの問題を特定して修正できます</string>
     <string name="settings_game_auto_pick_java_runtime_title">Javaの自動選択</string>
     <string name="settings_renderer_vulkan_driver_system_title">システムVulkanドライバーを使用</string>
@@ -569,7 +567,6 @@
     <string name="control_editor_exit_message">直接退出しますか？変更は保存されません。保存が必要な場合は、エディターメニューを確認してください。</string>
     <string name="control_editor_exit_confirm">直接退出</string>
     <string name="settings_control_gyroscope_invert_y_summary">有効にすると、デバイスを上か下に回転させたらカメラが反対方向に動きます</string>
-    <string name="settings_launcher_swap_animate_type_title">ページ切り替えアニメーション</string>
     <string name="versions_manage_game_path_edit_title">このフォルダに命名</string>
     <string name="versions_manage_game_path_delete_title">ゲームフォルダを削除</string>
     <string name="multirt_runtime_deleting">Javaランタイムを削除: %s</string>
@@ -776,10 +773,7 @@
     <string name="settings_launcher_log_share_packing">ランチャーのログファイルのパッケージ</string>
     <string name="settings_launcher_log_retention_days_summary">ランチャーのログファイルを保持する日数を設定します。この日数より古いログは自動で削除されます</string>
     <string name="settings_launcher_log_retention_days_title">ログの保持日数</string>
-    <string name="settings_launcher_swap_animate_type_summary">好みに合わせてページの推移アニメーションを選択してください</string>
-    <string name="settings_launcher_animate_extent_summary">ランチャーのアニメーションの幅を設定します</string>
-    <string name="settings_launcher_animate_extent_title">アニメーションの幅</string>
-    <string name="settings_launcher_animate_speed_summary">ランチャーアニメーションの再生速度の乗数を設定します</string>
+    <string name="settings_launcher_animate_speed_summary">アニメーションの速度倍率を調整します</string>
     <string name="settings_launcher_full_screen_summary">ノッチやパンチホールなどの領域を無視して、ランチャーのページを全画面に表示します</string>
     <string name="settings_renderer_sustained_performance_title">継続的なパフォーマンスモード</string>
     <string name="settings_renderer_sustained_performance_summary">有効にしたら、システムはゲームに対してより安定したパフォーマンスを出し、長時間のプレイに適していますが、発熱を防ぐためにデバイスの応答速度がわずかに低下する可能性があります</string>
@@ -1045,8 +1039,6 @@
     <string name="versions_export_type_mcbbs_summary">%s や、HMCL などのランチャーでインポートできます</string>
     <string name="versions_export_type_modrinth">Modrinth モッドパック</string>
     <string name="versions_export_type_summary_common">一般的なサードパーティー製ランチャーでインポートできます</string>
-    <string name="versions_export_type_multimc">MultiMC モッドパック</string>
-    <string name="versions_export_type_multimc_summary">%s や、MultiMC などのランチャーでインポートできます</string>
     <string name="versions_export_alias_options">ゲーム設定</string>
     <string name="versions_export_alias_resource_packs">リソースパックフォルダ</string>
     <string name="versions_export_alias_mods">モッドフォルダ</string>
@@ -1065,7 +1057,6 @@
     <string name="versions_export_pack_java_args">Java 仮想マシンの引数</string>
     <string name="versions_export_pack_website">モッドパックの公式サイト</string>
     <string name="versions_export_pack_min_memory">最小割り当てメモリ</string>
-    <string name="versions_export_pack_max_memory">最大割り当てメモリ</string>
     <string name="versions_export_pack_pack_remote">%s から主要リソースをダウンロード</string>
     <string name="versions_export_pack_also_pack_curseforge">CurseForge のリモートリソースをまとめてパッケージ化する</string>
     <string name="versions_export_pack_select_files">ファイルを選択</string>
@@ -1124,8 +1115,6 @@
     <string name="screenshots_manage_export_failed">エクスポート失敗</string>
     <string name="screenshots_manage_export_all_message">全てのスクリーンショットをシステムの画像フォルダにエクスポートしますか？</string>
     <string name="screenshots_manage_export_selected_message">選択した %1$d 枚のスクリーンショットをシステムの画像フォルダにエクスポートしますか？</string>
-    <string name="settings_renderer_surface_title">SurfaceView レンダリングを使用</string>
-    <string name="settings_renderer_surface_summary">UIを独立した別のレイヤーで描画します</string>
     <string name="settings_game_native_lib_plugin_title">ネイティブライブラリプラグイン</string>
     <string name="settings_game_native_lib_plugin_summary">読み込まれた全てのネイティブライブラリプラグインを表示します。一覧からプラグインを有効または無効にできます。</string>
     <string name="settings_game_graphics_api_title">グラフィックス API</string>
@@ -1171,6 +1160,25 @@
     <string name="guide_editor_add_widgets_text">コントロールレイヤーを選択すると、任意の種類のコントロールを追加できます</string>
     <string name="guide_editor_styles_title">コントロールの見た目を変えたいときは？</string>
     <string name="guide_editor_styles_text">コントロールの外観を作成しておけば、簡単に再利用や切り替えができます</string>
+    <!--  样式收藏柜  -->
+    <string name="control_editor_style_cabinet">スタイルコレクション</string>
+    <string name="control_editor_style_cabinet_empty">スタイルコレクションは空です。コントロールの外観リストやジョイスティックのスタイルリストからスタイルを追加できます。</string>
+    <string name="control_editor_style_cabinet_favorite">スタイルコレクションに追加</string>
+    <string name="control_editor_style_cabinet_favorited">スタイルをコレクションに追加しました</string>
+    <string name="control_editor_style_cabinet_add_to_layout">現在のコントロールレイアウトに追加</string>
+    <string name="control_editor_style_cabinet_added_to_layout">現在のコントロールレイアウトに追加しました</string>
+    <string name="control_editor_style_cabinet_add_conflict_title">スタイルは既に存在します</string>
+    <string name="control_editor_style_cabinet_add_conflict_message">同じ ID のスタイルが現在のコントロールレイアウトに既に存在します。</string>
+    <string name="control_editor_style_cabinet_add_conflict_independent">コピーとして追加</string>
+    <string name="control_editor_style_cabinet_conflict_title">スタイルは既にコレクション済みです</string>
+    <string name="control_editor_style_cabinet_conflict_message">同じ ID のスタイルは既にスタイルコレクションにあります</string>
+    <string name="control_editor_style_cabinet_conflict_overwrite">既存のものを上書き</string>
+    <string name="control_editor_style_cabinet_conflict_independent">別のコピーとして保存</string>
+    <string name="control_editor_style_cabinet_delete">コレクション済みのスタイル %s を削除してもよろしいですか？</string>
+
+    <string name="guide_editor_style_cabinet_title">お気に入りのスタイルを共通のスタイルコレクションに追加することもできます！</string>
+    <string name="guide_editor_style_cabinet_text">スタイルコレクションは全体共通です。どのコントロールレイアウトを編集していても、ここにあるスタイルをいつでも見られます~</string>
+    <string name="guide_editor_style_cabinet_note">ここから、コレクションしたスタイルを現在のコントロールレイアウトに追加して使うことができます~</string>
     <string name="guide_editor_preview">プレビュー機能を使ってコントロールレイアウトを試してみましょう。</string>
     <string name="guide_editor_save">編集が終わったら、コントロールレイアウトの保存を忘れずに！</string>
     <string name="guide_tip_blank">空いている場所をタップして次に進みましょう</string>

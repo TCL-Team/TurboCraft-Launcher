@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -58,6 +58,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -94,17 +95,22 @@ import com.movtery.zalithlauncher.BuildConfig
 import com.movtery.zalithlauncher.BuildKeys
 import com.movtery.guide.GuideSide
 import com.movtery.guide.guideNode
+import com.movtery.petlib.PetAnimation
+import com.movtery.petlib.PetTapReaction
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.game.account.AccountsManager
 import com.movtery.zalithlauncher.game.version.installed.PlayTimeRepository
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionsManager
 import com.movtery.zalithlauncher.ui.base.BaseScreen
+import com.movtery.zalithlauncher.ui.components.AnimatedDirection
 import com.movtery.zalithlauncher.ui.components.BackgroundCard
 import com.movtery.zalithlauncher.ui.components.MarkdownView
 import com.movtery.zalithlauncher.ui.components.MarqueeText
+import com.movtery.zalithlauncher.ui.components.PetModelView
 import com.movtery.zalithlauncher.ui.components.ScalingActionButton
-import com.movtery.zalithlauncher.ui.components.defaultMarkdownConfig
+import com.movtery.zalithlauncher.ui.components.animated
+import com.movtery.zalithlauncher.ui.components.rememberAnimatedContext
 import com.movtery.zalithlauncher.ui.guide.GuideKeys
 import com.iffly.compose.markdown.config.MarkdownRenderConfig
 import com.iffly.compose.markdown.style.ListTheme
@@ -130,6 +136,17 @@ import com.movtery.zalithlauncher.utils.animation.swapAnimateDpAsState
 import com.movtery.zalithlauncher.viewmodel.HomePageState
 import com.movtery.zalithlauncher.viewmodel.LocalHomePageViewModel
 import com.movtery.zalithlauncher.viewmodel.ScreenBackStackViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
+
+private const val ContentWeight = 7f
+private const val ActionMenuWeight = 3f
+
+/**
+ * 操作菜单停泊槽位与屏幕边缘的间距
+ */
+private val ActionMenuOuterPadding = 12.dp
 
 @Composable
 fun LauncherScreen(
@@ -393,17 +410,19 @@ private fun StatsGrid(
     onNavigateToPlayTimeStats: () -> Unit = {},
     onNavigateToLog: (String) -> Unit,
 ) {
+    val ctx = rememberAnimatedContext(isVisible = isVisible)
+    val gridState = rememberCardGridState()
 
     Column(
         modifier = modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            text = stringResource(R.string.stats_today_header),
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier
-                .padding(horizontal = 4.dp)
-                .alpha(0.5f)
+        HomeGrid(
+            state = gridState,
+            isVisible = isVisible,
+            modifier = modifier
+                .fillMaxSize()
+                .animated(ctx)
         )
         Row(
             modifier = Modifier
@@ -889,26 +908,178 @@ private fun RightMenuContent(
 }
 
 @Composable
-private fun RightMenu(
+private fun ActionMenuCardContent(
+    modifier: Modifier = Modifier,
+    account: Account?,
+    onLaunchGame: (Version?) -> Unit,
+    toAccountManageScreen: () -> Unit,
+    toVersionManageScreen: () -> Unit,
+    toVersionSettingsScreen: () -> Unit,
+) {
+    BackgroundCard(
+        modifier = Modifier
+            .actionMenuDragAnchor()
+            .guideNode(GuideKeys.Main.Step.CardDrag)
+            .then(modifier),
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        ConstraintLayout(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            val (accountAvatar, versionManagerLayout) = createRefs()
+
+            AccountAvatarCenter(
+                modifier = Modifier
+                    .constrainAs(accountAvatar) {
+                        top.linkTo(parent.top)
+                        bottom.linkTo(versionManagerLayout.top)
+                        start.linkTo(parent.start)
+                        end.linkTo(parent.end)
+                    }.guideNode(
+                        key = GuideKeys.Main.Step.Account,
+                        preferSide = GuideSide.Below
+                    ),
+                account = account,
+                onClick = toAccountManageScreen
+            )
+
+            VersionsContent(
+                modifier = Modifier.constrainAs(versionManagerLayout) {
+                    start.linkTo(parent.start)
+                    end.linkTo(parent.end)
+                    bottom.linkTo(parent.bottom)
+                },
+                onLaunchGame = onLaunchGame,
+                toVersionManageScreen = toVersionManageScreen,
+                toVersionSettingsScreen = toVersionSettingsScreen,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActionMenuTallerContent(
+    modifier: Modifier = Modifier,
+    account: Account?,
+    dockedSide: ActionMenuSide,
+    onLaunchGame: (Version?) -> Unit,
+    toAccountManageScreen: () -> Unit,
+    toVersionManageScreen: () -> Unit,
+    toVersionSettingsScreen: () -> Unit,
+) {
+    val refreshWardrobe by AccountsManager.refreshWardrobe.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = Modifier
+            .actionMenuDragAnchor()
+            .guideNode(
+                key = GuideKeys.Main.Step.CardDrag,
+                holeRadius = 0.dp,
+            )
+            .then(modifier),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+        // 偏航角符号与停泊侧相反，让模型面向屏幕内容一侧
+        val yaw = Math.toRadians(
+            ((if (dockedSide == ActionMenuSide.START) 35.0 else -(35.0)) * (if (isRtl) -1 else 1))
+        ).toFloat()
+
+        val armModel = account?.skinModelType?.toArmModel()
+        val skinStamp = account?.getSkinFile()?.lastModified()
+        val capeStamp = account?.getCapeFile()?.lastModified()
+        val skinBytes by produceState<ByteArray?>(null, account, refreshWardrobe, skinStamp) {
+            value = withContext(Dispatchers.IO) {
+                account?.getSkinFile()?.takeIf { it.exists() }
+                    ?.inputStream()?.use { it.readBytes() }
+            }
+        }
+        val capeBytes by produceState<ByteArray?>(null, account, refreshWardrobe, capeStamp) {
+            value = withContext(Dispatchers.IO) {
+                account?.getCapeFile()?.takeIf { it.exists() }
+                    ?.inputStream()?.use { it.readBytes() }
+            }
+        }
+
+        PetModelView(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            skin = skinBytes,
+            cape = capeBytes,
+            arm = armModel,
+            yaw = yaw,
+            animation = PetAnimation.Idle,
+            tapReaction = PetTapReaction.Interact,
+            dragYaw = false
+        )
+
+        BackgroundCard(
+            modifier = Modifier
+                .guideNode(
+                    key = GuideKeys.Main.Step.Account,
+                    preferSide = GuideSide.Above,
+                    holeRadius = 28.dp
+                )
+                .fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            onClick = toAccountManageScreen
+        ) {
+            AccountAvatarRow(
+                modifier = Modifier.fillMaxWidth(),
+                account = account,
+            )
+        }
+
+        BackgroundCard(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+        ) {
+            VersionsContent(
+                modifier = Modifier.fillMaxWidth(),
+                onLaunchGame = onLaunchGame,
+                toVersionManageScreen = toVersionManageScreen,
+                toVersionSettingsScreen = toVersionSettingsScreen,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ActionMenu(
     isVisible: Boolean,
     onLaunchGame: (Version?) -> Unit,
+    swapDirection: AnimatedDirection,
+    pickUpScale: () -> Float,
     modifier: Modifier = Modifier,
     toAccountManageScreen: () -> Unit = {},
     toVersionManageScreen: () -> Unit = {},
     toVersionSettingsScreen: () -> Unit = {}
 ) {
-    val xOffset by swapAnimateDpAsState(
-        targetValue = 40.dp,
-        swapIn = isVisible,
-        isHorizontal = true
-    )
+    val ctx = rememberAnimatedContext(isVisible = isVisible)
 
-    BackgroundCard(
-        modifier = modifier.offset { IntOffset(x = xOffset.roundToPx(), y = 0) },
-        shape = MaterialTheme.shapes.extraLarge
-    ) {
-        RightMenuContent(
-            modifier = Modifier.fillMaxSize(),
+    val account by AccountsManager.currentAccountFlow.collectAsStateWithLifecycle()
+
+    val contentModifier = modifier.graphicsLayer {
+        val scale = pickUpScale()
+        scaleX = scale
+        scaleY = scale
+    }.animated(ctx, from = swapDirection)
+
+    if (isTaller) {
+        ActionMenuTallerContent(
+            modifier = contentModifier,
+            account = account,
+            dockedSide = dockedSide,
+            onLaunchGame = onLaunchGame,
+            toAccountManageScreen = toAccountManageScreen,
+            toVersionManageScreen = toVersionManageScreen,
+            toVersionSettingsScreen = toVersionSettingsScreen,
+        )
+    } else {
+        ActionMenuCardContent(
+            modifier = contentModifier,
+            account = account,
             onLaunchGame = onLaunchGame,
             toAccountManageScreen = toAccountManageScreen,
             toVersionManageScreen = toVersionManageScreen,

@@ -55,8 +55,7 @@ fun mergeGameJson(
     fabricFolder: File? = null,
     babricFolder: File? = null,
     legacyFabricFolder: File? = null,
-    quiltFolder: File? = null,
-    cleanroomFolder: File? = null
+    quiltFolder: File? = null
 ) {
     Logger.info(TAG,
         "Start merge version json, output: $outputFolder, Minecraft: $clientFolder\n" +
@@ -66,8 +65,7 @@ fun mergeGameJson(
                 (if (fabricFolder != null) "，${ModLoader.FABRIC.displayName}: $fabricFolder" else "") +
                 (if (babricFolder != null) "，${ModLoader.BABRIC.displayName}: $babricFolder" else "") +
                 (if (legacyFabricFolder != null) "，${ModLoader.LEGACY_FABRIC.displayName}: $legacyFabricFolder" else "") +
-                (if (quiltFolder != null) "，${ModLoader.QUILT.displayName}: $quiltFolder" else "") +
-                (if (cleanroomFolder != null) "，${ModLoader.CLEANROOM.displayName}: $cleanroomFolder" else "")
+                (if (quiltFolder != null) "，${ModLoader.QUILT.displayName}: $quiltFolder" else "")
     )
 
     outputFolder.mkdirs()
@@ -85,7 +83,6 @@ fun mergeGameJson(
     val babricJsonPath = babricFolder.gameFileOrNull("json")
     val legacyFabricJsonPath = legacyFabricFolder.gameFileOrNull("json")
     val quiltJsonPath = quiltFolder.gameFileOrNull("json")
-    val cleanroomJsonPath = cleanroomFolder.gameFileOrNull("json")
 
     //读取和验证 Json
     val minecraftJson = minecraftJsonPath.getJsonOrNull("Minecraft")!!
@@ -97,15 +94,13 @@ fun mergeGameJson(
     val babricJson = babricJsonPath.getJsonOrNull(ModLoader.BABRIC.displayName)
     val legacyFabricJson = legacyFabricJsonPath.getJsonOrNull(ModLoader.LEGACY_FABRIC.displayName)
     val quiltJson = quiltJsonPath.getJsonOrNull(ModLoader.FABRIC.displayName)
-    val cleanroomJson = cleanroomJsonPath.getJsonOrNull(ModLoader.CLEANROOM.displayName)
 
     //处理 minecraftArguments
     val allArgs = listOfNotNull(
         minecraftJson.safeGetMinecraftArguments(),
         optiFineJson?.safeGetMinecraftArguments(),
         forgeJson?.safeGetMinecraftArguments(),
-        neoForgeJson?.safeGetMinecraftArguments(),
-        cleanroomJson?.safeGetMinecraftArguments()
+        neoForgeJson?.safeGetMinecraftArguments()
         //Fabric、Quilt没有这样的参数
     ).joinToString(" ")
 
@@ -123,8 +118,7 @@ fun mergeGameJson(
         optiFineJson,
         forgeJson, neoForgeJson,
         fabricJson, babricJson, quiltJson,
-        legacyFabricJson,
-        cleanroomJson
+        legacyFabricJson
     ).forEach { json ->
         json.remove("releaseTime")
         json.remove("time")

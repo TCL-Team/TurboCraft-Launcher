@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,16 +41,17 @@ import com.movtery.zalithlauncher.game.multirt.RuntimesManager
 import com.movtery.zalithlauncher.game.plugin.Plugin
 import com.movtery.zalithlauncher.game.plugin.driver.DriverPluginManager
 import com.movtery.zalithlauncher.game.plugin.renderer.RendererPluginManager
-import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.renderer.ConfigurableRenderer
+import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.renderer.config.GlobalRendererConfigStore
 import com.movtery.zalithlauncher.game.renderer.config.VersionRendererConfigStore
 import com.movtery.zalithlauncher.game.renderer.config.removeStaleEntries
 import com.movtery.zalithlauncher.game.renderer.config.resolveRendererConfig
+import com.movtery.zalithlauncher.game.renderer.getSfpewLibraryPath
+import com.movtery.zalithlauncher.game.renderer.isSfpewEnabledFor
 import com.movtery.zalithlauncher.game.renderer.renderers.GL4ESRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.MobileGluesRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.NGGL4ESRenderer
-import com.movtery.zalithlauncher.game.renderer.renderers.SimpleFPEWrapperRenderer
 import com.movtery.zalithlauncher.game.support.touch_controller.ControllerProxy
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionInfoParser
@@ -91,6 +92,7 @@ class GameLauncher(
 ) : Launcher(onExit, openPath) {
     private lateinit var gameManifest: GameManifest
     private var jnaDir: File? = null
+    private var configuredRendererEnv: Map<String, String>? = null
     private val offlineServer = OfflineYggdrasilServer(0)
 
     private val version = config.version
@@ -102,8 +104,6 @@ class GameLauncher(
     } else {
         config.account
     }
-
-    private var configuredRendererEnv: Map<String, String>? = null
 
     override fun exit() {
         offlineServer.stop()
@@ -127,7 +127,6 @@ class GameLauncher(
                 renderer.getConfiguredEnv(config)
             } else null
         }
-
 
         val manifest = GSON.fromJson(File(version.getVersionPath(), "${version.getVersionName()}.json").readText(), GameManifest::class.java)
         val clientJar = manifest.inheritsFrom?.let { inheritsFrom ->
@@ -156,12 +155,6 @@ class GameLauncher(
         }?.takeIf { it.exists() }
 
         CallbackBridge.nativeSetUseInputStackQueue(gameManifest.arguments != null)
-        //Cleanroom 的 LWJGLXX 桥需要字符事件补全暂存的按键事件，见 CallbackBridge.setControlKeyCharPairing
-        CallbackBridge.setControlKeyCharPairing(
-            version.getVersionInfo()?.loaderInfos?.any { info ->
-                info.loader == ModLoader.CLEANROOM
-            } == true
-        )
 
         val customArgs = version.getJvmArgs().takeIf { it.isNotBlank() } ?: AllSettings.jvmArgs.getValue()
         val javaRuntime = getRuntime()
@@ -217,7 +210,6 @@ class GameLauncher(
             }
         }
         if (Renderers.isCurrentRendererValid()) {
-            setRendererEnv(envMap, configuredRendererEnv)
         }
         envMap["ZALITH_VERSION_CODE"] = BuildConfig.VERSION_CODE.toString()
 
@@ -252,7 +244,7 @@ class GameLauncher(
     override fun progressFinalUserArgs(args: MutableList<String>, ramAllocation: Int) {
         super.progressFinalUserArgs(args, version.getRamAllocation(activity))
         if (Renderers.isCurrentRendererValid()) {
-            args.add("-Dorg.lwjgl.opengl.libname=${getRendererLibrary()}")
+            args.add("-Dorg.lwjgl.opengl.libname=${getGameRendererLibrary(version)}")
         }
     }
 
@@ -361,13 +353,6 @@ class GameLauncher(
             //开启了自动选择，根据游戏需求的版本做选择
             val targetJavaVersion = when (loaderInfo?.loader) {
                 ModLoader.BABRIC -> 17 //Babric 推荐使用 17
-                ModLoader.CLEANROOM -> {
-                    if (loaderInfo.version.isBiggerTo("0.4.4-alpha")) {
-                        25 //0.5.0-alpha 及以上要求使用 25
-                    } else {
-                        21 //0.4.4-alpha 及以下要求使用 21
-                    }
-                }
                 else -> gameManifest.javaVersion?.majorVersion ?: 8
             }
             if (pickedRuntime.javaVersion == 0 || pickedRuntime.javaVersion < targetJavaVersion) {
@@ -470,7 +455,8 @@ private fun checkAndUsedJSPH(envMap: MutableMap<String, String>, runtime: Runtim
 
 private fun setRendererEnv(
     envMap: MutableMap<String, String>,
-    configuredRendererEnv: Map<String, String>?
+    version: Version,
+    configuredRendererEnv: Map<String, String>?,
 ) {
     val renderer = Renderers.getCurrentRenderer()
     val rendererId = renderer.getRendererId()
@@ -495,22 +481,42 @@ private fun setRendererEnv(
     renderer.getRendererEGL()?.let { eglName ->
         envMap["POJAVEXEC_EGL"] = eglName
 
-        // 指定 SDL EGL
-        val nativeLibPath = if (renderer is Plugin) {
-            renderer.getNativeLibPath()
+        val eglPath = if (eglName.startsWith("/")) {
+            // 路径不存在时不设置，交给 SDL 按自身默认解析
+            eglName
         } else {
-            PathManager.DIR_NATIVE_LIB
+            // eglName 已是绝对路径时直接使用，仅裸名拼接库目录
+            val nativeLibPath = if (renderer is Plugin) {
+                renderer.getNativeLibPath()
+            } else {
+                PathManager.DIR_NATIVE_LIB
+            }
+            "$nativeLibPath/$eglName"
         }
-        envMap["SDL_EGL_LIBRARY"] = "$nativeLibPath/$eglName"
+        if (eglPath.isNotEmpty() && File(eglPath).isFile()) {
+            envMap["SDL_EGL_LIBRARY"] = eglPath
+        }
     }
 
     envMap["POJAV_RENDERER"] = rendererId
 
+    if (isSfpewEnabledFor(renderer, version)) {
+        envMap["SFPEW_LAYER"] = "1"
+        envMap["SFPEW_EGL"] = envMap["SDL_EGL_LIBRARY"]
+            ?: envMap["POJAVEXEC_EGL"]
+            ?: "libEGL.so"
+        if (version.isSfpewRelaxedContextEnabled()) {
+            envMap["SFPEW_RELAXED_CONTEXT"] = "1"
+        }
+        val sfpewLibraryPath = getSfpewLibraryPath()
+        envMap["SDL_OPENGL_LIBRARY"] = sfpewLibraryPath
+        envMap["SDL_EGL_LIBRARY"] = sfpewLibraryPath
+    }
+
     if (RendererPluginManager.selectedRendererPlugin != null) return
 
     //MobileGlues / SimpleFPEWrapper 自带完整 GL 栈，不能叠加 Mesa 的 zink 覆盖
-    if (renderer != GL4ESRenderer && renderer != NGGL4ESRenderer &&
-        renderer != MobileGluesRenderer && renderer != SimpleFPEWrapperRenderer) {
+    if (!renderer.mesaBased) {
         envMap["MESA_LOADER_DRIVER_OVERRIDE"] = "zink"
         envMap["MESA_GLSL_CACHE_DIR"] = PathManager.DIR_CACHE.absolutePath
         envMap["MESA_GL_VERSION_OVERRIDE"] = "4.6"
@@ -541,6 +547,16 @@ private fun setRendererEnv(
 private fun getRendererLibrary(): String? {
     return if (!Renderers.isCurrentRendererValid()) null
     else Renderers.getCurrentRenderer().getRendererLibrary()
+}
+
+private fun getGameRendererLibrary(version: Version): String? {
+    if (!Renderers.isCurrentRendererValid()) return null
+    val renderer = Renderers.getCurrentRenderer()
+    return if (isSfpewEnabledFor(renderer, version)) {
+        getSfpewLibraryPath()
+    } else {
+        renderer.getRendererLibrary()
+    }
 }
 
 /**

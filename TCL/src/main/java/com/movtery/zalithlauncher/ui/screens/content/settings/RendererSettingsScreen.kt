@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,14 +23,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -59,20 +56,13 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.movtery.zalithlauncher.R
-import kotlinx.coroutines.Dispatchers
-import kotlin.math.roundToInt
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.movtery.zalithlauncher.game.plugin.Plugin
 import com.movtery.zalithlauncher.game.plugin.driver.Driver
 import com.movtery.zalithlauncher.game.plugin.driver.DriverPluginManager
-import com.movtery.zalithlauncher.game.plugin.renderer_v2.RendererV2Data
 import com.movtery.zalithlauncher.game.renderer.ConfigurableRenderer
 import com.movtery.zalithlauncher.game.renderer.RendererInterface
 import com.movtery.zalithlauncher.game.renderer.Renderers
@@ -89,6 +79,8 @@ import com.movtery.zalithlauncher.setting.unit.floatRange
 import com.movtery.zalithlauncher.ui.base.BaseScreen
 import com.movtery.zalithlauncher.ui.components.AnimatedColumn
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
+import com.movtery.zalithlauncher.ui.components.TitleAndSummary
+import com.movtery.zalithlauncher.ui.components.animated
 import com.movtery.zalithlauncher.ui.components.verticalScrollWithBar
 import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
@@ -155,12 +147,12 @@ fun RendererSettingsScreen(
                 .verticalScrollWithBar(state = rememberScrollState())
                 .padding(all = 12.dp),
             isVisible = isVisible
-        ) { scope ->
-            AnimatedItem(scope) { yOffset ->
+        ) {
+            AnimatedItem { ctx ->
                 SettingsCardColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset { IntOffset(x = 0, y = yOffset.roundToPx()) }
+                        .animated(ctx)
                 ) {
                     RunBenchmarkPill(
                         modifier = Modifier
@@ -169,21 +161,15 @@ fun RendererSettingsScreen(
                         onClick = { showBenchmark = true }
                     )
                     val currentRendererId = AllSettings.renderer.state
-                    val v2PluginEnvUnits = remember(currentRendererId) {
+                    val currentRenderer = remember(currentRendererId) {
                         Renderers.getRenderers()
-                            .filterIsInstance<RendererV2Data>()
                             .find { it.getUniqueIdentifier() == currentRendererId }
-                            ?.env?.getConfigurableUnits()?.takeIf { it.isNotEmpty() }
                     }
-                    var showV2ConfigDialog by remember { mutableStateOf(false) }
-                    //内置渲染器（MobileGlues / SimpleFPEWrapper）的可配置项
-                    val configurableRenderer = remember(currentRendererId) {
-                        Renderers.getRenderers()
-                            .filterIsInstance<ConfigurableRenderer>()
-                            .find { it.getUniqueIdentifier() == currentRendererId }
+                    val configurableRenderer = remember(currentRenderer) {
+                        (currentRenderer as? ConfigurableRenderer)
                             ?.takeIf { it.configSpec.entries.isNotEmpty() }
                     }
-                    var showBuiltinConfigDialog by remember { mutableStateOf(false) }
+                    var showConfigDialog by remember { mutableStateOf(false) }
 
                     ListSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -198,21 +184,9 @@ fun RendererSettingsScreen(
                             RendererSummaryLayout(it)
                         },
                         trailingIcon = {
-                            //选中内置渲染器且存在可配置项时，提供配置入口
-                            if (v2PluginEnvUnits == null && configurableRenderer != null) {
+                            if (configurableRenderer != null) {
                                 IconButton(
-                                    onClick = { showBuiltinConfigDialog = true }
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_settings_filled),
-                                        contentDescription = stringResource(R.string.settings_renderer_config_title)
-                                    )
-                                }
-                            }
-                            //选中新一代渲染器插件且存在可配置项时，提供配置入口
-                            if (v2PluginEnvUnits != null) {
-                                IconButton(
-                                    onClick = { showV2ConfigDialog = true }
+                                    onClick = { showConfigDialog = true }
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.ic_settings_filled),
@@ -241,21 +215,34 @@ fun RendererSettingsScreen(
                         }
                     )
 
-                    //内置渲染器配置对话框
-                    if (showBuiltinConfigDialog && configurableRenderer != null) {
+                    if (showConfigDialog && configurableRenderer != null) {
                         RendererConfigDialog(
                             renderer = configurableRenderer,
-                            onDismissRequest = { showBuiltinConfigDialog = false }
+                            onDismissRequest = { showConfigDialog = false }
                         )
                     }
 
-                    //新一代渲染器插件的环境变量配置对话框
-                    if (showV2ConfigDialog && v2PluginEnvUnits != null) {
-                        RendererV2ConfigDialog(
-                            units = v2PluginEnvUnits,
-                            onDismissRequest = { showV2ConfigDialog = false }
-                        )
-                    }
+                    SwitchSettingsCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        position = CardPosition.Middle,
+                        unit = AllSettings.sfpewPluginLayer,
+                        enabled = currentRenderer is Plugin,
+                        title = stringResource(R.string.settings_renderer_sfpew_plugin_layer_title),
+                        summary = stringResource(R.string.settings_renderer_sfpew_plugin_layer_summary)
+                    )
+
+                    SwitchSettingsCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        position = CardPosition.Middle,
+                        unit = AllSettings.sfpewRelaxedContext,
+                        enabled = currentRenderer?.let { renderer ->
+                            renderer.supportsSfpewByDefault() ||
+                            // 如果是插件，需要看是否给插件启用了这个玩意
+                            (renderer is Plugin && AllSettings.sfpewPluginLayer.state)
+                        } == true,
+                        title = stringResource(R.string.renderer_config_sfpew_relaxed_context_title),
+                        summary = stringResource(R.string.renderer_config_sfpew_relaxed_context_desc)
+                    )
 
                     ListSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -346,6 +333,37 @@ fun RendererSettingsScreen(
                             }
                         }
                     )
+                }
+            }
+
+            AnimatedItem { ctx ->
+                SettingsCardColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animated(ctx)
+                ) {
+                    val context = LocalContext.current
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // 分辨率规则
+                        val resolutionRule = AllSettings.resolutionRule.state
+                        ListSettingsCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            position = CardPosition.Top,
+                            unit = AllSettings.resolutionRule,
+                            items = ResolutionRule.entries,
+                            title = stringResource(R.string.settings_renderer_resolution_rule_title),
+                            summary = stringResource(R.string.settings_renderer_resolution_rule_summary),
+                            getItemText = { stringResource(it.nameRes) },
+                            onValueChange = { rule ->
+                                // 自定义分辨率尚未初始化时，以屏幕真实宽高填充
+                                if (rule == ResolutionRule.CUSTOM) {
+                                    ensureCustomResolutionInitialized(context)
+                                }
+                            }
+                        )
 
                     IntSliderSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -368,11 +386,11 @@ fun RendererSettingsScreen(
                 }
             }
 
-            AnimatedItem(scope) { yOffset ->
+            AnimatedItem { ctx ->
                 SettingsCardColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset { IntOffset(x = 0, y = yOffset.roundToPx()) }
+                        .animated(ctx)
                 ) {
                     SwitchSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -530,7 +548,6 @@ fun RendererSettingsScreen(
 }
 
 @Composable
-@OptIn(ExperimentalLayoutApi::class)
 fun RendererSummaryLayout(renderer: RendererInterface) {
     FlowRow(
         modifier = Modifier.alpha(0.7f),
@@ -544,13 +561,20 @@ fun RendererSummaryLayout(renderer: RendererInterface) {
             val minVer = getMinMCVersion()
             val maxVer = getMaxMCVersion()
 
-            if (minVer != null || maxVer != null) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(text = stringResource(R.string.renderer_version_support), style = MaterialTheme.typography.labelSmall)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(text = stringResource(R.string.renderer_version_support), style = MaterialTheme.typography.labelSmall)
 
+                if (minVer == null && maxVer == null) {
+                    Text(
+                        text = stringResource(
+                            if (renderer is Plugin) R.string.generic_unknown else R.string.renderer_version_all
+                        ),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                } else {
                     minVer?.let {
                         Text(text = ">= $it", style = MaterialTheme.typography.labelSmall)
                     }

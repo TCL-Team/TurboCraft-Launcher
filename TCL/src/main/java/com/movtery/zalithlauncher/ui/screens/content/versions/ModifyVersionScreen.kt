@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -43,13 +42,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -61,7 +60,6 @@ import androidx.navigation3.ui.NavDisplay
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.game.addons.modloader.AddonVersion
 import com.movtery.zalithlauncher.game.addons.modloader.ModLoader
-import com.movtery.zalithlauncher.game.addons.modloader.cleanroom.CleanroomVersions
 import com.movtery.zalithlauncher.game.addons.modloader.fabriclike.babric.BabricVersion
 import com.movtery.zalithlauncher.game.addons.modloader.fabriclike.fabric.FabricVersions
 import com.movtery.zalithlauncher.game.addons.modloader.fabriclike.legacyfabric.LegacyFabricVersions
@@ -77,13 +75,13 @@ import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.ui.base.BaseScreen
 import com.movtery.zalithlauncher.ui.components.AnimatedLazyColumn
 import com.movtery.zalithlauncher.ui.components.TextTransition
+import com.movtery.zalithlauncher.ui.components.animated
 import com.movtery.zalithlauncher.ui.components.influencedByBackgroundColor
 import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
 import com.movtery.zalithlauncher.ui.screens.TitledNavKey
 import com.movtery.zalithlauncher.ui.screens.content.download.game.AddonList
 import com.movtery.zalithlauncher.ui.screens.content.download.game.AddonState
-import com.movtery.zalithlauncher.ui.screens.content.download.game.CleanroomList
 import com.movtery.zalithlauncher.ui.screens.content.download.game.CurrentAddon
 import com.movtery.zalithlauncher.ui.screens.content.download.game.FabricList
 import com.movtery.zalithlauncher.ui.screens.content.download.game.ForgeList
@@ -111,8 +109,10 @@ import com.movtery.zalithlauncher.viewmodel.ModifyDiffs
 import com.movtery.zalithlauncher.viewmodel.ModifyOperation
 import com.movtery.zalithlauncher.viewmodel.ModifyPayload
 import com.movtery.zalithlauncher.viewmodel.ModifyVersionViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 private const val TAG = "ModifyVersionScreen"
@@ -192,7 +192,7 @@ private fun ModifyVersionContent(
     val installedLoaders = rememberInstalledLoaders(version, versionInfo)
 
     val addonsVM = viewModel(
-        key = version.toString() + "_ModifyVersion_" + targetGameVersion
+        key = version.toString() + "_ModifyVersion_" + targetGameVersion + "_" + installedLoaders
     ) {
         ModifyAddonsViewModel(
             gameVersion = targetGameVersion,
@@ -219,10 +219,10 @@ private fun ModifyVersionContent(
             isVisible = isVisible,
             contentPadding = PaddingValues(all = 12.dp),
             state = scrollState,
-        ) { scope ->
-            animatedItem(scope) { yOffset ->
+        ) {
+            animatedItem { ctx ->
                 MCVersionRow(
-                    modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                    modifier = Modifier.animated(ctx),
                     current = originalGameVersion,
                     selected = targetGameVersion,
                     onClick = onSelectGameVersion
@@ -231,9 +231,9 @@ private fun ModifyVersionContent(
 
             // Minecraft 版本变更，给出提示
             if (targetGameVersion != originalGameVersion) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
                     ModifyTipItem(
-                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                        modifier = Modifier.animated(ctx),
                         title = stringResource(R.string.versions_modify_mc_changed_title),
                         text = stringResource(R.string.versions_modify_mc_changed_tip)
                     )
@@ -248,18 +248,18 @@ private fun ModifyVersionContent(
                 emptyList()
             }
             if (unrecognizedInstalled.isNotEmpty()) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
                     ModifyTipItem(
-                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                        modifier = Modifier.animated(ctx),
                         title = stringResource(R.string.versions_modify_unrecognized_title),
                         text = unrecognizedInstalled.joinToString("、") { "${it.loader.displayName} ${it.version}" }
                     )
                 }
             }
     
-            animatedItem(scope) { yOffset ->
+            animatedItem { ctx ->
                 OptiFineList(
-                    modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                    modifier = Modifier.animated(ctx),
                     currentAddon = addonsVM.currentAddon,
                     addonList = addonsVM.addonList,
                     onValueChanged = { addonsVM.updateDiffs() },
@@ -267,9 +267,9 @@ private fun ModifyVersionContent(
                 )
             }
     
-            animatedItem(scope) { yOffset ->
+            animatedItem { ctx ->
                 ForgeList(
-                    modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                    modifier = Modifier.animated(ctx),
                     currentAddon = addonsVM.currentAddon,
                     addonList = addonsVM.addonList,
                     onValueChanged = { addonsVM.updateDiffs() },
@@ -278,9 +278,9 @@ private fun ModifyVersionContent(
             }
     
             if (loaderSupports.isNeoForgeSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
                     NeoForgeList(
-                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                        modifier = Modifier.animated(ctx),
                         currentAddon = addonsVM.currentAddon,
                         addonList = addonsVM.addonList,
                         onValueChanged = { addonsVM.updateDiffs() },
@@ -289,22 +289,10 @@ private fun ModifyVersionContent(
                 }
             }
     
-            if (loaderSupports.isCleanroomSupports) {
-                animatedItem(scope) { yOffset ->
-                    CleanroomList(
-                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
-                        currentAddon = addonsVM.currentAddon,
-                        addonList = addonsVM.addonList,
-                        onValueChanged = { addonsVM.updateDiffs() },
-                        onReload = { addonsVM.reloadCleanroom() }
-                    )
-                }
-            }
-    
             if (loaderSupports.isFabricSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
                     FabricList(
-                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                        modifier = Modifier.animated(ctx),
                         currentAddon = addonsVM.currentAddon,
                         addonList = addonsVM.addonList,
                         onValueChanged = { addonsVM.updateDiffs() },
@@ -314,9 +302,9 @@ private fun ModifyVersionContent(
             }
     
             if (loaderSupports.isLegacyFabricSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
                     LegacyFabricList(
-                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                        modifier = Modifier.animated(ctx),
                         currentAddon = addonsVM.currentAddon,
                         addonList = addonsVM.addonList,
                         onValueChanged = { addonsVM.updateDiffs() },
@@ -326,9 +314,9 @@ private fun ModifyVersionContent(
             }
     
             if (loaderSupports.isQuiltSupports) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
                     QuiltList(
-                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                        modifier = Modifier.animated(ctx),
                         currentAddon = addonsVM.currentAddon,
                         addonList = addonsVM.addonList,
                         onValueChanged = { addonsVM.updateDiffs() },
@@ -337,11 +325,11 @@ private fun ModifyVersionContent(
                 }
             }
     
-            animatedItem(scope) { yOffset ->
+            animatedItem { ctx ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                        .animated(ctx),
                     horizontalArrangement = Arrangement.End
                 ) {
                     Button(
@@ -363,8 +351,6 @@ private fun ModifyVersionContent(
                                             .takeIf { loaderSupports.isLegacyFabricSupports },
                                         quilt = addonsVM.currentAddon.quiltVersion.value
                                             .takeIf { loaderSupports.isQuiltSupports },
-                                        cleanroom = addonsVM.currentAddon.cleanroomVersion.value
-                                            .takeIf { loaderSupports.isCleanroomSupports },
                                         // Babric cannot be refreshed from this screen; preserve an existing
                                         // Babric installation while the Minecraft base remains unchanged.
                                         babric = installedLoaders.firstOrNull { it.loader == ModLoader.BABRIC }
@@ -423,7 +409,6 @@ private class ModifyAddonsViewModel(
         if (loaderSupports.isFabricSupports) add(ModLoader.FABRIC)
         if (loaderSupports.isLegacyFabricSupports) add(ModLoader.LEGACY_FABRIC)
         if (loaderSupports.isQuiltSupports) add(ModLoader.QUILT)
-        if (loaderSupports.isCleanroomSupports) add(ModLoader.CLEANROOM)
     }
 
     private fun findInstalled(loader: ModLoader): VersionInfo.LoaderInfo? {
@@ -437,7 +422,6 @@ private class ModifyAddonsViewModel(
         ModLoader.FABRIC -> currentAddon.fabricVersion.value?.getAddonVersion()
         ModLoader.LEGACY_FABRIC -> currentAddon.legacyFabricVersion.value?.getAddonVersion()
         ModLoader.QUILT -> currentAddon.quiltVersion.value?.getAddonVersion()
-        ModLoader.CLEANROOM -> currentAddon.cleanroomVersion.value?.getAddonVersion()
         else -> null
     }
 
@@ -484,7 +468,7 @@ private class ModifyAddonsViewModel(
             //新安装的加载器
             listOf(
                 ModLoader.OPTIFINE, ModLoader.FORGE, ModLoader.NEOFORGE,
-                ModLoader.FABRIC, ModLoader.LEGACY_FABRIC, ModLoader.QUILT, ModLoader.CLEANROOM
+                ModLoader.FABRIC, ModLoader.LEGACY_FABRIC, ModLoader.QUILT
             ).forEach { loader ->
                 if (installedLoaders.none { it.loader == loader }) {
                     selectedVersionOf(loader)?.let { version ->
@@ -698,20 +682,6 @@ private class ModifyAddonsViewModel(
         }
     }
 
-    fun reloadCleanroom() {
-        launchAddonReload(
-            { currentAddon.cleanroomState = it },
-            { CleanroomVersions.fetchLoaderList(gameVersion) }
-        ) { versions ->
-            addonList.cleanroomList = versions
-            enqueuePreselect(ModLoader.CLEANROOM) {
-                findInstalled(ModLoader.CLEANROOM)?.let { installed ->
-                    preselectInstalled(currentAddon.cleanroomVersion, ModLoader.CLEANROOM, versions, installed.version)
-                }
-            }
-        }
-    }
-
     init {
         //不会被加载版本列表的已安装加载器，直接标记为未识别，避免阻塞其他加载器的预选
         installedLoaders.forEach { installed ->
@@ -734,9 +704,6 @@ private class ModifyAddonsViewModel(
         if (loaderSupports.isQuiltSupports) {
             reloadQuilt()
         }
-        if (loaderSupports.isCleanroomSupports) {
-            reloadCleanroom()
-        }
     }
 
     override fun onCleared() {
@@ -751,25 +718,30 @@ private class ModifyAddonsViewModel(
 private fun rememberInstalledLoaders(
     version: Version,
     versionInfo: VersionInfo
-): List<VersionInfo.LoaderInfo> = remember(version) {
-    buildList {
-        runCatching {
-            val jsonFile = File(version.getVersionPath(), "${version.getVersionName()}.json")
-            GSON.fromJson(jsonFile.readText(), LaunchFor::class.java)
-        }.onFailure { e ->
-            Logger.warning(TAG, "Failed to parse the launchFor info of the version.", e)
-        }.getOrNull()?.infos?.forEach { info ->
-            if (info.name.equals("Minecraft", ignoreCase = true)) return@forEach
-            ModLoader.entries.find { it.displayName.equals(info.name, ignoreCase = true) }?.let { loader ->
-                add(VersionInfo.LoaderInfo(loader = loader, version = info.version))
-            }
+): List<VersionInfo.LoaderInfo> {
+    val installedLoaders by produceState(emptyList(), version, versionInfo) {
+        value = withContext(Dispatchers.IO) {
+            buildList {
+                runCatching {
+                    val jsonFile = File(version.getVersionPath(), "${version.getVersionName()}.json")
+                    GSON.fromJson(jsonFile.readText(), LaunchFor::class.java)
+                }.onFailure { e ->
+                    Logger.warning(TAG, "Failed to parse the launchFor info of the version.", e)
+                }.getOrNull()?.infos?.forEach { info ->
+                    if (info.name.equals("Minecraft", ignoreCase = true)) return@forEach
+                    ModLoader.entries.find { it.displayName.equals(info.name, ignoreCase = true) }?.let { loader ->
+                        add(VersionInfo.LoaderInfo(loader = loader, version = info.version))
+                    }
+                }
+                versionInfo.loaderInfos.forEach { loaderInfo ->
+                    if (none { it.loader == loaderInfo.loader }) {
+                        add(loaderInfo)
+                    }
+                }
+            }.distinctBy { it.loader }
         }
-        versionInfo.loaderInfos.forEach { loaderInfo ->
-            if (none { it.loader == loaderInfo.loader }) {
-                add(loaderInfo)
-            }
-        }
-    }.distinctBy { it.loader }
+    }
+    return installedLoaders
 }
 
 /**

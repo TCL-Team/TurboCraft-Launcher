@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,6 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -68,7 +67,6 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -87,6 +85,8 @@ import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionsManager
 import com.movtery.zalithlauncher.game.version.installed.cleanup.CleanFailedException
 import com.movtery.zalithlauncher.game.version.installed.cleanup.GameAssetCleaner
+import com.movtery.zalithlauncher.game.versioninfo.MinecraftVersion
+import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.ui.androidText
 import com.movtery.zalithlauncher.ui.components.LittleTextLabel
 import com.movtery.zalithlauncher.ui.components.MarqueeText
@@ -674,20 +674,6 @@ fun CleanupOperation(
     }
 }
 
-@Stable
-class VersionItemCallbacks(
-    val submitError: (ErrorViewModel.ThrowableMessage) -> Unit,
-    val onSelected: () -> Unit,
-    val onSettingsClick: () -> Unit,
-    val onRenameClick: () -> Unit,
-    val onCopyClick: () -> Unit,
-    val onExportClick: () -> Unit,
-    val onDeleteClick: () -> Unit,
-    val onPinned: () -> Unit,
-    val onAddShortcutClick: () -> Unit
-)
-
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun VersionItemLayout(
     version: Version,
@@ -1021,7 +1007,13 @@ fun VersionIconImage(
     refreshKey: Any? = null
 ) {
     val defaultIconRes = remember(version) {
-        version?.let { getLoaderIconRes(it.getVersionInfo()?.primaryLoader?.loader) } ?: R.drawable.img_minecraft
+        version?.getVersionInfo()?.let { info ->
+            when (val loader = info.primaryLoader?.loader) {
+                null -> getGameVersionIconRes(info.type)
+                ModLoader.OPTIFINE -> R.drawable.img_loader_optifine
+                else -> getLoaderIconRes(loader)
+            }
+        } ?: R.drawable.img_minecraft
     }
     val defaultIcon = painterResource(defaultIconRes)
 
@@ -1094,7 +1086,17 @@ private fun getLoaderIconRes(
         ModLoader.NEOFORGE -> R.drawable.img_loader_neoforge
         ModLoader.OPTIFINE -> R.drawable.img_loader_optifine
         ModLoader.LITE_LOADER -> R.drawable.img_chicken_old
-        ModLoader.CLEANROOM -> R.drawable.img_loader_cleanroom
         else -> defaultIcon
+    }
+}
+
+@DrawableRes
+fun getGameVersionIconRes(type: MinecraftVersion.Type): Int {
+    return when (type) {
+        MinecraftVersion.Type.Snapshot -> R.drawable.img_command_block
+        MinecraftVersion.Type.OldBeta -> R.drawable.img_old_cobblestone
+        MinecraftVersion.Type.OldAlpha -> R.drawable.img_old_grass_block
+        MinecraftVersion.Type.AprilFools -> R.drawable.img_diamond_block
+        else -> R.drawable.img_minecraft
     }
 }

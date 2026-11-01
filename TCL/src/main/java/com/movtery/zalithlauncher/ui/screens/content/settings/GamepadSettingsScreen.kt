@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
@@ -44,7 +43,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.movtery.zalithlauncher.R
@@ -57,6 +55,7 @@ import com.movtery.zalithlauncher.ui.components.CheckChip
 import com.movtery.zalithlauncher.ui.components.LittleTextLabel
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.SimpleEditDialog
+import com.movtery.zalithlauncher.ui.components.animated
 import com.movtery.zalithlauncher.ui.control.GamepadBindingKeyboard
 import com.movtery.zalithlauncher.ui.control.gamepad.GamepadMap
 import com.movtery.zalithlauncher.ui.control.gamepad.JoystickMode
@@ -173,12 +172,47 @@ fun GamepadSettingsScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(12.dp),
             isVisible = isVisible
-        ) { scope ->
-            animatedItem(scope) { yOffset ->
+        ) {
+            animatedItem { ctx ->
                 SettingsCardColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset { IntOffset(x = 0, y = yOffset.roundToPx()) }
+                        .animated(ctx)
+                ) {
+                    SwitchSettingsCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        position = CardPosition.Top,
+                        unit = AllSettings.gamepadControl,
+                        title = stringResource(R.string.settings_gamepad_title),
+                        summary = stringResource(R.string.settings_gamepad_summary)
+                    )
+
+                    ListSettingsCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        position = CardPosition.Bottom,
+                        unit = AllSettings.gamepadInputMode,
+                        items = GamepadInputMode.entries,
+                        title = stringResource(R.string.settings_gamepad_input_mode_title),
+                        getItemText = { mode ->
+                            stringResource(mode.titleRes)
+                        },
+                        getItemSummary = { mode ->
+                            Text(
+                                modifier = Modifier.alpha(0.7f),
+                                text = stringResource(mode.summaryRes),
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        },
+                        enabled = AllSettings.gamepadControl.state
+                    )
+                }
+            }
+
+            animatedItem { ctx ->
+                SettingsCardColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animated(ctx)
                 ) {
                     val scope = rememberCoroutineScope()
 
@@ -264,11 +298,11 @@ fun GamepadSettingsScreen(
                 }
             }
 
-            animatedItem(scope) { yOffset ->
+            animatedItem { ctx ->
                 SettingsCardColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset { IntOffset(x = 0, y = yOffset.roundToPx()) }
+                        .animated(ctx)
                 ) {
                     val list = remember(refreshed) {
                         viewModel.getAllConfigKeys()
@@ -320,12 +354,12 @@ fun GamepadSettingsScreen(
             }
 
             if (canShowBind) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 8.dp)
-                            .offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                            .animated(ctx),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         //游戏内
@@ -353,14 +387,13 @@ fun GamepadSettingsScreen(
                 }
 
                 animatedItems(
-                    lazyListScope = scope,
                     items = GamepadMap.entries,
                     key = { it.identifier }
-                ) { _, item, yOffset ->
+                ) { _, item, ctx ->
                     SettingsCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                            .animated(ctx),
                         position = CardPosition.Single,
                         onClick = {
                             bindKeyOperation = BindKeyOperation.OnBind(item)

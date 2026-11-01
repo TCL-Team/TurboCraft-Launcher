@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -428,6 +428,43 @@ fun TitleTaskFlowDialog(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskFlowListColumn(
+    title: String,
+    tasks: List<TitledTask>,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        val scrollState = rememberLazyListState()
+        LazyColumn(
+            modifier = Modifier
+                .fadeEdge(state = scrollState)
+                .weight(1f, fill = false),
+            state = scrollState
+        ) {
+            items(tasks, key = { it.task.id }) { task ->
+                InstallingTaskItem(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
+                    title = task.title,
+                    runningIcon = task.runningIcon,
+                    task = task.task
+                )
             }
         }
     }

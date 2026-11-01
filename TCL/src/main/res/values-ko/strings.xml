@@ -88,9 +88,6 @@
     <string name="theme_color_picker_title">색상 선택</string>
     <string name="theme_color_picker_edit_hex">Hex 코드 편집</string>
     <string name="theme_color_picker_edit_hex_invalid">잘못된 Hex 코드입니다</string>
-    <string name="animate_type_bounce">바운스</string>
-    <string name="animate_type_jelly_bounce">젤리 바운스</string>
-    <string name="animate_type_slice_in">슬라이스 인</string>
     <string name="crash_launcher_title">%s에서 치명적인 오류가 발생했습니다</string>
     <string name="crash_launcher_message">애플리케이션이 예기치 않게 종료되었습니다. 아래의 오류 상세 정보는 개발자가 앱을 개선하는 데 도움이 됩니다.</string>
     <string name="crash_exit_message">JVM이 종료 코드 %d번과 함께 종료되었습니다.</string>
@@ -616,8 +613,6 @@
     <string name="versions_export_type_modrinth">Modrinth 모드팩</string>
     <string name="versions_export_type_summary_common">일반적인 타사 런처에서 불러올 수 있습니다</string>
     <string name="versions_export_type_curseforge">CurseForge 모드팩</string>
-    <string name="versions_export_type_multimc">MultiMC 모드팩</string>
-    <string name="versions_export_type_multimc_summary">%s, MultiMC 및 기타 런처에서 불러올 수 있습니다</string>
     <string name="versions_export_alias_options">게임 설정</string>
     <string name="versions_export_alias_resource_packs">리소스팩 폴더</string>
     <string name="versions_export_alias_mods">모드 폴더</string>
@@ -636,7 +631,6 @@
     <string name="versions_export_pack_java_args">자바 가상 머신 매개변수</string>
     <string name="versions_export_pack_website">모드팩 웹사이트</string>
     <string name="versions_export_pack_min_memory">최소 할당 메모리</string>
-    <string name="versions_export_pack_max_memory">최대 할당 메모리</string>
     <string name="versions_export_pack_pack_remote">%s에서 핵심 리소스를 다운로드합니다</string>
     <string name="versions_export_pack_also_pack_curseforge">­</string>
     <string name="versions_export_pack_select_files">파일 선택</string>
@@ -806,7 +800,6 @@
     <string name="settings_tab_info_about">정보</string>
     <string name="settings_renderer_global_renderer_title">전역 렌더러</string>
     <string name="settings_renderer_global_renderer_summary">기본 렌더러는 동적 라이브러리 변환 계층을 사용해, 모바일 기기에서 게임이 작동하도록 합니다</string>
-    <string name="settings_renderer_env_title">환경 변수: %s</string>
     <string name="settings_renderer_config_title">렌더러 설정</string>
     <string name="settings_renderer_from_plugins">플러그인 \'%s\'에서</string>
     <string name="settings_renderer_resolution_scale_title">해상도</string>
@@ -825,7 +818,6 @@
     <string name="settings_renderer_shader_dump_summary">그래픽 렌더링을 원활하게 디버깅, 분석하기 위해 런타임 중에 변환된 쉐이더 코드를 파일로 출력합니다</string>
     <string name="settings_renderer_zink_driver_adreno">현재 기기에서 Adreno GPU를 감지했습니다. 이 옵션을 활성화하면 Zink 렌더러가 오작동할 수 있습니다. 정말로 활성화하시겠습니까?</string>
     <string name="settings_renderer_vsync_in_zink_title">Zink Vsync</string>
-    <string name="settings_renderer_surface_title">SurfaceView 렌더링 사용</string>
     <string name="settings_game_version_isolation_summary">각 버전이 서로 간섭하지 않도록 모두 격리합니다</string>
     <string name="settings_game_skip_game_integrity_check_title">무결성 검사 건너뛰기</string>
     <string name="settings_game_skip_game_integrity_check_summary">게임을 실행할 때 잘못된 파일이 다시 다운로드되지 않습니다</string>
@@ -969,8 +961,7 @@
     <string name="settings_launcher_log_share_title">런처 로그 공유</string>
     <string name="settings_launcher_log_retention_days_title">로그 보관일</string>
     <string name="settings_launcher_log_retention_days_summary">런처가 로그를 며칠 동안 보관할지 설정합니다. 설정값보다 오래된 로그는 자동으로 삭제됩니다</string>
-    <string name="settings_launcher_swap_animate_type_title">전환 에니메이션</string>
-    <string name="settings_launcher_animate_speed_title">에니메이션 속도</string>
+    <string name="settings_launcher_animate_speed_title">애니메이션 속도</string>
     <string name="settings_launcher_full_screen_title">전체 화면 모드</string>
     <string name="settings_launcher_language">언어</string>
     <string name="settings_launcher_dark_mode_title">다크 모드</string>
@@ -989,6 +980,7 @@
     <string name="control_manage_failed_to_save">컨트롤 레이아웃 저장 실패</string>
     <string name="control_editor_edit_style_config_delete">정말 컨트롤 외관 \'%s\'을(를) 삭제하시겠습니까?</string>
     <string name="about_acknowledgements_pojav_text">%s은(는) PojavLauncher의 실행 백엔드를 사용합니다</string>
+    <string name="about_acknowledgements_modrinth_text">%s은(는) Modrinth의 플레이어 모델 애니메이션 프리셋을 이식합니다</string>
     <string name="vibrate_kind_one_shot">상수</string>
 
     <string name="guide_main_welcome_title">%s에 오신 것을 환영합니다!</string>
@@ -1011,6 +1003,25 @@
     <string name="guide_editor_add_widgets_text">컨트롤 레이어를 선택한 후 원하는 유형의 컨트롤을 추가할 수 있습니다</string>
     <string name="guide_editor_styles_title">컨트롤의 모양을 바꾸고 싶으신가요?</string>
     <string name="guide_editor_styles_text">컨트롤의 외관을 만들어 두면 빠르게 재사용하고 전환할 수 있습니다</string>
+    <!--  样式收藏柜  -->
+    <string name="control_editor_style_cabinet">스타일 컬렉션</string>
+    <string name="control_editor_style_cabinet_empty">스타일 컬렉션이 비어 있습니다. 컨트롤 외관 목록 또는 조이스틱 스타일 목록에서 스타일을 추가할 수 있습니다.</string>
+    <string name="control_editor_style_cabinet_favorite">스타일 컬렉션에 추가</string>
+    <string name="control_editor_style_cabinet_favorited">스타일을 컬렉션에 추가했습니다</string>
+    <string name="control_editor_style_cabinet_add_to_layout">현재 컨트롤 레이아웃에 추가</string>
+    <string name="control_editor_style_cabinet_added_to_layout">현재 컨트롤 레이아웃에 추가했습니다</string>
+    <string name="control_editor_style_cabinet_add_conflict_title">스타일이 이미 존재합니다</string>
+    <string name="control_editor_style_cabinet_add_conflict_message">같은 ID의 스타일이 현재 컨트롤 레이아웃에 이미 존재합니다.</string>
+    <string name="control_editor_style_cabinet_add_conflict_independent">사본으로 추가</string>
+    <string name="control_editor_style_cabinet_conflict_title">스타일이 이미 컬렉션되어 있습니다</string>
+    <string name="control_editor_style_cabinet_conflict_message">같은 ID의 스타일이 이미 스타일 컬렉션에 있습니다</string>
+    <string name="control_editor_style_cabinet_conflict_overwrite">기존 항목 덮어쓰기</string>
+    <string name="control_editor_style_cabinet_conflict_independent">별도 사본으로 컬렉션</string>
+    <string name="control_editor_style_cabinet_delete">컬렉션된 스타일 %s을(를) 삭제하시겠습니까?</string>
+
+    <string name="guide_editor_style_cabinet_title">마음에 드는 스타일을 공용 컬렉션에 추가할 수도 있어요!</string>
+    <string name="guide_editor_style_cabinet_text">스타일 컬렉션은 전역으로 적용되어, 어떤 컨트롤 레이아웃을 편집할 때도 이 안의 스타일을 볼 수 있어요~</string>
+    <string name="guide_editor_style_cabinet_note">여기서 컬렉션된 스타일을 현재 컨트롤 레이아웃에 추가해 사용할 수 있어요~</string>
     <string name="guide_editor_preview">미리보기 기능으로 컨트롤 레이아웃을 테스트해 보세요!</string>
     <string name="guide_editor_save">편집을 마쳤다면 컨트롤 레이아웃 저장을 잊지 마세요!</string>
     <string name="guide_tip_blank">빈 화면을 탭하면 다음으로 넘어갑니다</string>

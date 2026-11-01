@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,7 +38,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -59,6 +58,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.nonInteractiveScrollbar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -78,7 +78,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -96,7 +95,9 @@ import com.movtery.zalithlauncher.ui.components.ProgressDialog
 import com.movtery.zalithlauncher.ui.components.ScalingLabel
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.SimpleTextInputField
+import com.movtery.zalithlauncher.ui.components.animated
 import com.movtery.zalithlauncher.ui.components.fadeEdge
+import com.movtery.zalithlauncher.ui.components.rememberAnimatedContext
 import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
 import com.movtery.zalithlauncher.ui.screens.TitledNavKey
@@ -116,7 +117,6 @@ import com.movtery.zalithlauncher.ui.screens.content.download.assets.elements.As
 import com.movtery.zalithlauncher.ui.theme.itemColor
 import com.movtery.zalithlauncher.ui.theme.onItemColor
 import com.movtery.zalithlauncher.utils.animation.getAnimateTween
-import com.movtery.zalithlauncher.utils.animation.swapAnimateDpAsState
 import com.movtery.zalithlauncher.utils.file.FolderFileCounter
 import com.movtery.zalithlauncher.utils.file.formatFileSize
 import com.movtery.zalithlauncher.viewmodel.ErrorViewModel
@@ -128,6 +128,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -316,66 +317,31 @@ private class ShadersManageViewModel(
         SortByEnum.FileName, SortByEnum.FileModifiedTime
     )
 
+    private var filterJob: Job? = null
+
     private fun filterShaders() {
-        filteredShaders = allShaders
-            .takeIf { it.isNotEmpty() }
-            ?.filterRemoteShaders(nameFilter, stateFilter)
-            ?.sortedWith { o1, o2 ->
-                val file1 = o1.info.file
-                val file2 = o2.info.file
-                val value = when (sortByEnum) {
-                    SortByEnum.FileName -> o1.info.displayName.compareTo(o2.info.displayName)
-                    SortByEnum.FileModifiedTime -> file2.lastModified().compareTo(file1.lastModified())
-                    else -> error("This sorting method is not supported: $sortByEnum")
-                }
-                if (isAscending) value else -value
-            }
-    }
-
-    private fun startQueueProcessor() {
-        viewModelScope.launch {
-            while (true) {
-                try {
-                    ensureActive()
-                } catch (_: Exception) {
-                    break
-                }
-
-                val task = queueMutex.withLock {
-                    loadQueue.poll()
-                } ?: run {
-                    delay(100.milliseconds)
-                    continue
-                }
-
-                val (pack, loadFromCache) = task
-                semaphore.acquire()
-
-                launch {
-                    try {
-                        pack.load(loadFromCache)
-                    } finally {
-                        semaphore.release()
-                        shadersToLoad.remove(pack)
+        filterJob?.cancel()
+        filterJob = viewModelScope.launch(Dispatchers.Default) {
+            val result = allShaders
+                .takeIf { it.isNotEmpty() }
+                ?.filterShaders(nameFilter)
+                ?.sortedWith { o1, o2 ->
+                    val file1 = o1.file
+                    val file2 = o2.file
+                    val value = when (sortByEnum) {
+                        SortByEnum.FileName -> file1.name.compareTo(file2.name)
+                        SortByEnum.FileModifiedTime -> file2.lastModified().compareTo(file1.lastModified())
+                        else -> error("This sorting method is not supported: $sortByEnum")
+                    }
+                    if (isAscending) {
+                        value
+                    } else {
+                        -value
                     }
                 }
-            }
+            if (!isActive) return@launch
+            filteredShaders = result
         }
-    }
-
-    fun loadShaderPack(pack: RemoteShaderPack, loadFromCache: Boolean = true) {
-        if (shadersToLoad.contains(pack)) return
-
-        shadersToLoad.add(pack)
-        viewModelScope.launch {
-            queueMutex.withLock {
-                loadQueue.add(pack to loadFromCache)
-            }
-        }
-    }
-
-    override fun onCleared() {
-        viewModelScope.cancel()
     }
 }
 
@@ -428,99 +394,102 @@ fun ShadersManagerScreen(
             onRefresh = { viewModel.refresh() }
         )
 
-        val yOffset by swapAnimateDpAsState(
-            targetValue = (-40).dp,
-            swapIn = isVisible
-        )
+        val ctx = rememberAnimatedContext(isVisible = isVisible)
 
         VersionChunkBackground(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(all = 12.dp)
-                .offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                .animated(ctx),
             paddingValues = PaddingValues()
         ) {
             val operationScope = rememberCoroutineScope()
 
-            when (viewModel.shadersState) {
-                LoadingState.None -> {
-                    var shaderOperation by remember { mutableStateOf<ShaderOperation>(ShaderOperation.None) }
-                    fun runProgress(task: () -> Unit) {
-                        operationScope.launch(Dispatchers.IO) {
-                            shaderOperation = ShaderOperation.Progress
-                            task()
-                            shaderOperation = ShaderOperation.None
-                            viewModel.refresh()
-                        }
-                    }
-                    ShaderOperationHandler(
-                        shaderOperation = shaderOperation,
-                        updateOperation = { shaderOperation = it },
-                        deleteShaderPack = { info ->
-                            runProgress {
-                                FileUtils.deleteQuietly(info.file)
+            PullToRefreshBox(
+                modifier = Modifier.fillMaxSize(),
+                isRefreshing = false,
+                enabled = viewModel.shadersState !is LoadingState.Loading,
+                onRefresh = viewModel::refresh,
+            ) {
+                when (viewModel.shadersState) {
+                    LoadingState.None -> {
+                        var shaderOperation by remember { mutableStateOf<ShaderOperation>(ShaderOperation.None) }
+                        fun runProgress(task: () -> Unit) {
+                            operationScope.launch(Dispatchers.IO) {
+                                shaderOperation = ShaderOperation.Progress
+                                task()
+                                shaderOperation = ShaderOperation.None
+                                viewModel.refresh()
                             }
                         }
-                    )
-
-                    Column {
-                        ShadersActionsHeader(
-                            modifier = Modifier.fillMaxWidth(),
-                            nameFilter = viewModel.nameFilter,
-                            onNameFilterChange = { viewModel.updateFilter(it) },
-                            stateFilter = viewModel.stateFilter,
-                            onStateFilterChange = { viewModel.updateStateFilter(it) },
-                            allShadersCount = viewModel.allShaders.size,
-                            enabledCount = viewModel.enabledCount.takeIf { it >= 0 },
-                            disabledCount = viewModel.disabledCount.takeIf { it >= 0 },
-                            supportedSortByEnums = viewModel.supportedSortByEnums,
-                            sortByEnum = viewModel.sortByEnum,
-                            onSortByChanged = { viewModel.updateSortBy(it) },
-                            isAscending = viewModel.isAscending,
-                            onToggleSortOrder = { viewModel.updateSortOrder() },
+                        ShaderOperation(
+                            shaderOperation = shaderOperation,
+                            updateOperation = { shaderOperation = it },
                             shadersDir = shadersDir,
-                            onDeleteAll = {
-                                val selected = viewModel.selectedPacks
-                                if (
-                                    viewModel.deleteAllOperation == DeleteAllOperation.None &&
-                                    selected.isNotEmpty()
-                                ) {
-                                    viewModel.deleteAllOperation = DeleteAllOperation.Warning(
-                                        files = selected.map { pack -> pack.info.file }
-                                    )
+                            renameShaderPack = { info, newName ->
+                                runProgress {
+                                    val file = info.file
+                                    file.renameTo(File(shadersDir, "$newName.${file.extension}"))
                                 }
                             },
-                            isFilesSelected = viewModel.selectedPacks.isNotEmpty(),
-                            onSelectAll = { viewModel.selectAllFiles() },
-                            onClearFilesSelected = { viewModel.clearSelected() },
-                            onEnableAll = { viewModel.enableSelectedPacks() },
-                            onDisableAll = { viewModel.disableSelectedPacks() },
-                            swapToDownload = swapToDownload,
-                            refresh = { viewModel.refresh() },
-                            submitError = submitError
+                            deleteShaderPack = { info ->
+                                runProgress {
+                                    FileUtils.deleteQuietly(info.file)
+                                }
+                            }
                         )
 
-                        ShadersList(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f),
-                            shadersList = viewModel.filteredShaders,
-                            selectedPacks = viewModel.selectedPacks,
-                            removeFromSelected = { viewModel.selectedPacks.remove(it) },
-                            addToSelected = { viewModel.selectedPacks.add(it) },
-                            onToggleEnabled = { viewModel.togglePackEnabled(it) },
-                            updateOperation = { shaderOperation = it },
-                            onSwapMoreInfo = onSwapMoreInfo,
-                            onLoad = { viewModel.loadShaderPack(it) }
-                        )
+                        Column {
+                            ShadersActionsHeader(
+                                modifier = Modifier.fillMaxWidth(),
+                                nameFilter = viewModel.nameFilter,
+                                onNameFilterChange = { viewModel.updateFilter(it) },
+                                supportedSortByEnums = viewModel.supportedSortByEnums,
+                                sortByEnum = viewModel.sortByEnum,
+                                onSortByChanged = { viewModel.updateSortBy(it) },
+                                isAscending = viewModel.isAscending,
+                                onToggleSortOrder = { viewModel.updateSortOrder() },
+                                shadersDir = shadersDir,
+                                onDeleteAll = {
+                                    val selected = viewModel.selectedPacks
+                                    if (
+                                        viewModel.deleteAllOperation == DeleteAllOperation.None &&
+                                        selected.isNotEmpty()
+                                    ) {
+                                        viewModel.deleteAllOperation = DeleteAllOperation.Warning(
+                                            files = selected.map { pack ->
+                                                pack.file
+                                            }
+                                        )
+                                    }
+                                },
+                                isFilesSelected = viewModel.selectedPacks.isNotEmpty(),
+                                onSelectAll = { viewModel.selectAllFiles() },
+                                onClearFilesSelected = { viewModel.clearSelected() },
+                                swapToDownload = swapToDownload,
+                                refresh = { viewModel.refresh() },
+                                submitError = submitError
+                            )
+
+                            ShadersList(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                shadersList = viewModel.filteredShaders,
+                                selectedPacks = viewModel.selectedPacks,
+                                removeFromSelected = { viewModel.selectedPacks.remove(it) },
+                                addToSelected = { viewModel.selectedPacks.add(it) },
+                                updateOperation = { shaderOperation = it }
+                            )
+                        }
                     }
-                }
-                LoadingState.Loading -> {
-                    Box(
-                        Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        LoadingIndicator()
+                    LoadingState.Loading -> {
+                        Box(
+                            Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            LoadingIndicator()
+                        }
                     }
                 }
             }

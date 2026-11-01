@@ -53,10 +53,6 @@
     <string name="theme_color_urban_ash">Городской серый</string>
     <string name="theme_color_verdant_dawn">Безмолвный рассвет</string>
     <string name="theme_color_picker_title">Выбор цвета</string>
-    <!-- Animations -->
-    <string name="animate_type_bounce">Подпрыгивающая</string>
-    <string name="animate_type_jelly_bounce">Желейно подпрыгивающая</string>
-    <string name="animate_type_slice_in">Скользящая</string>
     <!-- Crash Handling -->
     <string name="crash_launcher_title">%s столкнулся с критической ошибкой</string>
     <string name="crash_launcher_message">Лаунчер крашнул. Подробности ошибки ниже могут помочь разработчикам улучшить приложение.</string>
@@ -413,11 +409,7 @@
     <string name="settings_launcher_full_screen_title">Полноэкранный режим</string>
     <string name="settings_launcher_full_screen_summary">Сделать страницы лаунчера полноэкранными, игнорируя безопасные области, такие как вырезы под камеру</string>
     <string name="settings_launcher_animate_speed_title">Скорость анимации</string>
-    <string name="settings_launcher_animate_speed_summary">Настройте скорость анимаций в лаунчере</string>
-    <string name="settings_launcher_animate_extent_title">Интенсивность анимации</string>
-    <string name="settings_launcher_animate_extent_summary">Настройте интенсивность анимаций в лаунчере</string>
-    <string name="settings_launcher_swap_animate_type_title">Анимация перехода</string>
-    <string name="settings_launcher_swap_animate_type_summary">Выберите анимацию перехода между страницами</string>
+    <string name="settings_launcher_animate_speed_summary">Настройте множитель скорости анимации</string>
     <!-- About -->
     <string name="about_plugin_title">Загруженные плагины</string>
     <string name="about_library_title">Сторонние библиотеки</string>
@@ -822,6 +814,7 @@
     <string name="about_sponsor">Спонсорская поддержка</string>
     <string name="about_acknowledgements_title">Благодарности</string>
     <string name="about_acknowledgements_pojav_text">%s использует бэкенд запуска из PojavLauncher</string>
+    <string name="about_acknowledgements_modrinth_text">%s портирует предустановки анимации модели игрока из Modrinth</string>
     <string name="about_acknowledgements_pcl_text">%s использует отдельные реализации из PCL2</string>
     <string name="about_acknowledgements_fcl_text">%s включает код из FCL и использует отдельные его реализации</string>
     <string name="about_acknowledgements_hmcl_text">%s включает код из HMCL и использует отдельные его реализации</string>
@@ -1080,8 +1073,6 @@
     <string name="versions_export_type_modrinth">Сборка формата Modrinth</string>
     <string name="versions_export_type_summary_common">Может быть импортирована в большинство сторонних лаунчеров</string>
     <string name="versions_export_type_curseforge">Сборка формата CurseForge</string>
-    <string name="versions_export_type_multimc">Сборка формата MultiMC</string>
-    <string name="versions_export_type_multimc_summary">Может быть импортирована в %s, MultiMC и другие лаунчеры</string>
     <string name="versions_export_alias_options">Настройки игры</string>
     <string name="generic_edit">Редактировать</string>
     <string name="generic_view">Просмотреть</string>
@@ -1103,7 +1094,6 @@
     <string name="versions_export_pack_java_args">Аргументы Java Virtual Machine</string>
     <string name="versions_export_pack_website">Сайт сборки</string>
     <string name="versions_export_pack_min_memory">Минимальный объём выделенной оперативки</string>
-    <string name="versions_export_pack_max_memory">Максимальный объём выделенной оперативки</string>
     <string name="versions_export_pack_pack_remote">Загружать ключевые ресурсы из %s</string>
     <string name="versions_export_pack_also_pack_curseforge">Включить удалённые ресурсы CurseForge в сборку</string>
     <string name="versions_export_pack_select_files">Выбрать файлы</string>
@@ -1139,8 +1129,6 @@
     <string name="servers_list_undefined">Не определено</string>
     <string name="servers_list_players_full">Заполнен</string>
     <string name="servers_list_add_server">Добавить сервер</string>
-    <string name="settings_renderer_surface_title">Использовать SurfaceView для рендеринга</string>
-    <string name="settings_renderer_surface_summary">Отрисовка происходит на отдельном слое за пределами UI</string>
     <string name="settings_game_native_lib_plugin_title">Нативные библиотеки</string>
     <string name="settings_game_native_lib_plugin_summary">Отображает все установленные нативные библиотеки. Вы можете включать или отключать их в списке.</string>
     <string name="settings_game_graphics_api_title">Графический API</string>
@@ -1223,6 +1211,25 @@
     <string name="guide_editor_add_widgets_text">После выбора слоя вы можете добавлять на него элементы управления любого типа</string>
     <string name="guide_editor_styles_title">Хотите изменить внешний вид элементов управления?</string>
     <string name="guide_editor_styles_text">Вы можете создавать варианты оформления для элементов управления, чтобы быстро использовать их повторно и переключаться между ними</string>
+    <!--  样式收藏柜  -->
+    <string name="control_editor_style_cabinet">Коллекция стилей</string>
+    <string name="control_editor_style_cabinet_empty">Коллекция стилей пуста. Добавить стили можно из списка вариантов оформления или списка стилей джойстика.</string>
+    <string name="control_editor_style_cabinet_favorite">Добавить в коллекцию стилей</string>
+    <string name="control_editor_style_cabinet_favorited">Стиль добавлен в коллекцию</string>
+    <string name="control_editor_style_cabinet_add_to_layout">Добавить в текущую раскладку управления</string>
+    <string name="control_editor_style_cabinet_added_to_layout">Добавлено в текущую раскладку управления</string>
+    <string name="control_editor_style_cabinet_add_conflict_title">Стиль уже существует</string>
+    <string name="control_editor_style_cabinet_add_conflict_message">Стиль с таким же ID уже есть в текущей раскладке управления.</string>
+    <string name="control_editor_style_cabinet_add_conflict_independent">Добавить как копию</string>
+    <string name="control_editor_style_cabinet_conflict_title">Стиль уже в коллекции</string>
+    <string name="control_editor_style_cabinet_conflict_message">Стиль с таким же ID уже есть в коллекции стилей</string>
+    <string name="control_editor_style_cabinet_conflict_overwrite">Перезаписать существующий</string>
+    <string name="control_editor_style_cabinet_conflict_independent">Сохранить как отдельную копию</string>
+    <string name="control_editor_style_cabinet_delete">Вы уверены, что хотите удалить стиль из коллекции %s?</string>
+
+    <string name="guide_editor_style_cabinet_title">Понравившиеся стили можно добавлять в общую коллекцию стилей!</string>
+    <string name="guide_editor_style_cabinet_text">Коллекция стилей общая: при редактировании любой раскладки управления вы всегда увидите стили из неё~</string>
+    <string name="guide_editor_style_cabinet_note">Здесь можно добавить стили из коллекции в текущую раскладку управления~</string>
     <string name="guide_editor_preview">Проверить раскладку можно в режиме предпросмотра.</string>
     <string name="guide_editor_save">Закончив редактирование, не забудьте сохранить раскладку!</string>
     <string name="guide_tip_blank">Коснитесь пустого места, чтобы перейти к следующему шагу</string>

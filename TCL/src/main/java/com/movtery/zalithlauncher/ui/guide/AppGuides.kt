@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -75,11 +75,11 @@ class AppGuides(
     }
 
     /**
-     * 启动指定组的引导流并持久化播放版本，已播放过当前版本时忽略
+     * 启动指定组的引导流，持久化存储播放版本，已播放过当前版本时忽略
      * @return 是否成功启动（流为空或已有其他流激活时失败，或已播放过当前版本）
      */
     fun startOnce(group: GuideKeys.Keys): Boolean {
-        return GuideProgress.playedVersion(group) < group.version && start(group)
+        return !GuideProgress.isPlayed(group) && start(group)
     }
 }
 
@@ -187,6 +187,13 @@ private fun rememberEditorGuides() = rememberGuide {
         GuideCard {
             Text(stringResource(R.string.guide_editor_styles_title))
             Text(stringResource(R.string.guide_editor_styles_text))
+        }
+    }
+    entry(GuideKeys.Editor.Step.StyleCabinet) {
+        GuideCard {
+            Text(stringResource(R.string.guide_editor_style_cabinet_title))
+            Text(stringResource(R.string.guide_editor_style_cabinet_text))
+            Text(stringResource(R.string.guide_editor_style_cabinet_note))
         }
     }
     entry(GuideKeys.Editor.Step.Preview) {

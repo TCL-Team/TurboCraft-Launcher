@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ import com.movtery.guide.GuideKey
 sealed interface GuideKeys : GuideKey {
     /** 一组引导（一条引导流的身份），用于跨层启动事件与进度存储 */
     sealed interface Keys {
-        /** 该组引导的版本号，版本号提升时已看过旧版引导的用户会重新看到引导 */
+        /** 该组引导的版本号 */
         val version: Int
     }
 
@@ -48,7 +48,7 @@ sealed interface GuideKeys : GuideKey {
 
     /** 控制布局编辑器的引导 */
     data object Editor : Keys {
-        override val version = 1
+        override val version = 2
 
         sealed interface Step : GuideKey {
             /** 悬浮菜单 */
@@ -61,6 +61,8 @@ sealed interface GuideKeys : GuideKey {
             data object AddButtons : Step
             /** 创建控件样式 */
             data object AddStyles : Step
+            /** 样式收藏柜 */
+            data object StyleCabinet : Step
             /** 预览控制布局 */
             data object Preview : Step
             /** 保存 */

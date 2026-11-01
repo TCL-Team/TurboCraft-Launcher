@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,6 +33,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.layout.ContentScale
@@ -54,6 +57,7 @@ import com.movtery.zalithlauncher.game.plugin.natives.NativePluginManager
 import com.movtery.zalithlauncher.game.plugin.renderer.RendererPluginManager
 import com.movtery.zalithlauncher.game.renderer.RendererInterface
 import com.movtery.zalithlauncher.game.renderer.Renderers
+import com.movtery.zalithlauncher.game.renderer.isSfpewConfiguredFor
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.hasVulkanBackend
 import com.movtery.zalithlauncher.game.version.installed.utils.isBiggerVer
@@ -359,9 +363,13 @@ fun LaunchGameOperation(
                 // Match official Zalith's per-version Vulkan gate: only skip renderer version
                 // limits when this client has a Vulkan backend and the selected driver supports it.
                 if (!version.hasVulkanBackend() || !ensureVulkanSupported(version)) {
-                    val isRendererUnsupported =
-                        (rendererMinVer?.let { mcVer.isLowerVer(it) } ?: false) ||
-                                (rendererMaxVer?.let { mcVer.isBiggerVer(it) } ?: false)
+                    val supportedMin = currentRenderer.getMinMCVersion()?.let { verStr ->
+                        !isSfpewConfiguredFor(currentRenderer, version) && mcVer.isLowerVer(verStr)
+                    } ?: false
+                    val supportedMax = currentRenderer.getMaxMCVersion()?.let { verStr ->
+                        mcVer.isBiggerVer(verStr)
+                    } ?: false
+                    val isRendererUnsupported = supportedMin || supportedMax
 
                     if (isRendererUnsupported) {
                         updateOperation(LaunchGameOperation.UnsupportedRenderer(currentRenderer, version, quickPlay))
@@ -399,6 +407,121 @@ fun LaunchGameOperation(
                 //正式启动游戏
                 updateOperation(LaunchGameOperation.RealLaunch(version, quickPlay))
             }
+        }
+        is LaunchGameOperation.AccountRelogin -> {
+            if (operation.account.isMicrosoftAccount()) {
+                var selectLoginMethod by remember { mutableStateOf(false) }
+
+                val startReloginLogin: (useSystemBrowser: Boolean) -> Unit = { useSystemBrowser ->
+                    launchGameViewModel.updateOperation(LaunchGameOperation.None)
+                    microsoftLogin(
+                        context = activity,
+                        useSystemBrowser = useSystemBrowser,
+                        toWeb = navigateToWeb,
+                        toSystemBrowser = { url ->
+                            eventViewModel.sendEvent(EventViewModel.Event.OpenLink(url))
+                        },
+                        backToMain = backToMain,
+                        checkIfInWebScreen = checkIfInWebScreen,
+                        updateOperation = {},
+                        showToast = { text, duration -> eventViewModel.sendToast(text, duration) },
+                        submitError = submitError
+                    ) {
+                        activity.runOnUiThread {
+                            launchGameViewModel.updateOperation(
+                                LaunchGameOperation.RealLaunch(
+                                    operation.version,
+                                    operation.quickPlay
+                                )
+                            )
+                        }
+                    }
+                }
+
+                if (selectLoginMethod) {
+                    MicrosoftLoginMethodDialog(
+                        onDismissRequest = {
+                            selectLoginMethod = false
+                        },
+                        onSystemBrowser = {
+                            startReloginLogin(true)
+                        },
+                        onInternalBrowser = {
+                            startReloginLogin(false)
+                        }
+                    )
+                } else {
+                    MicrosoftReloginDialog(
+                        onDismissRequest = {
+                            launchGameViewModel.updateOperation(LaunchGameOperation.None)
+                        },
+                        onConfirm = {
+                            selectLoginMethod = true
+                        }
+                    )
+                }
+            } else {
+                OtherAccountReloginDialog(
+                    account = operation.account,
+                    logging = operation.logging,
+                    error = operation.error,
+                    onDismissRequest = {
+                        launchGameViewModel.updateOperation(LaunchGameOperation.None)
+                    },
+                    onConfirm = { password ->
+                        launchGameViewModel.updateOperation(operation.copy(logging = true, error = null))
+                        AuthServerHelper(
+                            baseUrl = operation.account.otherBaseUrl!!,
+                            serverName = operation.account.accountType!!,
+                            email = operation.account.otherAccount!!,
+                            password = password,
+                            onSuccess = { acc, _ ->
+                                AccountsManager.markSessionValidated(acc)
+                                AccountsManager.suspendSaveAccount(acc)
+                                activity.runOnUiThread {
+                                    launchGameViewModel.updateOperation(
+                                        LaunchGameOperation.RealLaunch(
+                                            operation.version,
+                                            operation.quickPlay)
+                                    )
+                                }
+                            },
+                            onFailed = { th ->
+                                activity.runOnUiThread {
+                                    launchGameViewModel.updateOperation(
+                                        operation.copy(
+                                            logging = false,
+                                            error = th
+                                        ))
+                                }
+                            }
+                        ).let { helper ->
+                            TaskSystem.submitTask(helper.justLogin(activity, operation.account))
+                        }
+                    }
+                )
+            }
+        }
+        is LaunchGameOperation.AccountRefreshFailed -> {
+            val state = operation
+            AccountRefreshFailedDialog(
+                error = state.error,
+                onSkip = {
+                    launchGameViewModel.updateOperation(
+                        LaunchGameOperation.RealLaunch(
+                            state.version,
+                            state.quickPlay,
+                            skipAccountRefresh = true
+                        )
+                    )
+                },
+                onRetry = {
+                    launchGameViewModel.updateOperation(LaunchGameOperation.RealLaunch(state.version, state.quickPlay))
+                },
+                onCancel = {
+                    launchGameViewModel.updateOperation(LaunchGameOperation.None)
+                }
+            )
         }
         is LaunchGameOperation.RealLaunch -> {
             LaunchedEffect(Unit) {

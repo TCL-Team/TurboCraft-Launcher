@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,15 +43,17 @@ import com.movtery.zalithlauncher.game.account.refreshMicrosoft
 import com.movtery.zalithlauncher.game.account.wardrobe.AccountCapeCollection
 import com.movtery.zalithlauncher.game.account.wardrobe.EmptyCape
 import com.movtery.zalithlauncher.game.account.wardrobe.SkinModelType
+import com.movtery.zalithlauncher.game.account.wardrobe.SkinType
 import com.movtery.zalithlauncher.game.account.wardrobe.capeLocalRes
 import com.movtery.zalithlauncher.game.account.wardrobe.getLocalUUIDWithSkinModel
 import com.movtery.zalithlauncher.game.account.wardrobe.isSlimModel
-import com.movtery.zalithlauncher.game.account.wardrobe.validateCapeFile
+import com.movtery.zalithlauncher.game.account.wardrobe.isValid
 import com.movtery.zalithlauncher.game.account.wardrobe.validateSkinFile
 import com.movtery.zalithlauncher.game.account.yggdrasil.PlayerProfile
 import com.movtery.zalithlauncher.game.account.yggdrasil.cacheAllCapes
 import com.movtery.zalithlauncher.game.account.yggdrasil.changeCape
 import com.movtery.zalithlauncher.game.account.yggdrasil.executeWithAuthorization
+import com.movtery.zalithlauncher.game.account.yggdrasil.findUsing
 import com.movtery.zalithlauncher.game.account.yggdrasil.getFile
 import com.movtery.zalithlauncher.game.account.yggdrasil.getPlayerProfile
 import com.movtery.zalithlauncher.game.account.yggdrasil.uploadSkin
@@ -71,6 +73,7 @@ import com.movtery.zalithlauncher.utils.network.toLocal
 import com.movtery.zalithlauncher.utils.string.getMessageOrToString
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -115,7 +118,9 @@ sealed interface AccountManageIntent {
 
     /** 执行微软登录流程 */
     data class PerformMicrosoftLogin(
+        val useSystemBrowser: Boolean,
         val toWeb: (url: String) -> Unit,
+        val toSystemBrowser: (url: String) -> Unit,
         val backToMain: () -> Unit,
         val checkIfInWebScreen: () -> Boolean
     ) : AccountManageIntent
@@ -393,25 +398,31 @@ class AccountManageViewModel @Inject constructor(
             runCatching {
                 context.copyLocalFile(intent.uri, cacheFile)
                 validateSkinFile(cacheFile)
-            }.onSuccess { isValid ->
-                if (!isValid) {
-                    emitError(
-                        androidText(R.string.generic_warning),
-                        androidText(R.string.account_change_skin_invalid)
-                    )
-                    return@onSuccess
-                }
-                val recommendedModel = if (cacheFile.isSlimModel()) {
-                    SkinModelType.ALEX
-                } else {
-                    SkinModelType.STEVE
+            }.onSuccess { skinType ->
+                val data = when (skinType) {
+                    SkinType.DualLayer -> {
+                        val type = if (cacheFile.isSlimModel()) {
+                            SkinModelType.ALEX
+                        } else {
+                            SkinModelType.STEVE
+                        }
+                        ChangeSkin.SkinModel.Model(type)
+                    }
+                    SkinType.Classic -> ChangeSkin.SkinModel.Rejected
+                    SkinType.Invalid -> {
+                        emitError(
+                            androidText(R.string.generic_warning),
+                            androidText(R.string.account_change_skin_invalid)
+                        )
+                        return@onSuccess
+                    }
                 }
 
                 _accountSkinDialogState.update {
                     it.copy(
                         pendingSkinData = ChangeSkin.ChangeSkinData(
                             cacheFile = cacheFile,
-                            skinModel = recommendedModel
+                            data = data
                         )
                     )
                 }
@@ -496,9 +507,11 @@ class AccountManageViewModel @Inject constructor(
     private fun performMicrosoftLogin(intent: AccountManageIntent.PerformMicrosoftLogin) {
         microsoftLogin(
             context,
-            intent.toWeb,
-            intent.backToMain,
-            intent.checkIfInWebScreen,
+            useSystemBrowser = intent.useSystemBrowser,
+            toWeb = intent.toWeb,
+            toSystemBrowser = intent.toSystemBrowser,
+            backToMain = intent.backToMain,
+            checkIfInWebScreen = intent.checkIfInWebScreen,
             { onIntent(AccountManageIntent.UpdateMicrosoftLoginOp(it)) },
             showToast = ::emitToast,
             { emitError(it.title, it.message) }
@@ -521,7 +534,7 @@ class AccountManageViewModel @Inject constructor(
                 id = account.uniqueUUID,
                 dispatcher = Dispatchers.IO,
                 task = {
-                    if (validateSkinFile(file)) {
+                    if (validateSkinFile(file).isValid()) {
                         onIntent(
                             AccountManageIntent.UploadMicrosoftSkin(
                                 account = account,
@@ -627,8 +640,27 @@ class AccountManageViewModel @Inject constructor(
                         task.updateMessage(androidText(R.string.account_change_cape_cache_all))
                         cacheAllCapes(profile)
                         //同时更新本地的皮肤/披风
-                        account.downloadYggdrasil()
+                        runCatching {
+                            account.downloadYggdrasil(refresh = false)
+                        }.onFailure { e ->
+                            if (e is CancellationException) throw e
+                        }
+
+                        val activeCape = profile.capes.findUsing()
+                        val targetCape = account.getCapeFile()
+                        if (activeCape != null) {
+                            val activeCapeFile = activeCape.getFile(PathManager.DIR_ACCOUNT_CAPE)
+                            if (activeCapeFile.exists()) {
+                                runCatching {
+                                    activeCapeFile.copyTo(targetCape, overwrite = true)
+                                }
+                            }
+                        } else {
+                            FileUtils.deleteQuietly(targetCape)
+                        }
+
                         _accountCapeOpMap.update { it + (account.uniqueUUID to profile.capes) }
+                        AccountsManager.refreshWardrobe()
                     }, onRefreshRequest = {
                         account.refreshMicrosoft(task = task, coroutineContext = coroutineContext)
                         AccountsManager.suspendSaveAccount(account)
@@ -837,7 +869,7 @@ class AccountManageViewModel @Inject constructor(
         val skinFile = account.getSkinFile()
 
         TaskSystem.submitTask(Task.runTask(dispatcher = Dispatchers.IO, task = {
-            if (validateSkinFile(file)) {
+            if (validateSkinFile(file).isValid()) {
                 account.skinModelType = model
                 account.profileId = getLocalUUIDWithSkinModel(account.username, model)
                 file.copyTo(skinFile, true)

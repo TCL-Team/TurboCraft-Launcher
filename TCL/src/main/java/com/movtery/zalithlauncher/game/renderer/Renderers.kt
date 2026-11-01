@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,7 +24,6 @@ import com.movtery.zalithlauncher.game.renderer.renderers.KopperZinkRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.MobileGluesRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.NGGL4ESRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.PanfrostRenderer
-import com.movtery.zalithlauncher.game.renderer.renderers.SimpleFPEWrapperRenderer
 import com.movtery.zalithlauncher.game.renderer.renderers.VirGLRenderer
 import com.movtery.zalithlauncher.utils.logging.Logger
 
@@ -54,7 +53,6 @@ object Renderers {
             GL4ESRenderer,
             KopperZinkRenderer,
             MobileGluesRenderer,
-            SimpleFPEWrapperRenderer,
             VirGLRenderer,
             FreedrenoRenderer,
             PanfrostRenderer

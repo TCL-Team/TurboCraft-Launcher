@@ -31,7 +31,6 @@
     <string name="theme_color_embermire">Pântano de brasas</string>
     <string name="theme_color_mistwave">Onda nebular</string>
     <string name="theme_color_glacier">Geleira</string>
-    <string name="animate_type_bounce">Quicar</string>
     <string name="crash_restart">Reiniciar</string>
     <string name="crash_exit">Sair</string>
     <string name="splash_screen_agree">Instalar</string>
@@ -151,8 +150,6 @@
     <string name="theme_color_urban_ash">Cinzas urbanas</string>
     <string name="theme_color_verdant_dawn">Amanhecer verdejante</string>
     <string name="theme_color_picker_title">Seletor de cores</string>
-    <string name="animate_type_jelly_bounce">Salto gelatinoso</string>
-    <string name="animate_type_slice_in">Deslizar</string>
     <string name="crash_launcher_title">%s encontrou um erro fatal</string>
     <string name="crash_launcher_message">O aplicativo travou inesperadamente. Os detalhes do erro abaixo ajudarão os desenvolvedores a melhorar o aplicativo.</string>
     <string name="crash_exit_message">A JVM saiu com o código %d.</string>
@@ -592,9 +589,7 @@
     <string name="settings_control_gesture_long_press_action_summary">Seleciona a ação do botão do mouse quando um toque longo na tela é feito</string>
     <string name="settings_launcher_color_theme_summary">Personaliza as cores do launcher</string>
     <string name="settings_launcher_full_screen_summary">O launcher ficará em tela cheia, ignorando as bordas da tela</string>
-    <string name="settings_launcher_animate_speed_summary">Ajusta o multiplicador de velocidade para as animações do launcher</string>
-    <string name="settings_launcher_animate_extent_summary">Ajusta a intensidade das animações do launcher</string>
-    <string name="settings_launcher_swap_animate_type_summary">Escolhe a animação de transição das páginas</string>
+    <string name="settings_launcher_animate_speed_summary">Ajusta o multiplicador de velocidade das animações</string>
     <string name="settings_launcher_log_retention_days_summary">Define quantos dias os registros do launcher serão preservados. Arquivos mais antigos que o tempo definido serão automaticamente apagados</string>
     <string name="settings_launcher_log_share_summary">Toque para compartilhar os arquivos de registro para que os desenvolvedores possam identificar e resolver os problemas do launcher</string>
     <string name="control_keyboard_bind_summary">Pressione a tecla que deseje vincular</string>
@@ -619,14 +614,13 @@
     <string name="settings_launcher_color_theme_title">Cor do tema</string>
     <string name="settings_launcher_full_screen_title">Modo de ecrã cheio</string>
     <string name="settings_launcher_animate_speed_title">Velocidade da animação</string>
-    <string name="settings_launcher_animate_extent_title">Intensidade da animação</string>
-    <string name="settings_launcher_swap_animate_type_title">Transição da animação</string>
     <string name="settings_launcher_log_retention_days_title">Tempo de retenção do registro</string>
     <string name="settings_launcher_log_share_title">Compartilhar registros do launcher</string>
     <string name="settings_launcher_log_share_packing">Arquivos de registro do inicializador de pacotes</string>
     <string name="settings_launcher_mirror_official">De fontes oficiais</string>
     <string name="settings_launcher_mirror_mirror">Do espelho</string>
     <string name="about_acknowledgements_pojav_text">%s utiliza o backend do PojavLauncher</string>
+    <string name="about_acknowledgements_modrinth_text">%s porta as predefinições de animação do modelo de jogador do Modrinth</string>
     <string name="about_acknowledgements_bangbang93_text">%s utiliza a API BMCL da fonte mirror</string>
     <string name="about_acknowledgements_title">Agradecimentos</string>
     <string name="about_acknowledgements_pcl_text">%s retribui parte da implementação do PCL2</string>
@@ -943,8 +937,6 @@
     <string name="versions_export_type_modrinth">Modpack Modrinth</string>
     <string name="versions_export_type_summary_common">Pode ser importado por launchers comuns de terceiros</string>
     <string name="versions_export_type_curseforge">Modpack do Curseforge</string>
-    <string name="versions_export_type_multimc">Modpack MultiMC</string>
-    <string name="versions_export_type_multimc_summary">Pode ser importado por %s, MultiMC e outros launchers</string>
     <string name="versions_export_alias_options">Configurações do Jogo</string>
     <string name="versions_export_alias_resource_packs">Pasta de Resource Packs</string>
     <string name="versions_export_alias_mods">Pasta de Mods</string>
@@ -1019,8 +1011,6 @@
     <string name="servers_list_edit_server">Editar servidor</string>
     <string name="servers_list_copy_server_address">Copiar endereço</string>
     <string name="settings_title_blur">Efeito de Desfoque</string>
-    <string name="settings_renderer_surface_title">Usar renderização SurfaceView</string>
-    <string name="settings_renderer_surface_summary">Renderiza usando uma camada separada fora da interface do utilizador</string>
     <string name="settings_game_java_memory_used_text">Usando: %1$dMB | Total do dispositivo: %2$dMB</string>
     <string name="settings_game_native_lib_plugin_title">Plugins da Biblioteca Nativa</string>
     <string name="settings_game_graphics_api_summary">Defina a API gráfica usada pelo Minecraft 26.2+</string>
@@ -1183,7 +1173,6 @@
     <string name="settings_gamepad_remapping_finished_saved">Mapeamento do controlo gravado com sucesso. Agora pode fechar esta caixa de diálogo!</string>
     <string name="settings_gamepad_config_summary">Selecione o mapeamento do gamepad configuração a ser usada</string>
     <string name="versions_export_pack_min_memory">Memória mínima alocada</string>
-    <string name="versions_export_pack_max_memory">Memória máxima alocada</string>
 
     <string name="guide_main_welcome_title">Bem-vindo ao %s!</string>
     <string name="guide_main_welcome_text">Vamos dar uma vista de olhos rápida às funções do ecrã principal.</string>
@@ -1205,6 +1194,25 @@
     <string name="guide_editor_add_widgets_text">Depois de selecionar uma camada de controlo, pode adicionar-lhe qualquer tipo de controlo</string>
     <string name="guide_editor_styles_title">Quer alterar o aspeto dos seus controlos?</string>
     <string name="guide_editor_styles_text">Pode criar aspetos para os seus controlos, para os reutilizar e alternar entre eles rapidamente</string>
+    <!--  样式收藏柜  -->
+    <string name="control_editor_style_cabinet">Coleção de estilos</string>
+    <string name="control_editor_style_cabinet_empty">A coleção de estilos está vazia. Pode adicionar estilos a partir da lista de aparências de controlo ou da lista de estilos do joystick.</string>
+    <string name="control_editor_style_cabinet_favorite">Adicionar à coleção de estilos</string>
+    <string name="control_editor_style_cabinet_favorited">Estilo adicionado à coleção</string>
+    <string name="control_editor_style_cabinet_add_to_layout">Adicionar ao leiaute de controle atual</string>
+    <string name="control_editor_style_cabinet_added_to_layout">Adicionado ao leiaute de controle atual</string>
+    <string name="control_editor_style_cabinet_add_conflict_title">O estilo já existe</string>
+    <string name="control_editor_style_cabinet_add_conflict_message">Já existe um estilo com o mesmo ID no leiaute de controle atual.</string>
+    <string name="control_editor_style_cabinet_add_conflict_independent">Adicionar como cópia</string>
+    <string name="control_editor_style_cabinet_conflict_title">O estilo já está na coleção</string>
+    <string name="control_editor_style_cabinet_conflict_message">Já existe um estilo com o mesmo ID na coleção de estilos</string>
+    <string name="control_editor_style_cabinet_conflict_overwrite">Substituir existente</string>
+    <string name="control_editor_style_cabinet_conflict_independent">Guardar como cópia separada</string>
+    <string name="control_editor_style_cabinet_delete">Tem a certeza de que quer eliminar o estilo guardado %s?</string>
+
+    <string name="guide_editor_style_cabinet_title">Também pode adicionar os seus estilos favoritos à coleção de estilos partilhada!</string>
+    <string name="guide_editor_style_cabinet_text">A coleção de estilos é global: esteja a editar o leiaute de controle que estiver, verá sempre os estilos aqui guardados~</string>
+    <string name="guide_editor_style_cabinet_note">Aqui pode adicionar os estilos guardados ao leiaute de controle atual para os utilizar~</string>
     <string name="guide_editor_preview">Utilize o modo de pré-visualização para testar o seu layout de controlos</string>
     <string name="guide_editor_save">Quando terminar de editar, não se esqueça de guardar o layout de controlo!</string>
     <string name="guide_tip_blank">Toque em qualquer zona em branco para avançar para o passo seguinte</string>
