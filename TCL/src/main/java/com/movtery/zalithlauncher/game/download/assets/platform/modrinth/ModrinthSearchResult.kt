@@ -33,6 +33,7 @@ import com.movtery.zalithlauncher.game.download.assets.utils.getTranslations
 import com.movtery.zalithlauncher.ui.screens.content.download.assets.elements.AssetsPage
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import com.movtery.zalithlauncher.game.download.assets.utils.getInfoByCurseForgeId
 
 /**
  * Modrinth 搜索得到的项目返回值

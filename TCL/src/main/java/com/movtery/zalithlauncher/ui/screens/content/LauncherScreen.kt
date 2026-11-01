@@ -136,9 +136,8 @@ import com.movtery.zalithlauncher.utils.animation.swapAnimateDpAsState
 import com.movtery.zalithlauncher.viewmodel.HomePageState
 import com.movtery.zalithlauncher.viewmodel.LocalHomePageViewModel
 import com.movtery.zalithlauncher.viewmodel.ScreenBackStackViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import com.movtery.zalithlauncher.ui.components.defaultMarkdownConfig
 
 private const val ContentWeight = 7f
 private const val ActionMenuWeight = 3f

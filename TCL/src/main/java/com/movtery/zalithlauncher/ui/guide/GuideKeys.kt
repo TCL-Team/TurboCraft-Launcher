@@ -33,6 +33,8 @@ sealed interface GuideKeys : GuideKey {
         override val version = 1
 
         sealed interface Step : GuideKey {
+            /** 侧边栏 */
+            data object SideBar : Step
             /** 添加账号入口 */
             data object Account : Step
             /** 版本列表入口 */

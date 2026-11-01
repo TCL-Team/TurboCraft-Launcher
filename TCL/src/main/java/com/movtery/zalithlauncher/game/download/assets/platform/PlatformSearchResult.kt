@@ -23,6 +23,7 @@ import com.movtery.zalithlauncher.ui.screens.content.download.assets.elements.As
 import com.movtery.zalithlauncher.utils.string.LevCalculator
 import com.movtery.zalithlauncher.utils.string.containsChinese
 import kotlin.math.max
+import com.movtery.zalithlauncher.game.download.assets.utils.getInfoByCurseForgeId
 
 private const val CONTAIN_CHINESE_WEIGHT = 10
 

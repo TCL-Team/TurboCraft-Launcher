@@ -244,6 +244,13 @@ sealed interface AccountOperation {
     data object None : AccountOperation
     data class Delete(val account: Account) : AccountOperation
     data class OnFailed(val th: Throwable) : AccountOperation
+
+    /** 账号凭据已被服务端拒绝，需要重新登录 */
+    data class OnRelogin(
+        val account: Account,
+        val logging: Boolean = false,
+        val error: Throwable? = null
+    ) : AccountOperation
 }
 
 /**

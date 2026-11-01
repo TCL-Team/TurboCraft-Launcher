@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,6 @@ import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -50,8 +49,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -59,10 +60,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.nonInteractiveScrollbar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -77,7 +78,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.movtery.zalithlauncher.R
@@ -90,26 +93,18 @@ import com.movtery.zalithlauncher.game.account.isAuthServerAccount
 import com.movtery.zalithlauncher.game.account.isElyByAccount
 import com.movtery.zalithlauncher.game.account.isLocalAccount
 import com.movtery.zalithlauncher.game.account.isMicrosoftLogging
-import com.movtery.zalithlauncher.game.account.wardrobe.toArmModel
 import com.movtery.zalithlauncher.game.account.yggdrasil.PlayerProfile
 import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.ui.base.BaseScreen
-import com.movtery.zalithlauncher.ui.components.AnimatedDirection
 import com.movtery.zalithlauncher.ui.components.BackgroundCard
 import com.movtery.zalithlauncher.ui.components.MarqueeText
-import com.movtery.zalithlauncher.ui.components.PetModelView
-import com.movtery.zalithlauncher.ui.components.ScalingActionButton
-import com.movtery.zalithlauncher.ui.components.ScalingLabel
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.SimpleEditDialog
-import com.movtery.zalithlauncher.game.account.wardrobe.toArmModel
-import com.movtery.zalithlauncher.ui.components.PetModelView
+import com.movtery.zalithlauncher.ui.components.PlayerSkin
 import com.movtery.zalithlauncher.ui.components.ScalingActionButton
 import com.movtery.zalithlauncher.ui.components.ScalingLabel
 import com.movtery.zalithlauncher.ui.components.SimpleListDialog
 import com.movtery.zalithlauncher.ui.components.SimpleListItem
-import com.movtery.zalithlauncher.ui.components.animated
-import com.movtery.zalithlauncher.ui.components.rememberAnimatedContext
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
 import com.movtery.zalithlauncher.ui.screens.navigateTo
 import com.movtery.zalithlauncher.ui.screens.content.elements.AccountOperation
@@ -119,7 +114,6 @@ import com.movtery.zalithlauncher.ui.screens.content.elements.LocalLoginDialog
 import com.movtery.zalithlauncher.ui.screens.content.elements.LocalLoginOperation
 import com.movtery.zalithlauncher.ui.screens.content.elements.LoginMenuDialog
 import com.movtery.zalithlauncher.ui.screens.content.elements.LoginMenuOperation
-import com.movtery.zalithlauncher.ui.screens.content.elements.MicrosoftLoginMethodDialog
 import com.movtery.zalithlauncher.ui.screens.content.elements.MicrosoftLoginOperation
 import com.movtery.zalithlauncher.ui.screens.content.elements.MicrosoftLoginTipDialog
 import com.movtery.zalithlauncher.ui.screens.content.elements.OtherLoginOperation
@@ -141,7 +135,13 @@ import com.movtery.zalithlauncher.viewmodel.ErrorViewModel
 import com.movtery.zalithlauncher.viewmodel.LocalBackgroundViewModel
 import com.movtery.zalithlauncher.viewmodel.ScreenBackStackViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.movtery.zalithlauncher.ui.screens.content.elements.MicrosoftReloginDialog
+import com.movtery.zalithlauncher.ui.screens.content.elements.OtherAccountReloginDialog
+import com.movtery.zalithlauncher.game.account.isMicrosoftAccount
 
 /**
  * 封装账号界面 UI 交互的回调函数
@@ -280,23 +280,17 @@ private fun AccountManageContent(
     val context = LocalContext.current
 
 
-    //玩家模型预览
-    val armModel = currentAccount?.skinModelType?.toArmModel()
-    val skinStamp = currentAccount?.getSkinFile()?.lastModified()
-    val capeStamp = currentAccount?.getSelectedCapeFile()?.lastModified()
-    val skinBytes by produceState<ByteArray?>(
-        null, currentAccount, refreshWardrobe, skinStamp, armModel
-    ) {
-        value = withContext(Dispatchers.IO) {
-            currentAccount?.getSkinFile()?.takeIf { it.exists() }
-                ?.inputStream()?.use { it.readBytes() }
-        }
+    val accountSkin = remember(currentAccount, refreshWardrobe) {
+        currentAccount?.getSkinFile()?.takeIf { it.exists() }
     }
-    val capeBytes by produceState<ByteArray?>(null, currentAccount, refreshWardrobe, capeStamp) {
-        value = withContext(Dispatchers.IO) {
-            currentAccount?.getSelectedCapeFile()?.takeIf { it.exists() }
-                ?.inputStream()?.use { it.readBytes() }
-        }
+    val accountCape = remember(currentAccount, refreshWardrobe) {
+        currentAccount?.getSelectedCapeFile()
+    }
+    val playerSkin = remember { PlayerSkin(context) }
+    var pageFinished by remember { mutableStateOf(false) }
+
+    DisposableEffect(Unit) {
+        onDispose { playerSkin.destroy() }
     }
 
     Row(
@@ -305,68 +299,98 @@ private fun AccountManageContent(
             .padding(12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // ── Left panel: 玩家模型预览 + 添加账号（与 ZalithLauncher 2 布局一致）──
+        // ── Left panel: skin preview + add account ──
         Column(
             modifier = Modifier
-                .weight(0.3f)
+                .weight(0.35f)
                 .fillMaxHeight(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // 模型按视图宽度等比缩放（width/44），预览区不够高就会被上下裁掉，
-            // 因此这里按 44:36 的模型比例约束宽度，保证全身始终完整可见
-            Box(
+            BackgroundCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                PetModelView(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .aspectRatio(44f / 36f, matchHeightConstraintsFirst = true),
-                    skin = skinBytes,
-                    cape = capeBytes,
-                    arm = armModel,
-                    yaw = Math.toRadians(35.0).toFloat()
-                )
-            }
-
-            BackgroundCard(
-                modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.extraLarge
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    if (currentAccount != null) {
-                        Text(
-                            text = currentAccount.username,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // 3D skin preview
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AndroidView(
+                            modifier = Modifier.fillMaxSize(),
+                            factory = { ctx ->
+                                playerSkin.loadWebView(
+                                    context = ctx,
+                                    onPageFinished = {
+                                        pageFinished = true
+                                        playerSkin.startAnimationCycle()
+                                        playerSkin.setAzimuthAndPitch(-35, 10)
+                                    }
+                                )
+                            },
+                            update = {
+                                if (pageFinished) {
+                                    runCatching {
+                                        accountSkin?.inputStream().use { inputStream ->
+                                            playerSkin.loadSkin(inputStream, currentAccount?.skinModelType)
+                                        }
+                                    }
+                                    runCatching {
+                                        accountCape?.inputStream().use { inputStream ->
+                                            playerSkin.loadCape(inputStream)
+                                        }
+                                    }
+                                }
+                            }
                         )
-                        Text(
-                            text = getAccountTypeName(context, currentAccount),
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.alpha(0.7f)
-                        )
-                        Text(
-                            text = PlayTimeUtils.getRankName(context, AllSettings.playTime.getValue()),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                    } else {
-                        Text(
-                            text = stringResource(R.string.account_no_account),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.alpha(0.6f)
-                        )
+                        if (!pageFinished) {
+                            LoadingIndicator()
+                        }
                     }
+
+                    HorizontalDivider(modifier = Modifier.alpha(0.2f))
+
+                    // Account info + chroma
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (currentAccount != null) {
+                            Text(
+                                text = currentAccount.username,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = getAccountTypeName(context, currentAccount),
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.alpha(0.7f)
+                            )
+                            val totalMs = AllSettings.playTime.getValue()
+                            val rank = PlayTimeUtils.getRankName(context, totalMs)
+                            Text(
+                                text = rank,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Text(
+                                text = stringResource(R.string.account_no_account),
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.alpha(0.6f)
+                            )
+                        }
+                    }
+
                 }
             }
 
@@ -448,7 +472,7 @@ private fun AccountManageContent(
         // ── Right panel: account cards with drag-and-drop ──
         BackgroundCard(
             modifier = Modifier
-                .weight(0.7f)
+                .weight(0.65f)
                 .fillMaxHeight(),
             shape = MaterialTheme.shapes.extraLarge
         ) {
@@ -558,41 +582,32 @@ private fun AccountCard(
     onCopyUUID: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
-    val ctx = rememberAnimatedContext(isVisible = isVisible)
+    val isSelected = currentAccount?.uniqueUUID == account.uniqueUUID
+    val context = LocalContext.current
 
-    Column(
-        modifier = modifier
-            .animated(ctx, from = AnimatedDirection.Left)
-            .fillMaxHeight()
+    BackgroundCard(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        onClick = onSelected,
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation)
     ) {
-        //玩家模型预览
-        val refreshWardrobe by AccountsManager.refreshWardrobe.collectAsStateWithLifecycle()
-        val armModel = currentAccount?.skinModelType?.toArmModel()
-        val skinStamp = currentAccount?.getSkinFile()?.lastModified()
-        val capeStamp = currentAccount?.getCapeFile()?.lastModified()
-        val skinBytes by produceState<ByteArray?>(
-            null, currentAccount, refreshWardrobe, skinStamp, armModel
-        ) {
-            value = withContext(Dispatchers.IO) {
-                currentAccount?.getSkinFile()?.takeIf { it.exists() }
-                    ?.inputStream()?.use { it.readBytes() }
-            }
-        }
-        val capeBytes by produceState<ByteArray?>(null, currentAccount, refreshWardrobe, capeStamp) {
-            value = withContext(Dispatchers.IO) {
-                currentAccount?.getCapeFile()?.takeIf { it.exists() }
-                    ?.inputStream()?.use { it.readBytes() }
-            }
-        }
-        PetModelView(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            skin = skinBytes,
-            cape = capeBytes,
-            arm = armModel,
-            yaw = Math.toRadians(35.0).toFloat()
-        )
+        Column(modifier = Modifier.padding(12.dp).fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Drag handle + profile head
+                Box(
+                    modifier = dragHandleModifier,
+                    contentAlignment = Alignment.Center
+                ) {
+                    PlayerFace(
+                        modifier = Modifier.size(44.dp),
+                        account = account,
+                        avatarSize = 44.dp
+                    )
+                }
 
                 // Account info
                 Column(
@@ -760,44 +775,18 @@ private fun MicrosoftLoginOperation(
                 onConfirm = {
                     actions.onIntent(
                         AccountManageIntent.UpdateMicrosoftLoginOp(
-                            MicrosoftLoginOperation.SelectBrowser
+                            MicrosoftLoginOperation.None
+                        )
+                    )
+                    actions.onIntent(
+                        AccountManageIntent.PerformMicrosoftLogin(
+                            toWeb = actions.navigateToWeb,
+                            backToMain = actions.backToMainScreen,
+                            checkIfInWebScreen = actions.checkIfInWebScreen
                         )
                     )
                 },
                 openLink = actions.openLink
-            )
-        }
-        is MicrosoftLoginOperation.SelectBrowser -> {
-            MicrosoftLoginMethodDialog(
-                onDismissRequest = {
-                    actions.onIntent(
-                        AccountManageIntent.UpdateMicrosoftLoginOp(
-                            MicrosoftLoginOperation.None
-                        )
-                    )
-                },
-                onSystemBrowser = {
-                    actions.onIntent(
-                        AccountManageIntent.PerformMicrosoftLogin(
-                            useSystemBrowser = true,
-                            toWeb = actions.navigateToWeb,
-                            toSystemBrowser = actions.openLink,
-                            backToMain = actions.backToMainScreen,
-                            checkIfInWebScreen = actions.checkIfInWebScreen
-                        )
-                    )
-                },
-                onInternalBrowser = {
-                    actions.onIntent(
-                        AccountManageIntent.PerformMicrosoftLogin(
-                            useSystemBrowser = false,
-                            toWeb = actions.navigateToWeb,
-                            toSystemBrowser = actions.openLink,
-                            backToMain = actions.backToMainScreen,
-                            checkIfInWebScreen = actions.checkIfInWebScreen
-                        )
-                    )
-                }
             )
         }
     }
@@ -1030,97 +1019,7 @@ private fun ServerTypeOperation(
     }
 }
 
-/**
- * 账号列表组件
- */
-@Composable
-private fun AccountsLayout(
-    isVisible: Boolean,
-    modifier: Modifier = Modifier,
-    accounts: List<Account>,
-    currentAccount: Account?,
-    accountOperation: AccountOperation,
-    accountSkinOperation: AccountSkinOperation,
-    accountSkinDialogState: AccountManageViewModel.AccountSkinDialogState,
-    accountCapes: Map<String, List<PlayerProfile.Cape>>,
-    actions: AccountActions
-) {
-    val ctx = rememberAnimatedContext(isVisible = isVisible)
-    val context = LocalContext.current
 
-    AccountOperation(accountOperation, actions)
-
-    AccountSkinOperation(
-        accountSkinOperation = accountSkinOperation,
-        skinDialogState = accountSkinDialogState,
-        accountCapes = accountCapes,
-        actions = actions
-    )
-
-    BackgroundCard(
-        modifier = modifier.animated(ctx),
-        shape = MaterialTheme.shapes.extraLarge
-    ) {
-        if (accounts.isNotEmpty()) {
-            val scrollState = rememberLazyListState()
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .nonInteractiveScrollbar(
-                        state = scrollState.scrollIndicatorState!!,
-                        orientation = Orientation.Vertical,
-                    )
-                    .clip(MaterialTheme.shapes.extraLarge),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                state = scrollState,
-            ) {
-                items(accounts, key = { it.uniqueUUID }) { account ->
-                    AccountItem(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 6.dp),
-                        currentAccount = currentAccount,
-                        account = account,
-                        onSelected = { AccountsManager.setCurrentAccount(it) },
-                        openChangeSkinDialog = {
-                            if (!account.isAuthServerAccount()) {
-                                actions.onIntent(
-                                    AccountManageIntent.UpdateAccountSkinOp(
-                                        AccountSkinOperation.ChangeSkin(account)
-                                    )
-                                )
-                            }
-                        },
-                        onRefreshClick = {
-                            actions.onIntent(
-                                AccountManageIntent.RefreshAccount(
-                                    account
-                                )
-                            )
-                        },
-                        onCopyUUID = {
-                            copyText(COPY_LABEL_ACCOUNT_UUID, account.profileId, context, true)
-                        },
-                        onDeleteClick = {
-                            actions.onIntent(
-                                AccountManageIntent.UpdateAccountOp(
-                                    AccountOperation.Delete(account)
-                                )
-                            )
-                        }
-                    )
-                }
-            }
-        } else {
-            Box(modifier = Modifier.fillMaxSize()) {
-                ScalingLabel(
-                    modifier = Modifier.align(Alignment.Center),
-                    text = stringResource(R.string.account_no_account)
-                )
-            }
-        }
-    }
-}
 
 /**
  * 账号皮肤操作逻辑处理
@@ -1138,7 +1037,7 @@ private fun AccountSkinOperation(
             val account = accountSkinOperation.account
             ChangeSkinDialog(
                 account = account,
-                availableCapes = accountCapes[account.uniqueUUID],
+                availableCapes = accountCapes[account.uniqueUUID] ?: emptyList(),
                 skinState = skinDialogState.pendingSkinData,
                 onSkinStateChange = { skinState ->
                     actions.onIntent(
@@ -1269,6 +1168,7 @@ private fun AccountOperation(
         }
 
         is AccountOperation.None -> {}
+
     }
 }
 

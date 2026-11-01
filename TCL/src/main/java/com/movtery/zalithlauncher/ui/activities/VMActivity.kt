@@ -38,6 +38,7 @@ import android.view.SurfaceView
 import android.view.SurfaceHolder
 import android.view.TextureView
 import android.view.TextureView.SurfaceTextureListener
+import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Toast
