@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,11 +20,13 @@ package com.movtery.zalithlauncher.ui.screens.content.versions
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -43,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.context.copyLocalFile
@@ -59,7 +62,6 @@ import com.movtery.zalithlauncher.ui.components.IconTextButton
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.SimpleEditDialog
 import com.movtery.zalithlauncher.ui.components.SimpleTaskDialog
-import com.movtery.zalithlauncher.ui.components.animated
 import com.movtery.zalithlauncher.ui.components.verticalScrollWithBar
 import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
@@ -135,10 +137,10 @@ fun VersionOverViewScreen(
                 .verticalScrollWithBar(state = rememberScrollState())
                 .padding(all = 12.dp),
             isVisible = isVisible
-        ) {
-            AnimatedItem { ctx ->
+        ) { scope ->
+            AnimatedItem(scope) { yOffset ->
                 VersionInfoLayout(
-                    modifier = Modifier.animated(ctx),
+                    modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     version = version,
                     versionSummary = versionSummary,
                     iconFileExists = iconFileExists,
@@ -153,9 +155,9 @@ fun VersionOverViewScreen(
                 )
             }
 
-            AnimatedItem { ctx ->
+            AnimatedItem(scope) { yOffset ->
                 VersionManagementLayout(
-                    modifier = Modifier.animated(ctx),
+                    modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     version = version,
                     onShareLog = { logFile ->
                         eventViewModel.sendEvent(
@@ -169,9 +171,9 @@ fun VersionOverViewScreen(
                 )
             }
 
-            AnimatedItem { ctx ->
+            AnimatedItem(scope) { yOffset ->
                 VersionQuickActions(
-                    modifier = Modifier.animated(ctx),
+                    modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     accessFolder = { path ->
                         val folder = if (path.isEmpty()) {
                             version.getGameDir()
@@ -284,6 +286,7 @@ private fun VersionInfoLayout(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun VersionManagementLayout(
     modifier: Modifier = Modifier,
@@ -369,6 +372,7 @@ private fun VersionManagementLayout(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun VersionQuickActions(
     modifier: Modifier = Modifier,

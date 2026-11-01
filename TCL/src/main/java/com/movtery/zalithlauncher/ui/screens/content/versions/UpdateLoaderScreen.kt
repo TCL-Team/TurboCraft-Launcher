@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
@@ -35,12 +36,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.game.addons.modloader.ModLoader
+import com.movtery.zalithlauncher.game.addons.modloader.cleanroom.CleanroomVersions
 import com.movtery.zalithlauncher.game.addons.modloader.fabriclike.fabric.FabricAPIVersions
 import com.movtery.zalithlauncher.game.addons.modloader.fabriclike.fabric.FabricVersions
 import com.movtery.zalithlauncher.game.addons.modloader.fabriclike.legacyfabric.LegacyFabricVersions
@@ -53,12 +56,12 @@ import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionInfo
 import com.movtery.zalithlauncher.ui.base.BaseScreen
 import com.movtery.zalithlauncher.ui.components.AnimatedLazyColumn
-import com.movtery.zalithlauncher.ui.components.animated
 import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
 import com.movtery.zalithlauncher.ui.screens.TitledNavKey
 import com.movtery.zalithlauncher.ui.screens.content.download.game.AddonList
 import com.movtery.zalithlauncher.ui.screens.content.download.game.AddonState
+import com.movtery.zalithlauncher.ui.screens.content.download.game.CleanroomList
 import com.movtery.zalithlauncher.ui.screens.content.download.game.CurrentAddon
 import com.movtery.zalithlauncher.ui.screens.content.download.game.FabricAPIList
 import com.movtery.zalithlauncher.ui.screens.content.download.game.FabricList
@@ -135,7 +138,8 @@ private fun CurrentAddon.generateDiff(
         ModLoader.NEOFORGE to neoforgeVersion.value,
         ModLoader.FABRIC to fabricVersion.value,
         ModLoader.LEGACY_FABRIC to legacyFabricVersion.value,
-        ModLoader.QUILT to quiltVersion.value
+        ModLoader.QUILT to quiltVersion.value,
+        ModLoader.CLEANROOM to cleanroomVersion.value
     )
 
     if (loaderInfo == null) {
@@ -228,6 +232,9 @@ private class AddonsViewModel(
                 if (loaderSupports.isQuiltSupports) {
                     add(currentAddon.quiltState)
                 }
+                if (loaderSupports.isCleanroomSupports) {
+                    add(currentAddon.cleanroomState)
+                }
             }.all { it == AddonState.None }
             if (isLoaded0) Logger.info(TAG, "Game's mod loader found, or all mod loaders loaded.")
             isLoaded = isLoaded0
@@ -256,6 +263,9 @@ private class AddonsViewModel(
             if (loaderSupports.isQuiltSupports) {
                 add(addonList.quiltList)
             }
+            if (loaderSupports.isCleanroomSupports) {
+                add(addonList.cleanroomList)
+            }
         }.isEmpty()
 
         if (loaderInfo == null) {
@@ -277,6 +287,7 @@ private class AddonsViewModel(
             ModLoader.FABRIC -> currentAddon.fabricVersion.value
             ModLoader.LEGACY_FABRIC -> currentAddon.legacyFabricVersion.value
             ModLoader.QUILT -> currentAddon.quiltVersion.value
+            ModLoader.CLEANROOM -> currentAddon.cleanroomVersion.value
             else -> null
         }
 
@@ -387,6 +398,25 @@ private class AddonsViewModel(
     }
 
 
+    fun reloadCleanroom() {
+        reloadSingleAndCheck {
+            reloadCleanroomAsync()
+        }
+    }
+
+    private suspend fun reloadCleanroomAsync() = runWithState(
+        { currentAddon.cleanroomState = it },
+        { CleanroomVersions.fetchLoaderList(gameVersion) }
+    ).also { versions ->
+        addonList.cleanroomList = versions
+        if (loaderInfo == null) return@also
+        if (loaderInfo.loader == ModLoader.CLEANROOM && currentAddon.cleanroomVersion.value == null) {
+            currentAddon.cleanroomVersion.value = versions?.find {
+                it.isVersion(loaderInfo.version)
+            }?.also { isLoaderVersionFound = true }
+        }
+    }
+
     fun reloadOptifine() {
         reloadSingleAndCheck {
             reloadOptifineAsync()
@@ -472,6 +502,12 @@ private class AddonsViewModel(
                         updateLoadedState()
                     })
                 }
+                if (loaderSupports.isCleanroomSupports) {
+                    add(async {
+                        reloadCleanroomAsync()
+                        updateLoadedState()
+                    })
+                }
             }.awaitAll()
         }
     }
@@ -537,10 +573,10 @@ fun UpdateLoaderScreen(
             isVisible = isVisible,
             contentPadding = PaddingValues(all = 12.dp),
             state = scrollState,
-        ) {
-            animatedItem { ctx ->
+        ) { scope ->
+            animatedItem(scope) { yOffset ->
                 OptiFineList(
-                    modifier = Modifier.animated(ctx),
+                    modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     currentAddon = viewModel.currentAddon,
                     addonList = viewModel.addonList,
                     error = unLoaded,
@@ -549,9 +585,9 @@ fun UpdateLoaderScreen(
                 )
             }
 
-            animatedItem { ctx ->
+            animatedItem(scope) { yOffset ->
                 ForgeList(
-                    modifier = Modifier.animated(ctx),
+                    modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     currentAddon = viewModel.currentAddon,
                     addonList = viewModel.addonList,
                     error = unLoaded,
@@ -561,9 +597,9 @@ fun UpdateLoaderScreen(
             }
 
             if (loaderSupports.isNeoForgeSupports) {
-                animatedItem { ctx ->
+                animatedItem(scope) { yOffset ->
                     NeoForgeList(
-                        modifier = Modifier.animated(ctx),
+                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
                         addonList = viewModel.addonList,
                         error = unLoaded,
@@ -573,10 +609,23 @@ fun UpdateLoaderScreen(
                 }
             }
 
+            if (loaderSupports.isCleanroomSupports) {
+                animatedItem(scope) { yOffset ->
+                    CleanroomList(
+                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
+                        currentAddon = viewModel.currentAddon,
+                        addonList = viewModel.addonList,
+                        error = unLoaded,
+                        onValueChanged = { viewModel.checkCanUpdate() },
+                        onReload = { viewModel.reloadCleanroom() }
+                    )
+                }
+            }
+
             if (loaderSupports.isFabricSupports) {
-                animatedItem { ctx ->
+                animatedItem(scope) { yOffset ->
                     FabricList(
-                        modifier = Modifier.animated(ctx),
+                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
                         addonList = viewModel.addonList,
                         error = unLoaded,
@@ -590,9 +639,9 @@ fun UpdateLoaderScreen(
                         onReload = { viewModel.reloadFabric() }
                     )
                 }
-                animatedItem { ctx ->
+                animatedItem(scope) { yOffset ->
                     FabricAPIList(
-                        modifier = Modifier.animated(ctx),
+                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
                         addonList = viewModel.addonList,
                         error = unLoaded,
@@ -603,9 +652,9 @@ fun UpdateLoaderScreen(
             }
 
             if (loaderSupports.isLegacyFabricSupports) {
-                animatedItem { ctx ->
+                animatedItem(scope) { yOffset ->
                     LegacyFabricList(
-                        modifier = Modifier.animated(ctx),
+                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
                         addonList = viewModel.addonList,
                         error = unLoaded,
@@ -616,9 +665,9 @@ fun UpdateLoaderScreen(
             }
 
             if (loaderSupports.isQuiltSupports) {
-                animatedItem { ctx ->
+                animatedItem(scope) { yOffset ->
                     QuiltList(
-                        modifier = Modifier.animated(ctx),
+                        modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
                         addonList = viewModel.addonList,
                         error = unLoaded,
@@ -628,11 +677,11 @@ fun UpdateLoaderScreen(
                 }
             }
 
-            animatedItem { ctx ->
+            animatedItem(scope) { yOffset ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .animated(ctx),
+                        .offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                     horizontalArrangement = Arrangement.End
                 ) {
                     Button(
@@ -654,7 +703,9 @@ fun UpdateLoaderScreen(
                                     legacyFabric = viewModel.currentAddon.legacyFabricVersion.value
                                         .takeIf { loaderSupports.isLegacyFabricSupports },
                                     quilt = viewModel.currentAddon.quiltVersion.value
-                                        .takeIf { loaderSupports.isQuiltSupports }
+                                        .takeIf { loaderSupports.isQuiltSupports },
+                                    cleanroom = viewModel.currentAddon.cleanroomVersion.value
+                                        .takeIf { loaderSupports.isCleanroomSupports }
                                 )
                             )
                         }

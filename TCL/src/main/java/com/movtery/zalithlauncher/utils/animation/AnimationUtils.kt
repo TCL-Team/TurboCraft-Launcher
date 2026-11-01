@@ -30,17 +30,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.movtery.zalithlauncher.setting.AllSettings
 
-import androidx.compose.animation.core.AnimationSpec
-import androidx.compose.animation.core.FiniteAnimationSpec
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import com.movtery.zalithlauncher.setting.AllSettings
 
 /**
  * 获取动画的持续时长

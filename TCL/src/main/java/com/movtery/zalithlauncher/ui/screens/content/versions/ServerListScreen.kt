@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -63,7 +64,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.nonInteractiveScrollbar
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -86,6 +86,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -114,15 +115,11 @@ import com.movtery.zalithlauncher.ui.components.IconTextButton
 import com.movtery.zalithlauncher.ui.components.MarqueeText
 import com.movtery.zalithlauncher.ui.components.OwnOutlinedTextField
 import com.movtery.zalithlauncher.ui.components.ScalingLabel
-import com.movtery.zalithlauncher.ui.screens.content.home.server.ServerCardManager
 import com.movtery.zalithlauncher.ui.components.ShimmerBox
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.SimpleTextInputField
 import com.movtery.zalithlauncher.ui.components.SingleLineTextCheck
-import com.movtery.zalithlauncher.ui.components.animated
 import com.movtery.zalithlauncher.ui.components.fadeEdge
-import com.movtery.zalithlauncher.ui.components.rememberAnimatedContext
-import com.movtery.zalithlauncher.ui.components.rememberDialogMaxHeight
 import com.movtery.zalithlauncher.ui.components.verticalScrollWithBar
 import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
@@ -136,6 +133,7 @@ import com.movtery.zalithlauncher.ui.theme.itemColor
 import com.movtery.zalithlauncher.ui.theme.onCardColor
 import com.movtery.zalithlauncher.ui.theme.onItemColor
 import com.movtery.zalithlauncher.utils.animation.getAnimateTween
+import com.movtery.zalithlauncher.utils.animation.swapAnimateDpAsState
 import com.movtery.zalithlauncher.utils.copyText
 import com.movtery.zalithlauncher.utils.logging.Logger
 import com.movtery.zalithlauncher.utils.string.isEmptyOrBlank
@@ -145,7 +143,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -346,9 +343,8 @@ private class ServerListViewModel(
      */
     fun filterServers() {
         searchJob?.cancel()
-        searchJob = viewModelScope.launch(Dispatchers.Default) {
+        searchJob = viewModelScope.launch {
             val servers = filteredServers()
-            if (!isActive) return@launch
             _servers.update { servers }
         }
     }
@@ -509,7 +505,10 @@ fun ServerListScreen(
             version = version
         )
 
-        val ctx = rememberAnimatedContext(isVisible = isVisible)
+        val yOffset by swapAnimateDpAsState(
+            targetValue = (-40).dp,
+            swapIn = isVisible
+        )
 
         ServerDataOperation(
             operation = viewModel.dataOperation,
@@ -536,71 +535,57 @@ fun ServerListScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(all = 12.dp)
-                .animated(ctx),
+                .offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
             paddingValues = PaddingValues()
         ) {
-            PullToRefreshBox(
-                modifier = Modifier.fillMaxSize(),
-                isRefreshing = false,
-                enabled = viewModel.operation !is ServerListOperation.Loading,
-                onRefresh = viewModel::loadServer,
-            ) {
-                when (viewModel.operation) {
-                    is ServerListOperation.Loading -> {
-                        Box(
-                            Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            LoadingIndicator()
-                        }
+            when (viewModel.operation) {
+                is ServerListOperation.Loading -> {
+                    Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LoadingIndicator()
                     }
-                    is ServerListOperation.LoadedData -> {
-                        val servers by viewModel.servers.collectAsStateWithLifecycle()
+                }
+                is ServerListOperation.LoadedData -> {
+                    val servers by viewModel.servers.collectAsStateWithLifecycle()
 
-                        Column(
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            ServerListHeader(
-                                searchName = viewModel.searchName,
-                                onSearchNameChange = {
-                                    viewModel.searchName = it
-                                    viewModel.filterServers()
-                                },
-                                onAddServer = {
-                                    viewModel.dataOperation = ServerDataOperation.AddServer
-                                },
-                                refreshServers = {
-                                    viewModel.loadServer()
-                                }
-                            )
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        ServerListHeader(
+                            searchName = viewModel.searchName,
+                            onSearchNameChange = {
+                                viewModel.searchName = it
+                                viewModel.filterServers()
+                            },
+                            onAddServer = {
+                                viewModel.dataOperation = ServerDataOperation.AddServer
+                            },
+                            refreshServers = {
+                                viewModel.loadServer()
+                            }
+                        )
 
-                            ServerListBody(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                servers = servers,
-                                isSavingServer = viewModel.saving,
-                                onLoad = { viewModel.loadServer(it) },
-                                onRefresh = { viewModel.loadServer(it, true) },
-                                onCopy = { viewModel.copy(context, it) },
-                                onPlay = { address ->
-                                    onQuickPlay(version, address)
-                                },
-                                onEdit = { data ->
-                                    viewModel.dataOperation = ServerDataOperation.EditServer(data)
-                                },
-                                onDelete = { data ->
-                                    viewModel.dataOperation = ServerDataOperation.DeleteServer(data)
-                                },
-                                onAddToHome = { server ->
-                                    ServerCardManager.addCard(
-                                        name = server.name,
-                                        serverIp = server.originIp,
-                                        icon = server.icon
-                                    )
-                                }
-                            )
-                        }
+                        ServerListBody(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            servers = servers,
+                            isSavingServer = viewModel.saving,
+                            onLoad = { viewModel.loadServer(it) },
+                            onRefresh = { viewModel.loadServer(it, true) },
+                            onCopy = { viewModel.copy(context, it) },
+                            onPlay = { address ->
+                                onQuickPlay(version, address)
+                            },
+                            onEdit = { data ->
+                                viewModel.dataOperation = ServerDataOperation.EditServer(data)
+                            },
+                            onDelete = { data ->
+                                viewModel.dataOperation = ServerDataOperation.DeleteServer(data)
+                            }
+                        )
                     }
                 }
             }
@@ -691,7 +676,6 @@ private fun ServerListBody(
     onPlay: (String) -> Unit,
     onEdit: (ServerData) -> Unit,
     onDelete: (ServerData) -> Unit,
-    onAddToHome: (ServerData) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     servers?.let { list ->
@@ -720,8 +704,7 @@ private fun ServerListBody(
                         onCopy = { onCopy(server.originIp) },
                         onPlay = { onPlay(server.originIp) },
                         onEdit = { onEdit(server) },
-                        onDelete = { onDelete(server) },
-                        onAddToHome = { onAddToHome(server) }
+                        onDelete = { onDelete(server) }
                     )
                 }
             }
@@ -756,7 +739,6 @@ private fun ServerItem(
     onPlay: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onAddToHome: () -> Unit,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
     shape: Shape = MaterialTheme.shapes.large,
@@ -972,27 +954,6 @@ private fun ServerItem(
                             },
                             onClick = {
                                 onRefresh()
-                                expanded = false
-                            }
-                        )
-
-                        //添加到主页
-                        val homeCards by ServerCardManager.cards.collectAsStateWithLifecycle()
-                        val addedToHome = remember(homeCards, item.originIp) {
-                            homeCards.any { it.record.cardId == item.originIp }
-                        }
-                        DropdownMenuItem(
-                            enabled = !addedToHome,
-                            text = { Text(text = stringResource(R.string.home_add_version_card)) },
-                            leadingIcon = {
-                                Icon(
-                                    modifier = Modifier.size(20.dp),
-                                    painter = painterResource(R.drawable.ic_add_box_filled),
-                                    contentDescription = stringResource(R.string.home_add_version_card)
-                                )
-                            },
-                            onClick = {
-                                onAddToHome()
                                 expanded = false
                             }
                         )

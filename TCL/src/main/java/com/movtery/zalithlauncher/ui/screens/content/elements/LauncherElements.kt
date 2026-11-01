@@ -106,6 +106,7 @@ import com.movtery.zalithlauncher.utils.image.isGifFile
 import com.movtery.zalithlauncher.viewmodel.BackgroundViewModel
 import com.movtery.zalithlauncher.viewmodel.ErrorViewModel
 import com.movtery.zalithlauncher.viewmodel.EventViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.movtery.zalithlauncher.viewmodel.LaunchGameViewModel
 import com.movtery.zalithlauncher.viewmodel.sendToast
 import kotlinx.coroutines.Dispatchers
