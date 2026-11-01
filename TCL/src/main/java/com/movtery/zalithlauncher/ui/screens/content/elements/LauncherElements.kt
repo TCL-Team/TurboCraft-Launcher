@@ -623,6 +623,7 @@ fun Background(
     val backgroundBlurEnabled = backgroundMode && blur > 0 && opacity < 100
     val layerCapture = !backgroundMode && blur > 0 && opacity < 100 && viewModel.isValid
     val density = LocalDensity.current
+    val context = LocalContext.current
 
     Box(
         modifier = modifier
@@ -668,6 +669,13 @@ fun Background(
                     }
                 }
             }
+        } else if (allowVideo) {
+            //没有自定义背景时，播放随应用打包的官方背景视频
+            VideoPlayer(
+                videoUri = Uri.parse("android.resource://${context.packageName}/${R.raw.default_background}"),
+                modifier = Modifier.fillMaxSize(),
+                volume = AllSettings.videoBackgroundVolume.state / 100f
+            )
         }
     }
 }
