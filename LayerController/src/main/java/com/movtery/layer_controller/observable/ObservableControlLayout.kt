@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,6 +43,9 @@ class ObservableControlLayout(
 
     private val _joystickStyles = MutableStateFlow(layout.joystickStyles.map { ObservableJoystickStyle(it) })
     val joystickStyles = _joystickStyles.asStateFlow()
+
+    private val _special = MutableStateFlow(ObservableSpecial(layout.special))
+    val special = _special.asStateFlow()
 
     /**
      * 添加控件层
@@ -119,15 +122,6 @@ class ObservableControlLayout(
     }
 
     /**
-     * 以相同 uuid 替换布局内的按钮样式，不影响控件对样式的引用
-     */
-    fun replaceStyle(style: ButtonStyle) {
-        _styles.update { oldStyles ->
-            oldStyles.map { if (it.uuid == style.uuid) ObservableButtonStyle(style) else it }
-        }
-    }
-
-    /**
      * 复制控件样式
      */
     fun cloneStyle(style: ObservableButtonStyle) {
@@ -160,15 +154,6 @@ class ObservableControlLayout(
      */
     fun addJoystickStyle(style: JoystickStyle) {
         _joystickStyles.update { it + ObservableJoystickStyle(style) }
-    }
-
-    /**
-     * 以相同 uuid 替换布局内的摇杆样式，不影响控件对样式的引用
-     */
-    fun replaceJoystickStyle(style: JoystickStyle) {
-        _joystickStyles.update { oldStyles ->
-            oldStyles.map { if (it.uuid == style.uuid) ObservableJoystickStyle(style) else it }
-        }
     }
 
     /**
@@ -210,6 +195,7 @@ class ObservableControlLayout(
             layers = _layers.value.map { it.pack() },
             styles = _styles.value.map { it.pack() },
             joystickStyles = _joystickStyles.value.map { it.pack() },
+            special = _special.value.pack(),
             editorVersion = EDITOR_VERSION
         )
     }

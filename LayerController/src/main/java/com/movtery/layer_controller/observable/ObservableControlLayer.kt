@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,6 +43,7 @@ class ObservableControlLayer(
     var hide by mutableStateOf(editorHide)
     var hideWhenMouse by mutableStateOf(layer.hideWhenMouse)
     var hideWhenGamepad by mutableStateOf(layer.hideWhenGamepad)
+    var hideWhenJoystick by mutableStateOf(layer.hideWhenJoystick)
     var visibilityType by mutableStateOf(layer.visibilityType)
     
     private val _normalButtons = MutableStateFlow(layer.normalButtons.map { ObservableNormalData(it) })
@@ -151,6 +152,7 @@ class ObservableControlLayer(
             hide = editorHide,
             hideWhenMouse = hideWhenMouse,
             hideWhenGamepad = hideWhenGamepad,
+            hideWhenJoystick = hideWhenJoystick,
             visibilityType = visibilityType,
             normalButtons = _normalButtons.value.map { it.packNormal() },
             textBoxes = _textBoxes.value.map { it.packText() },
