@@ -27,6 +27,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -326,17 +327,25 @@ private fun AccountManageContent(
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     // 3D 玩家模型预览（PetLib）
-                    PetModelView(
+                    // 用 44:36 的宽高比约束宽度，模型按高度等比缩放，整个人物都能看到
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        skin = petSkin,
-                        cape = petCape,
-                        arm = petArm,
-                        yaw = Math.toRadians(35.0).toFloat(),
-                        animation = PetAnimation.Idle,
-                        tapReaction = PetTapReaction.Interact
-                    )
+                        contentAlignment = Alignment.Center
+                    ) {
+                        PetModelView(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .aspectRatio(44f / 36f, matchHeightConstraintsFirst = true),
+                            skin = petSkin,
+                            cape = petCape,
+                            arm = petArm,
+                            yaw = Math.toRadians(35.0).toFloat(),
+                            animation = PetAnimation.Idle,
+                            tapReaction = PetTapReaction.Interact
+                        )
+                    }
 
                     HorizontalDivider(modifier = Modifier.alpha(0.2f))
 

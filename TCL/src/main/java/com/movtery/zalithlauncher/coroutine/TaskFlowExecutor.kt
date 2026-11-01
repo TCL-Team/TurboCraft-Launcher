@@ -71,14 +71,16 @@ class TaskFlowExecutor(
     private val publishedTaskIds: MutableList<String> = mutableListOf()
 
     /**
-     * 把当前阶段的任务挂到任务栏，让用户能在启动器侧边看到进度并取消
+     * 把正在执行的任务挂到任务栏，让用户能在启动器侧边看到进度并取消。
+     * 一次只挂一个任务：阶段里还没开始的任务挂上去只会显示成空行。
      */
-    private fun publishTasks(tasks: List<TitledTask>) {
+    private fun publishTask(titledTask: TitledTask) {
         clearPublishedTasks()
-        tasks.forEach { titledTask ->
-            publishedTaskIds += titledTask.task.id
-            TaskSystem.attachTask(titledTask.task) { cancel() }
-        }
+        val task = titledTask.task
+        //任务开始前先用标题占位，避免侧边栏出现没有文字的空行
+        task.updateMessage(titledTask.title)
+        publishedTaskIds += task.id
+        TaskSystem.attachTask(task) { cancel() }
     }
 
     /**
@@ -128,12 +130,12 @@ class TaskFlowExecutor(
                 val phase = getNextPhase() ?: break
                 //更新当前任务列表
                 _tasksFlow.update { phase.tasks }
-                //同步到任务栏，侧边可以看到进度、也可以取消
-                publishTasks(phase.tasks)
 
                 //执行阶段内的所有任务
                 for (task in phase.tasks) {
                     ensureActive()
+                    //同步到任务栏，侧边可以看到进度、也可以取消
+                    publishTask(task)
                     task.task.updateStage(TaskStage.RUNNING)
 
                     //为每个任务创建独立的Job，以便可以立即取消
@@ -166,6 +168,7 @@ class TaskFlowExecutor(
                         //确保taskJob被取消和清理，无论任务成功还是失败
                         taskJob.cancel()
                         currentTaskJob = null
+                        clearPublishedTasks()
                     }
                 }
 

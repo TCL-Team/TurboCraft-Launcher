@@ -122,31 +122,25 @@ class GameHandler(
             set("overrideWidth", screenSize.width.toString())
             set("overrideHeight", screenSize.height.toString())
 
-            //强制 Vulkan 但设备/驱动拿不到 Vulkan 设备时，游戏会直接崩溃在启动阶段
-            //（Minecraft 26.4+ 的 renderpearl 后端）。这种情况退回 OpenGL，
-            //游戏会走 OpenGL 兜底，至少还能进游戏。
+            //启动器自带的所有渲染器（MobileGlues、GL4ES、NG-GL4ES、Zink、VirGL 等）
+            //都是 OpenGL/EGL 实现，没有给游戏提供 Vulkan 设备的能力。
+            //如果放行 Vulkan，Minecraft 26.4+ 的 renderpearl 会先试 Vulkan（No Vulkan capable
+            //devices），再试 OpenGL（Could not load EGL library），最后直接弹
+            //“No supported graphics backend was found。”——所以这里固定写 OpenGL，
+            //只有用户明确选了 Vulkan 且设备/驱动确实能提供 Vulkan 设备时才放行。
             val requestedGraphicsApi = version.getGraphicsApi()
-            val graphicsApi = if (
-                requestedGraphicsApi == GraphicsApi.VULKAN &&
-                !VulkanCheckCache.isSupported(version)
-            ) {
+            val useVulkan = requestedGraphicsApi == GraphicsApi.VULKAN &&
+                    VulkanCheckCache.isSupported(version)
+            if (requestedGraphicsApi == GraphicsApi.VULKAN && !useVulkan) {
                 Logger.warning(
                     TAG,
-                    "Vulkan is not usable for ${version.getVersionName()} with the current driver, falling back to OpenGL."
+                    "Vulkan is not usable for ${version.getVersionName()} with the current driver, using OpenGL instead."
                 )
-                GraphicsApi.OPENGL
-            } else {
-                requestedGraphicsApi
             }
-            val graphicsOption = "preferredGraphicsBackend"
-            when (graphicsApi) {
-                GraphicsApi.DEFAULT, GraphicsApi.DEFAULT_OPENGL -> {
-                    if (!containsKey(graphicsOption)) {
-                        set(graphicsOption, graphicsApi.option)
-                    }
-                }
-                else -> set(graphicsOption, graphicsApi.option)
-            }
+            set(
+                "preferredGraphicsBackend",
+                if (useVulkan) GraphicsApi.VULKAN.option else GraphicsApi.OPENGL.option
+            )
 
             loadLanguage(version.getVersionInfo()!!.minecraftVersion)
             save()

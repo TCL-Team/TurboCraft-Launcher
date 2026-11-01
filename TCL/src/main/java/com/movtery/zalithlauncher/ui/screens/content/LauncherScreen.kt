@@ -87,7 +87,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.constraintlayout.compose.ConstraintLayout
-import androidx.constraintlayout.compose.Dimension
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -100,7 +99,6 @@ import com.movtery.petlib.PetAnimation
 import com.movtery.petlib.PetTapReaction
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.game.account.AccountsManager
-import com.movtery.zalithlauncher.game.account.wardrobe.toArmModel
 import com.movtery.zalithlauncher.game.version.installed.PlayTimeRepository
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionsManager
@@ -712,51 +710,11 @@ private fun RightMenuContent(
     val version by VersionsManager.currentVersion.collectAsStateWithLifecycle()
     val isRefreshing by VersionsManager.isRefreshing.collectAsStateWithLifecycle()
 
-    //玩家模型预览（PetLib）：皮肤 / 披风直接从账号数据读取
-    val refreshWardrobe by AccountsManager.refreshWardrobe.collectAsStateWithLifecycle()
-    val petArm = account?.skinModelType?.toArmModel()
-    val skinStamp = account?.getSkinFile()?.lastModified()
-    val capeStamp = account?.getCapeFile()?.lastModified()
-    val petSkin by produceState<ByteArray?>(
-        null, account, refreshWardrobe, skinStamp, petArm
-    ) {
-        value = withContext(Dispatchers.IO) {
-            account?.getSkinFile()?.takeIf { it.exists() }
-                ?.inputStream()?.use { it.readBytes() }
-        }
-    }
-    val petCape by produceState<ByteArray?>(
-        null, account, refreshWardrobe, capeStamp
-    ) {
-        value = withContext(Dispatchers.IO) {
-            account?.getCapeFile()?.takeIf { it.exists() }
-                ?.inputStream()?.use { it.readBytes() }
-        }
-    }
 
     ConstraintLayout(
         modifier = modifier
     ) {
-        val (playerModel, accountAvatar, versionManagerLayout, launchButton) = createRefs()
-
-        PetModelView(
-            modifier = Modifier
-                .fillMaxWidth()
-                .constrainAs(playerModel) {
-                    top.linkTo(parent.top)
-                    start.linkTo(parent.start)
-                    end.linkTo(parent.end)
-                    bottom.linkTo(accountAvatar.top)
-                    height = Dimension.percent(0.3f)
-                },
-            skin = petSkin,
-            cape = petCape,
-            arm = petArm,
-            yaw = Math.toRadians(35.0).toFloat(),
-            animation = PetAnimation.Idle,
-            tapReaction = PetTapReaction.Interact,
-            dragYaw = false
-        )
+        val (accountAvatar, versionManagerLayout, launchButton) = createRefs()
 
         AccountAvatar(
             modifier = Modifier
@@ -765,7 +723,7 @@ private fun RightMenuContent(
                     preferSide = GuideSide.Below
                 )
                 .constrainAs(accountAvatar) {
-                    top.linkTo(playerModel.bottom)
+                    top.linkTo(parent.top)
                     bottom.linkTo(launchButton.top, margin = 32.dp)
                     start.linkTo(parent.start)
                     end.linkTo(parent.end)
