@@ -235,13 +235,8 @@ void gl_swap_buffers() {
         currentBundle->state = STATE_RENDERER_ALIVE;
     }
 
-<<<<<<< TCL/src/main/jni/ctxbridges/gl_bridge.c
-    if (currentBundle->surface != NULL) {
-        if (!eglSwapBuffers_p(g_EglDisplay, currentBundle->surface) && eglGetError_p() == EGL_BAD_SURFACE)
-=======
     if (currentBundle->surface != NULL)
         if (!bridge_eglSwapBuffers(g_EglDisplay, currentBundle->surface) && eglGetError_p() == EGL_BAD_SURFACE)
->>>>>>> /tmp/zl2/ZalithLauncher/src/main/jni/ctxbridges/gl_bridge.c
         {
             bridge_eglMakeCurrent(g_EglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
             currentBundle->newNativeSurface = NULL;
