@@ -815,9 +815,8 @@ private fun NavigationUI(
                         backStackViewModel = screenBackStackModel,
                     )
                 }
-
             }
-        }
+        )
 
     } else {
         Box(modifier)

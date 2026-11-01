@@ -59,7 +59,6 @@ import com.movtery.zalithlauncher.ui.screens.main.control_editor.InfoLayoutSlide
 import com.movtery.zalithlauncher.ui.screens.main.control_editor.InfoLayoutSwitchItem
 import com.movtery.zalithlauncher.ui.screens.main.control_editor.InfoLayoutTextItem
 import com.movtery.zalithlauncher.ui.screens.main.control_editor.edit_joystick.EditJoystickStyleDialog
-import com.movtery.zalithlauncher.ui.screens.main.control_editor.edit_joystick.EditJoystickStyleMode
 import com.movtery.zalithlauncher.ui.screens.rememberSwapTween
 import com.movtery.zalithlauncher.ui.theme.cardColor
 import com.movtery.zalithlauncher.ui.theme.onCardColor
@@ -95,11 +94,10 @@ fun JoystickManageOperation(
     EditJoystickStyleDialog(
         visible = operation == JoystickManageOperation.Edit,
         style = launcherJoystick,
-        mode = EditJoystickStyleMode.Launcher,
         onClose = {
+            onSaveStyle()
             onChanged(JoystickManageOperation.None)
-        },
-        onInfoButtonClick = onSaveStyle
+        }
     )
 }
 

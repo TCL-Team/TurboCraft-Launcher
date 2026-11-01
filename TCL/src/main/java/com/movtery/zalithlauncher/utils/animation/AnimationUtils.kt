@@ -71,6 +71,14 @@ fun <E> getAnimateTween(
     delayMillis = delayMillis
 )
 
+fun <E> getEnterTween(
+    delayMillis: Int = 0
+): FiniteAnimationSpec<E> = tween(
+    durationMillis = getAnimateSpeed(),
+    delayMillis = delayMillis,
+    easing = EnterTranslateEasing
+)
+
 fun <E> getAnimateTweenBounce(
     delayMillis: Int = 0
 ): FiniteAnimationSpec<E> = getAnimateTweenBounce(

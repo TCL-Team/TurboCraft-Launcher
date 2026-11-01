@@ -111,9 +111,12 @@ fun LogBox(
         if (enableLog) {
             scrollChannel.value = Channel(capacity = 100)
 
-            LoggerBridge.setListener { log ->
-                synchronized(buffer) {
-                    buffer.add(log)
+            // TurboCraft: 通过多路复用器分发日志，其他消费者（日志分享、崩溃上报）也能收到
+            val listener = object : LoggerBridge.EventLogListener {
+                override fun onEventLogged(text: String) {
+                    synchronized(buffer) {
+                        buffer.add(text)
+                    }
                 }
             }
             logListener.value = listener
