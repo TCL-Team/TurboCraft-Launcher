@@ -96,6 +96,17 @@ import com.movtery.zalithlauncher.utils.device.checkVulkanSupport
 import com.movtery.zalithlauncher.utils.isAdrenoGPU
 import com.movtery.zalithlauncher.viewmodel.EventViewModel
 import com.movtery.zalithlauncher.viewmodel.sendDLPlugin
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import com.movtery.zalithlauncher.setting.enums.ResolutionRule
+import com.movtery.zalithlauncher.ui.components.IntInputField
+import com.movtery.zalithlauncher.utils.customResolutionRange
+import com.movtery.zalithlauncher.utils.ensureCustomResolutionInitialized
+import com.movtery.zalithlauncher.utils.getRealScreenSize
+import com.movtery.zalithlauncher.utils.animation.getAnimateTween
 
 @Composable
 fun RendererSettingsScreen(
@@ -365,16 +376,44 @@ fun RendererSettingsScreen(
                             }
                         )
 
-                    IntSliderSettingsCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        position = CardPosition.Middle,
-                        unit = AllSettings.resolutionRatio,
-                        title = stringResource(R.string.settings_renderer_resolution_scale_title),
-                        summary = stringResource(R.string.settings_renderer_resolution_scale_summary),
-                        valueRange = AllSettings.resolutionRatio.floatRange,
-                        suffix = "%",
-                        fineTuningControl = true
-                    )
+                        // 百分比分辨率
+                        AnimatedVisibility(
+                            visible = resolutionRule == ResolutionRule.PERCENTAGE,
+                            enter = fadeIn(animationSpec = getAnimateTween()) +
+                                    expandVertically(animationSpec = getAnimateTween()),
+                            exit = fadeOut(animationSpec = getAnimateTween()) +
+                                    shrinkVertically(animationSpec = getAnimateTween())
+                        ) {
+                            IntSliderSettingsCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                position = CardPosition.Middle,
+                                unit = AllSettings.resolutionRatio,
+                                title = stringResource(R.string.settings_renderer_resolution_scale_title),
+                                summary = stringResource(R.string.settings_renderer_resolution_scale_summary),
+                                valueRange = AllSettings.resolutionRatio.floatRange,
+                                suffix = "%",
+                                fineTuningControl = true
+                            )
+                        }
+
+                        // 自定义分辨率
+                        AnimatedVisibility(
+                            visible = resolutionRule == ResolutionRule.CUSTOM,
+                            enter = fadeIn(animationSpec = getAnimateTween()) +
+                                    expandVertically(animationSpec = getAnimateTween()),
+                            exit = fadeOut(animationSpec = getAnimateTween()) +
+                                    shrinkVertically(animationSpec = getAnimateTween())
+                        ) {
+                            CustomResolutionSettingsCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                position = CardPosition.Middle
+                            )
+                        }
+                    }
 
                     SwitchSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -638,6 +677,51 @@ private fun RunBenchmarkPill(
                 style = MaterialTheme.typography.titleSmall,
                 color = colorScheme.onPrimary
             )
+        }
+    }
+}
+
+@Composable
+private fun CustomResolutionSettingsCard(
+    modifier: Modifier = Modifier,
+    position: CardPosition = CardPosition.Middle
+) {
+    val context = LocalContext.current
+    val screenSize = remember(context) { getRealScreenSize(context) }
+
+    SettingsCard(
+        modifier = modifier,
+        position = position
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(all = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TitleAndSummary(
+                title = stringResource(R.string.settings_renderer_resolution_scale_title),
+                summary = stringResource(R.string.settings_renderer_resolution_custom_summary)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IntInputField(
+                    modifier = Modifier.weight(1f),
+                    value = AllSettings.customResolutionWidth.state,
+                    permitted = customResolutionRange(screenSize.width),
+                    label = stringResource(R.string.settings_renderer_resolution_custom_width),
+                    onValueChange = { AllSettings.customResolutionWidth.save(it) }
+                )
+                IntInputField(
+                    modifier = Modifier.weight(1f),
+                    value = AllSettings.customResolutionHeight.state,
+                    permitted = customResolutionRange(screenSize.height),
+                    label = stringResource(R.string.settings_renderer_resolution_custom_height),
+                    onValueChange = { AllSettings.customResolutionHeight.save(it) }
+                )
+            }
         }
     }
 }

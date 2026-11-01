@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@ package com.movtery.zalithlauncher.game.version.mod.update
 import com.movtery.zalithlauncher.game.addons.modloader.ModLoader
 import com.movtery.zalithlauncher.game.download.assets.platform.PlatformVersion
 import com.movtery.zalithlauncher.game.download.assets.platform.getVersions
-import com.movtery.zalithlauncher.game.download.assets.utils.ModTranslations
 import com.movtery.zalithlauncher.game.version.mod.ModFile
 import com.movtery.zalithlauncher.game.version.mod.ModProject
 import com.movtery.zalithlauncher.ui.screens.content.download.assets.elements.initAll
@@ -29,6 +28,7 @@ import com.movtery.zalithlauncher.utils.logging.Logger
 import com.movtery.zalithlauncher.utils.string.parseInstant
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.jackhuang.hmcl.addon.AddonProjectInfo
 import java.io.File
 
 private const val TAG = "ModData"
@@ -43,7 +43,7 @@ data class ModData(
     val file: File,
     val modFile: ModFile,
     val project: ModProject,
-    val mcMod: ModTranslations.McMod?
+    val mcMod: AddonProjectInfo?
 ) {
     /**
      * 当前模组的版本号，用于新旧对比
@@ -91,7 +91,7 @@ data class ModData(
                     project.platform
                 ).initAll(projectId)
 
-                // 基准日期优先取实时列表中当前版本自身的发布日期，缓存日期过期会导致同版本反复提示更新
+                // 基准日期优先取实时列表中当前版本自身的发布日期
                 val currentEntry = versions.firstOrNull { it.platformId() == modFile.id }
                 if (currentEntry != null) {
                     // 当前版本，设置版本号

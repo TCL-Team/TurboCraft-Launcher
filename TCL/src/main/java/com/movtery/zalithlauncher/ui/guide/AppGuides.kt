@@ -127,22 +127,19 @@ private fun rememberMainGuides() = rememberGuide(holeRadius = 28.dp) {
             Text(stringResource(R.string.guide_main_version_list))
         }
     }
-    entry(GuideKeys.Main.Step.Launch) {
+    entry(GuideKeys.Main.Step.CardDrag) {
         GuideCard {
-            Text(stringResource(R.string.guide_main_launch_title))
-            Text(stringResource(R.string.guide_main_launch_text))
+            Text(stringResource(R.string.guide_main_card_drag_title))
+            Text(stringResource(R.string.guide_main_card_drag_text))
         }
     }
-    entry(GuideKeys.Main.Step.Stats) {
+    entry(GuideKeys.Main.Step.CardTip) {
         GuideCard {
-            Text(stringResource(R.string.guide_main_stats_title))
-            Text(stringResource(R.string.guide_main_stats_text))
-        }
-    }
-    entry(GuideKeys.Main.Step.SideBar) {
-        GuideCard {
-            Text(stringResource(R.string.guide_main_sidebar_title))
-            Text(stringResource(R.string.guide_main_sidebar_text))
+            Text(stringResource(R.string.guide_main_card_tip_title))
+            Text(stringResource(
+                R.string.guide_main_card_tip_text,
+                stringResource(R.string.home_add_version_card)
+            ))
         }
     }
 }

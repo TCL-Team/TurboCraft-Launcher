@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -304,7 +304,7 @@ class GameInstaller(
                     fabricDir = pathConfig.fabricDir,
                     babricDir = pathConfig.babricDir,
                     legacyFabricDir = pathConfig.legacyFabricDir,
-                    quiltDir = pathConfig.quiltDir
+                    quiltDir = pathConfig.quiltDir,
                     tempModsDir = pathConfig.tempModsDir
                 )
 
@@ -336,7 +336,7 @@ class GameInstaller(
                             fabricFolder = pathConfig.fabricDir,
                             babricFolder = pathConfig.babricDir,
                             legacyFabricFolder = pathConfig.legacyFabricDir,
-                            quiltFolder = pathConfig.quiltDir
+                            quiltFolder = pathConfig.quiltDir,
                             onComplete = {
                                 onInstalled(pathConfig.targetClientDir)
                                 targetClientDir = null
@@ -401,7 +401,7 @@ class GameInstaller(
                     fabricDir = pathConfig.fabricDir,
                     babricDir = pathConfig.babricDir,
                     legacyFabricDir = pathConfig.legacyFabricDir,
-                    quiltDir = pathConfig.quiltDir
+                    quiltDir = pathConfig.quiltDir,
                     tempModsDir = pathConfig.tempModsDir
                 )
 
@@ -429,7 +429,7 @@ class GameInstaller(
         fabricDir: File?,
         babricDir: File?,
         legacyFabricDir: File?,
-        quiltDir: File?
+        quiltDir: File?,
         tempModsDir: File
     ) {
         // OptiFine 安装
@@ -581,9 +581,6 @@ class GameInstaller(
                 mod = apiVersion,
                 modName = ModLoader.QUILT_API.displayName,
                 modVer = apiVersion.displayName
-            )
-        }
-
             )
         }
     }

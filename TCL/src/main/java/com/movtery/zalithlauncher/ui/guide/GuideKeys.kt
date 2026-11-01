@@ -37,12 +37,10 @@ sealed interface GuideKeys : GuideKey {
             data object Account : Step
             /** 版本列表入口 */
             data object VersionList : Step
-            /** 启动游戏按钮 */
-            data object Launch : Step
-            /** 游玩统计面板 */
-            data object Stats : Step
-            /** 侧边栏按钮组 */
-            data object SideBar : Step
+            /** 可长按拖动换边的操作菜单卡片 */
+            data object CardDrag : Step
+            /** 卡片化自定义主界面引导 */
+            data object CardTip : Step
         }
     }
 

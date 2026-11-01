@@ -49,9 +49,6 @@ import com.movtery.zalithlauncher.game.renderer.config.removeStaleEntries
 import com.movtery.zalithlauncher.game.renderer.config.resolveRendererConfig
 import com.movtery.zalithlauncher.game.renderer.getSfpewLibraryPath
 import com.movtery.zalithlauncher.game.renderer.isSfpewEnabledFor
-import com.movtery.zalithlauncher.game.renderer.renderers.GL4ESRenderer
-import com.movtery.zalithlauncher.game.renderer.renderers.MobileGluesRenderer
-import com.movtery.zalithlauncher.game.renderer.renderers.NGGL4ESRenderer
 import com.movtery.zalithlauncher.game.support.touch_controller.ControllerProxy
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionInfoParser
@@ -64,10 +61,9 @@ import com.movtery.zalithlauncher.utils.device.Architecture
 import com.movtery.zalithlauncher.utils.file.child
 import com.movtery.zalithlauncher.utils.file.ensureDirectorySilently
 import com.movtery.zalithlauncher.utils.logging.Logger
-import com.movtery.zalithlauncher.utils.string.isBiggerTo
+import com.movtery.zalithlauncher.utils.string.isEqualTo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import com.movtery.zalithlauncher.utils.string.isEqualTo
 import kotlinx.parcelize.Parcelize
 import org.lwjgl.glfw.CallbackBridge
 import java.io.File
@@ -210,6 +206,7 @@ class GameLauncher(
             }
         }
         if (Renderers.isCurrentRendererValid()) {
+            setRendererEnv(envMap, version, configuredRendererEnv)
         }
         envMap["ZALITH_VERSION_CODE"] = BuildConfig.VERSION_CODE.toString()
 
@@ -515,7 +512,6 @@ private fun setRendererEnv(
 
     if (RendererPluginManager.selectedRendererPlugin != null) return
 
-    //MobileGlues / SimpleFPEWrapper 自带完整 GL 栈，不能叠加 Mesa 的 zink 覆盖
     if (!renderer.mesaBased) {
         envMap["MESA_LOADER_DRIVER_OVERRIDE"] = "zink"
         envMap["MESA_GLSL_CACHE_DIR"] = PathManager.DIR_CACHE.absolutePath
