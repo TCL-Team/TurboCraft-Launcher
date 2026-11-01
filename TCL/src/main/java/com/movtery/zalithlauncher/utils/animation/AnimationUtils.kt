@@ -34,7 +34,7 @@ import com.movtery.zalithlauncher.setting.AllSettings
  * 获取动画的持续时长
  */
 fun getAnimateSpeed(): Int = calculateAnimationTime(
-    AllSettings.launcherAnimateSpeed.state,
+    AllSettings.launcherAnimateSpeedLevel.state,
     1500,
     0.1f
 )
@@ -45,7 +45,7 @@ fun getAnimateSpeed(): Int = calculateAnimationTime(
 fun getAdjustedDelayMillis(baseDelayMillis: Int): Int {
     if (baseDelayMillis == 0) return 0
     val adjustedAnimationTime = calculateAnimationTime(
-        AllSettings.launcherAnimateSpeed.state,
+        AllSettings.launcherAnimateSpeedLevel.state,
         baseDelayMillis
     )
     return adjustedAnimationTime
@@ -54,7 +54,7 @@ fun getAdjustedDelayMillis(baseDelayMillis: Int): Int {
 /**
  * 页面切换动画是否关闭
  */
-fun isSwapAnimateClosed() = AllSettings.launcherSwapAnimateType.state == TransitionAnimationType.CLOSE
+fun isSwapAnimateClosed() = !AllSettings.launcherSwapAnimEnabled.state
 
 fun <E> getAnimateTween(
     delayMillis: Int = 0
@@ -111,16 +111,7 @@ fun <E> getSwapAnimateTween(
     delayMillis: Int = 0
 ): FiniteAnimationSpec<E> {
     val adjustedDelayMillis = getAdjustedDelayMillis(delayMillis)
-    return if (swapIn) {
-        when (AllSettings.launcherSwapAnimateType.state) {
-            TransitionAnimationType.CLOSE -> snap()
-            TransitionAnimationType.BOUNCE -> getAnimateTweenBounce(adjustedDelayMillis)
-            TransitionAnimationType.JELLY_BOUNCE -> getAnimateTweenJellyBounce(adjustedDelayMillis)
-            else -> getAnimateTween(adjustedDelayMillis)
-        }
-    } else {
-        getAnimateTween(adjustedDelayMillis)
-    }
+    return getAnimateTween(adjustedDelayMillis)
 }
 
 /**
@@ -156,7 +147,7 @@ fun getTargetValueByAmplitude(
 fun swapAnimateDpAsState(
     targetValue: Dp,
     swapIn: Boolean,
-    amplitude: Int = AllSettings.launcherAnimateExtent.state,
+    amplitude: Int = 5,
     isHorizontal: Boolean = false,
     delayMillis: Int = 0
 ): State<Dp> {
@@ -177,7 +168,7 @@ fun swapAnimateDpAsState(
 fun swapAnimateDpAsState(
     targetValue: Dp,
     swapIn: Boolean,
-    amplitude: Int = AllSettings.launcherAnimateExtent.state,
+    amplitude: Int = 5,
     isHorizontal: Boolean = false,
     animationSpec: AnimationSpec<Dp>
 ): State<Dp> {

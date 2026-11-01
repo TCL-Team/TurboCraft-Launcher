@@ -107,9 +107,12 @@ fun VisibilityType.getVisibilityText(): String {
 }
 
 @Composable
-fun JoystickTriggerMode.getTriggerModeText(): String = when (this) {
-    JoystickTriggerMode.DRAG -> stringResource(R.string.control_editor_edit_joystick_trigger_mode_drag)
-    JoystickTriggerMode.TOUCH -> stringResource(R.string.control_editor_edit_joystick_trigger_mode_touch)
+fun JoystickTriggerMode.getTriggerModeText(): String {
+    val textRes = when (this) {
+        JoystickTriggerMode.DRAG -> R.string.control_editor_edit_joystick_trigger_mode_drag
+        JoystickTriggerMode.TOUCH -> R.string.control_editor_edit_joystick_trigger_mode_touch
+    }
+    return stringResource(textRes)
 }
 
 /**
@@ -122,17 +125,17 @@ fun String.orUnspecified(): String {
 
 @Composable
 fun MenuBox(
+    modifier: Modifier = Modifier,
     position: Offset,
     onPositionChanged: (Offset) -> Unit,
     opened: Boolean,
-    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     FloatingBall(
+        modifier = modifier,
         position = position,
         onPositionChanged = onPositionChanged,
-        onClick = onClick,
-        modifier = modifier
+        onClick = onClick
     ) {
         Box(
             modifier = Modifier
@@ -170,6 +173,7 @@ fun EditorMenu(
     onHideSwitch: (ObservableControlLayer) -> Unit,
     addNewButton: () -> Unit,
     addNewText: () -> Unit,
+    addNewJoystick: () -> Unit,
     openStyleList: () -> Unit,
     openJoystickStyleList: () -> Unit,
     openStyleCabinet: () -> Unit,
@@ -181,9 +185,6 @@ fun EditorMenu(
     onPreviewScenarioChanged: (PreviewScenario) -> Unit,
     previewHideLayerWhen: HideLayerWhen,
     onPreviewHideLayerChanged: (HideLayerWhen) -> Unit,
-    enableJoystick: Boolean,
-    onJoystickSwitch: (Boolean) -> Unit,
-    onJoystickTip: () -> Unit,
     onSave: () -> Unit,
     saveAndExit: () -> Unit,
     onExit: () -> Unit
@@ -204,6 +205,7 @@ fun EditorMenu(
                 closeScreen = closeScreen,
                 addNewButton = addNewButton,
                 addNewText = addNewText,
+                addNewJoystick = addNewJoystick,
                 openStyleList = openStyleList,
                 openJoystickStyleList = openJoystickStyleList,
                 openStyleCabinet = openStyleCabinet,
@@ -213,9 +215,6 @@ fun EditorMenu(
                 onPreviewScenarioChanged = onPreviewScenarioChanged,
                 previewHideLayerWhen = previewHideLayerWhen,
                 onPreviewHideLayerChanged = onPreviewHideLayerChanged,
-                enableJoystick = enableJoystick,
-                onJoystickSwitch = onJoystickSwitch,
-                onJoystickTip = onJoystickTip,
                 onSave = onSave,
                 saveAndExit = saveAndExit,
                 onExit = onExit
@@ -271,6 +270,7 @@ private fun EditorMenuContent(
     closeScreen: () -> Unit,
     addNewButton: () -> Unit,
     addNewText: () -> Unit,
+    addNewJoystick: () -> Unit,
     openStyleList: () -> Unit,
     openJoystickStyleList: () -> Unit,
     openStyleCabinet: () -> Unit,
@@ -280,9 +280,6 @@ private fun EditorMenuContent(
     onPreviewScenarioChanged: (PreviewScenario) -> Unit,
     previewHideLayerWhen: HideLayerWhen,
     onPreviewHideLayerChanged: (HideLayerWhen) -> Unit,
-    enableJoystick: Boolean,
-    onJoystickSwitch: (Boolean) -> Unit,
-    onJoystickTip: () -> Unit,
     onSave: () -> Unit,
     saveAndExit: () -> Unit,
     onExit: () -> Unit,
@@ -364,7 +361,7 @@ private fun EditorMenuContent(
         }
 
         //控件外观列表
-        item(key = "widget_style_list") {
+        item(key = "control_appearance_list") {
             MenuTextButton(
                 modifier = Modifier
                     .guideNode(
@@ -383,7 +380,7 @@ private fun EditorMenuContent(
             )
         }
 
-        //摇杆样式
+        //摇杆样式列表
         item(key = "joystick_style_list") {
             MenuTextButton(
                 modifier = Modifier
@@ -392,25 +389,10 @@ private fun EditorMenuContent(
                         holeRadius = 16.dp
                     )
                     .fillMaxWidth(),
-                text = stringResource(R.string.control_editor_special_joystick_style),
+                text = stringResource(R.string.control_editor_edit_joystick_style_list),
                 enabled = isPreviewMode.not(),
-                appendLayout = {
-                    //摇杆提示弹窗
-                    IconButton(
-                        onClick = {
-                            onJoystickTip()
-                            closeScreen()
-                        },
-                        enabled = isPreviewMode.not()
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_help_outlined),
-                            contentDescription = stringResource(R.string.generic_tip)
-                        )
-                    }
-                },
                 onClick = {
-                    onEditJoystickStyle()
+                    openJoystickStyleList()
                     closeScreen()
                 },
                 color = color,
@@ -443,7 +425,7 @@ private fun EditorMenuContent(
         }
 
         //预览控制布局
-        item(key = "preview_mode") {
+        item(key = "preview_control_layout") {
             MenuSwitchButton(
                 modifier = Modifier
                     .guideNode(
@@ -460,9 +442,14 @@ private fun EditorMenuContent(
         }
 
         //预览场景
-        item {
+        item(key = "preview_scenario") {
             MenuListLayout(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .guideNode(
+                        key = GuideKeys.Editor.Step.Preview,
+                        holeRadius = 16.dp
+                    )
+                    .fillMaxWidth(),
                 title = stringResource(R.string.control_editor_menu_preview_mode_scenario),
                 items = PreviewScenario.entries,
                 currentItem = previewScenario,
@@ -477,9 +464,14 @@ private fun EditorMenuContent(
         }
 
         //正在使用实体鼠标
-        item {
+        item(key = "using_physical_mouse") {
             MenuSwitchButton(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .guideNode(
+                        key = GuideKeys.Editor.Step.Preview,
+                        holeRadius = 16.dp
+                    )
+                    .fillMaxWidth(),
                 text = stringResource(R.string.control_editor_menu_preview_is_mouse),
                 switch = previewHideLayerWhen == HideLayerWhen.WhenMouse,
                 onSwitch = { value ->
@@ -510,21 +502,6 @@ private fun EditorMenuContent(
                         if (value) HideLayerWhen.WhenGamepad
                         else HideLayerWhen.None
                     )
-                },
-                color = color,
-                contentColor = contentColor,
-                enabled = isPreviewMode
-            )
-        }
-
-        //启用摇杆
-        item {
-            MenuSwitchButton(
-                modifier = Modifier.fillMaxWidth(),
-                text = stringResource(R.string.game_styles_joystick_enable),
-                switch = enableJoystick,
-                onSwitch = { value ->
-                    onJoystickSwitch(value)
                 },
                 color = color,
                 contentColor = contentColor,
@@ -585,9 +562,14 @@ private fun EditorMenuContent(
         }
 
         //保存
-        item {
+        item(key = "save") {
             MenuTextButton(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .guideNode(
+                        key = GuideKeys.Editor.Step.Save,
+                        holeRadius = 16.dp
+                    )
+                    .fillMaxWidth(),
                 text = stringResource(R.string.generic_save),
                 onClick = onSave,
                 color = color,
@@ -612,7 +594,7 @@ private fun EditorMenuContent(
         }
 
         //直接退出
-        item {
+        item(key = "exit_directly") {
             MenuTextButton(
                 modifier = Modifier.fillMaxWidth(),
                 text = stringResource(R.string.control_editor_exit_confirm),
@@ -715,8 +697,7 @@ private fun ColumnScope.ControlLayerMenu(
                 key = GuideKeys.Editor.Step.CreateLayer,
                 holeRadius = 50.dp
             )
-            .padding(horizontal = 8.dp)
-            .padding(bottom = 4.dp)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
             .fillMaxWidth(),
         onClick = createLayer
     ) {

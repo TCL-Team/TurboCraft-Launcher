@@ -42,9 +42,13 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.movtery.guide.guideNode
 import com.movtery.layer_controller.ControlEditorLayer
 import com.movtery.layer_controller.data.ButtonSize
 import com.movtery.layer_controller.data.CenterPosition
+import com.movtery.layer_controller.data.DefaultDirectionEvents
+import com.movtery.layer_controller.data.DefaultLockEvents
+import com.movtery.layer_controller.data.JoystickData
 import com.movtery.layer_controller.data.NormalData
 import com.movtery.layer_controller.data.TextData
 import com.movtery.layer_controller.data.VisibilityType
@@ -76,8 +80,7 @@ fun BoxWithConstraintsScope.ControlEditor(
 ) {
     val layers by viewModel.observableLayout.layers.collectAsStateWithLifecycle()
     val styles by viewModel.observableLayout.styles.collectAsStateWithLifecycle()
-    val special by viewModel.observableLayout.special.collectAsStateWithLifecycle()
-    val joystickStyle by special.joystickStyle.collectAsStateWithLifecycle()
+    val joystickStyles by viewModel.observableLayout.joystickStyles.collectAsStateWithLifecycle()
 
     /** 默认新建的控件层的名称 */
     val defaultLayerName = stringResource(R.string.control_editor_edit_layer_default)
@@ -95,7 +98,6 @@ fun BoxWithConstraintsScope.ControlEditor(
             observableLayout = viewModel.observableLayout,
             previewScenario = viewModel.previewScenario,
             previewHideLayerWhen = viewModel.previewHideLayerWhen,
-            enableJoystick = viewModel.enableJoystick
         )
     } else {
         ControlEditorLayer(
@@ -238,13 +240,6 @@ fun BoxWithConstraintsScope.ControlEditor(
         previewHideLayerWhen = viewModel.previewHideLayerWhen,
         onPreviewHideLayerChanged = { hideWhen ->
             viewModel.previewHideLayerWhen = hideWhen
-        },
-        enableJoystick = viewModel.enableJoystick,
-        onJoystickSwitch = { value ->
-            viewModel.enableJoystick = value
-        },
-        onJoystickTip = {
-            viewModel.editorOperation = EditorOperation.TipJoystick
         },
         onSave = {
             viewModel.save(targetFile, onSaved = {})
