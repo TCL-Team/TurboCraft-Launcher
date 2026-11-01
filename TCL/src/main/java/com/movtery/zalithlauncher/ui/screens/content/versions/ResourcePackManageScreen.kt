@@ -502,13 +502,13 @@ fun ResourcePackManageScreen(
                             onLoad = { viewModel.loadResourcePack(it) }
                         )
                     }
-                    is LoadingState.Loading -> {
-                        Box(
-                            Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            LoadingIndicator()
-                        }
+                }
+                is LoadingState.Loading -> {
+                    Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        LoadingIndicator()
                     }
                 }
             }

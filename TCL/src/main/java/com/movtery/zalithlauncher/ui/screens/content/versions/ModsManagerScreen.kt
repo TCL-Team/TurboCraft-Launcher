@@ -1224,6 +1224,17 @@ private fun ModsList(
     }
 }
 
+@Stable
+class ModItemCallbacks(
+    val onLoad: () -> Unit,
+    val onForceRefresh: () -> Unit,
+    val onClick: () -> Unit,
+    val onEnable: () -> Unit,
+    val onDisable: () -> Unit,
+    val onSwapMoreInfo: (id: String, Platform) -> Unit,
+    val onDelete: () -> Unit
+)
+
 @Composable
 private fun ModItemLayout(
     modifier: Modifier = Modifier,
