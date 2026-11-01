@@ -29,8 +29,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,7 +45,6 @@ import com.movtery.zalithlauncher.game.control.ControlManager
 import com.movtery.zalithlauncher.game.multirt.RuntimesManager
 import com.movtery.zalithlauncher.game.plugin.Plugin
 import com.movtery.zalithlauncher.game.plugin.driver.DriverPluginManager
-import androidx.compose.ui.res.painterResource
 import com.movtery.zalithlauncher.game.renderer.ConfigurableRenderer
 import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.support.touch_controller.VibrationHandler
@@ -208,7 +205,11 @@ private fun VersionConfigs(
 
         val renderers = Renderers.getRenderers()
         val renderersIdList = getIDList(renderers) { IDItem(it.getUniqueIdentifier(), it.getRendererName()) }
-        var currentRendererId by remember { mutableStateOf(config.renderer) }
+        var currentRendererId by remember { mutableStateOf(stateful.renderer) }
+        val effectiveRendererId = currentRendererId.ifEmpty { AllSettings.renderer.state }
+        val effectiveRenderer = remember(effectiveRendererId) {
+            renderers.find { it.getUniqueIdentifier() == effectiveRendererId }
+        }
         //当前版本选中的内置渲染器是否存在可配置项
         val configurableRenderer = remember(currentRendererId) {
             if (currentRendererId.isNotEmpty()) {
@@ -243,23 +244,8 @@ private fun VersionConfigs(
                     RendererSummaryLayout(renderer)
                 }
             },
-            onValueChange = { item ->
-                if (config.renderer != item.id) {
-                    config.renderer = item.id
-                    currentRendererId = item.id
-                    config.saveOrShowError(submitError)
-                }
-            },
             onValueChange = { stateful.renderer = it.id }
         )
-
-        if (showConfigDialog && configurableRenderer != null) {
-            RendererConfigDialog(
-                renderer = configurableRenderer,
-                versionFolder = stateful.versionPath,
-                onDismissRequest = { showConfigDialog = false }
-            )
-        }
 
         val sfpewPluginLayerEnabled = when (stateful.sfpewPluginLayer) {
             SettingState.FOLLOW_GLOBAL -> AllSettings.sfpewPluginLayer.state
@@ -293,7 +279,7 @@ private fun VersionConfigs(
         if (showRendererConfigDialog && configurableRenderer != null) {
             RendererConfigDialog(
                 renderer = configurableRenderer,
-                versionFolder = config.getVersionPath(),
+                versionFolder = stateful.versionPath,
                 onDismissRequest = { showRendererConfigDialog = false }
             )
         }
@@ -435,7 +421,18 @@ private fun GameConfigs(
             }
         )
 
-        var jvmArgs by remember { mutableStateOf(config.jvmArgs) }
+        TextInputSettingsCard(
+            modifier = Modifier.fillMaxWidth(),
+            position = CardPosition.Middle,
+            value = stateful.gameArgs,
+            title = stringResource(R.string.versions_config_game_args_title),
+            summary = stringResource(R.string.versions_config_game_args_summary),
+            onValueChange = { stateful.gameArgs = it },
+            label = {
+                Text(text = stringResource(R.string.versions_config_disable_if_blank))
+            }
+        )
+
         TextInputSettingsCard(
             modifier = Modifier.fillMaxWidth(),
             position = CardPosition.Middle,
