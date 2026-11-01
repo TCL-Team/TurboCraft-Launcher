@@ -271,7 +271,6 @@ fun MainScreen(
                         toMainScreen = toMainScreen,
                         eventViewModel = eventViewModel,
                         modpackImportViewModel = modpackImportViewModel,
-                        modifyVersionViewModel = modifyVersionViewModel,
                         submitError = submitError
                     )
                 }
@@ -820,16 +819,6 @@ private fun NavigationUI(
             }
         }
 
-        NavDisplay(
-            backStack = backStack,
-            modifier = modifier,
-            onBack = {
-                onBack(backStack)
-            },
-            transitionSpec = rememberTransitionSpec(),
-            popTransitionSpec = rememberTransitionSpec(),
-            entryProvider = provider
-        )
     } else {
         Box(modifier)
     }
