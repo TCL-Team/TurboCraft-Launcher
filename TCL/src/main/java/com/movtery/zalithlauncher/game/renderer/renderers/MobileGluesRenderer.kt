@@ -51,7 +51,7 @@ object MobileGluesRenderer : ConfigurableRenderer {
             id = "enableANGLE",
             title = R.string.renderer_config_mg_angle_title,
             description = R.string.renderer_config_mg_angle_desc,
-            default = 1
+            default = 0
         ) {
             option(0, R.string.renderer_config_mg_angle_disable_when_possible)
             option(1, R.string.renderer_config_mg_angle_enable_when_possible)
@@ -212,10 +212,13 @@ object MobileGluesRenderer : ConfigurableRenderer {
     }
 
     private fun writeFileAtomically(file: File, content: String): Boolean {
-        val tmpFile = file.resolve("${file.name}.tmp")
+        val tmpFile = File(file.absoluteFile.parentFile, "${file.name}.tmp")
         return runCatching {
             val parent = requireNotNull(file.absoluteFile.parentFile)
             if (!parent.isDirectory) parent.mkdirs()
+            //旧版本启动器写配置时把临时文件拼成了子路径，会在目标位置留下一个同名目录，
+            //这里顺手清掉，否则配置文件永远写不进去
+            if (file.isDirectory) file.deleteRecursively()
             FileOutputStream(tmpFile).use { stream ->
                 stream.write(content.toByteArray())
                 stream.fd.sync()
