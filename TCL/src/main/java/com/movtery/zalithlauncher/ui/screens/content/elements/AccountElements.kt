@@ -160,6 +160,8 @@ import com.movtery.zalithlauncher.ui.components.BaseIconTextButton
 import com.movtery.zalithlauncher.ui.components.ButtonPosition
 import com.movtery.zalithlauncher.ui.components.IconTextButton
 import com.movtery.zalithlauncher.ui.components.MarqueeText
+import com.movtery.zalithlauncher.ui.components.ImePanContainer
+import com.movtery.zalithlauncher.ui.components.rememberDialogMaxHeight
 import com.movtery.zalithlauncher.ui.components.OwnOutlinedTextField
 import com.movtery.zalithlauncher.ui.components.PetModelView
 import com.movtery.zalithlauncher.ui.components.PositionButton
@@ -1384,6 +1386,196 @@ sealed interface ChangeCape {
     data class SelectedCustomCape(val capeFile: File) : ChangeCape
     data object ResetCape : ChangeCape
 }
+
+
+@Composable
+fun MicrosoftReloginDialog(
+    onDismissRequest: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    SimpleAlertDialog(
+        title = stringResource(R.string.account_relogin_title),
+        text = {
+            Text(text = stringResource(R.string.account_relogin_microsoft_message))
+        },
+        confirmText = stringResource(R.string.account_relogin),
+        onConfirm = onConfirm,
+        onCancel = onDismissRequest,
+        onDismissRequest = onDismissRequest
+    )
+}
+
+@Composable
+fun OtherAccountReloginDialog(
+    account: Account,
+    logging: Boolean,
+    error: Throwable?,
+    onDismissRequest: () -> Unit,
+    onConfirm: (password: String) -> Unit
+) {
+    var password by rememberSaveable { mutableStateOf("") }
+    var showPassword by rememberSaveable { mutableStateOf(false) }
+
+    Dialog(
+        onDismissRequest = { if (!logging) onDismissRequest() },
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
+        ImePanContainer(
+            modifier = Modifier
+                .heightIn(max = rememberDialogMaxHeight())
+                .fillMaxHeight(),
+            contentAlignment = Alignment.Center
+        ) {
+            Surface(
+                modifier = Modifier
+                    .padding(all = 6.dp)
+                    .heightIn(max = (maxHeight - 12.dp).coerceAtMost(rememberDialogMaxHeight()))
+                    .wrapContentHeight(),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = cardColor(false),
+                contentColor = onCardColor(),
+                shadowElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = account.accountType ?: stringResource(R.string.account_relogin_title),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Spacer(modifier = Modifier.size(16.dp))
+
+                    Text(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = stringResource(R.string.account_relogin_password_message, account.username),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.size(12.dp))
+
+                    OwnOutlinedTextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = password,
+                        onValueChange = { password = it },
+                        enabled = !logging,
+                        label = { Text(text = stringResource(R.string.account_label_password)) },
+                        visualTransformation = if (showPassword) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
+                        colors = TextFieldDefaults.colors(
+                            unfocusedContainerColor = Transparent,
+                        ),
+                        trailingIcon = {
+                            IconButton(onClick = { showPassword = !showPassword }) {
+                                Icon(
+                                    painter = painterResource(
+                                        if (showPassword) {
+                                            R.drawable.ic_visibility_outlined
+                                        } else {
+                                            R.drawable.ic_visibility_off_outlined
+                                        }
+                                    ),
+                                    contentDescription = stringResource(R.string.account_label_password)
+                                )
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions.Default.copy(
+                            imeAction = ImeAction.Done,
+                            keyboardType = KeyboardType.Password
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                if (password.isNotEmpty() && !logging) onConfirm(password)
+                            }
+                        ),
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.large
+                    )
+
+                    error?.let { th ->
+                        Spacer(modifier = Modifier.size(8.dp))
+                        AndroidStringText(
+                            text = accountErrorText(th),
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.size(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        FilledTonalButton(
+                            modifier = Modifier.weight(1f),
+                            enabled = !logging,
+                            onClick = onDismissRequest
+                        ) {
+                            MarqueeText(text = stringResource(R.string.generic_cancel))
+                        }
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            enabled = !logging && password.isNotEmpty(),
+                            onClick = { onConfirm(password) }
+                        ) {
+                            MarqueeText(text = stringResource(R.string.account_relogin))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 更改皮肤流程需要让 uri 与皮肤模型深度绑定
+ * 重置或者确认更改时，能更方便的处理数据
+ */
+sealed interface ChangeSkin {
+    data object None : ChangeSkin
+
+    data class ChangeSkinData(
+        val cacheFile: File,
+        val data: SkinModel
+    ) : ChangeSkin
+
+    /**
+     * 重置离线皮肤
+     */
+    data object ResetSkin : ChangeSkin
+
+    sealed interface SkinModel {
+        /** 拒绝选择皮肤模型 */
+        data object Rejected : SkinModel
+        data class Model(val model: SkinModelType): SkinModel
+        /** @return 获取模型类型 */
+        fun getModelType(): SkinModelType = when (this) {
+            is Rejected -> SkinModelType.STEVE
+            is Model -> model
+        }
+
+        /** @return 获取模型类型 */
+        fun getModelTypeNullable(): SkinModelType? = when (this) {
+            is Rejected -> null
+            is Model -> model
+        }
+    }
+}
+
+/**
+ * 更改披风流程
+ */
+sealed interface ChangeCape {
+    data object None : ChangeCape
+    data class ChangeCapeData(
+        val cape: PlayerProfile.Cape
+    ) : ChangeCape
+}
+
 
 @Composable
 fun ChangeSkinDialog(
