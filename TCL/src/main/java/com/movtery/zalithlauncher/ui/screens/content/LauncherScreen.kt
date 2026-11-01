@@ -908,178 +908,26 @@ private fun RightMenuContent(
 }
 
 @Composable
-private fun ActionMenuCardContent(
-    modifier: Modifier = Modifier,
-    account: Account?,
-    onLaunchGame: (Version?) -> Unit,
-    toAccountManageScreen: () -> Unit,
-    toVersionManageScreen: () -> Unit,
-    toVersionSettingsScreen: () -> Unit,
-) {
-    BackgroundCard(
-        modifier = Modifier
-            .actionMenuDragAnchor()
-            .guideNode(GuideKeys.Main.Step.CardDrag)
-            .then(modifier),
-        shape = MaterialTheme.shapes.extraLarge
-    ) {
-        ConstraintLayout(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            val (accountAvatar, versionManagerLayout) = createRefs()
-
-            AccountAvatarCenter(
-                modifier = Modifier
-                    .constrainAs(accountAvatar) {
-                        top.linkTo(parent.top)
-                        bottom.linkTo(versionManagerLayout.top)
-                        start.linkTo(parent.start)
-                        end.linkTo(parent.end)
-                    }.guideNode(
-                        key = GuideKeys.Main.Step.Account,
-                        preferSide = GuideSide.Below
-                    ),
-                account = account,
-                onClick = toAccountManageScreen
-            )
-
-            VersionsContent(
-                modifier = Modifier.constrainAs(versionManagerLayout) {
-                    start.linkTo(parent.start)
-                    end.linkTo(parent.end)
-                    bottom.linkTo(parent.bottom)
-                },
-                onLaunchGame = onLaunchGame,
-                toVersionManageScreen = toVersionManageScreen,
-                toVersionSettingsScreen = toVersionSettingsScreen,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ActionMenuTallerContent(
-    modifier: Modifier = Modifier,
-    account: Account?,
-    dockedSide: ActionMenuSide,
-    onLaunchGame: (Version?) -> Unit,
-    toAccountManageScreen: () -> Unit,
-    toVersionManageScreen: () -> Unit,
-    toVersionSettingsScreen: () -> Unit,
-) {
-    val refreshWardrobe by AccountsManager.refreshWardrobe.collectAsStateWithLifecycle()
-
-    Column(
-        modifier = Modifier
-            .actionMenuDragAnchor()
-            .guideNode(
-                key = GuideKeys.Main.Step.CardDrag,
-                holeRadius = 0.dp,
-            )
-            .then(modifier),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
-        // 偏航角符号与停泊侧相反，让模型面向屏幕内容一侧
-        val yaw = Math.toRadians(
-            ((if (dockedSide == ActionMenuSide.START) 35.0 else -(35.0)) * (if (isRtl) -1 else 1))
-        ).toFloat()
-
-        val armModel = account?.skinModelType?.toArmModel()
-        val skinStamp = account?.getSkinFile()?.lastModified()
-        val capeStamp = account?.getCapeFile()?.lastModified()
-        val skinBytes by produceState<ByteArray?>(null, account, refreshWardrobe, skinStamp) {
-            value = withContext(Dispatchers.IO) {
-                account?.getSkinFile()?.takeIf { it.exists() }
-                    ?.inputStream()?.use { it.readBytes() }
-            }
-        }
-        val capeBytes by produceState<ByteArray?>(null, account, refreshWardrobe, capeStamp) {
-            value = withContext(Dispatchers.IO) {
-                account?.getCapeFile()?.takeIf { it.exists() }
-                    ?.inputStream()?.use { it.readBytes() }
-            }
-        }
-
-        PetModelView(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            skin = skinBytes,
-            cape = capeBytes,
-            arm = armModel,
-            yaw = yaw,
-            animation = PetAnimation.Idle,
-            tapReaction = PetTapReaction.Interact,
-            dragYaw = false
-        )
-
-        BackgroundCard(
-            modifier = Modifier
-                .guideNode(
-                    key = GuideKeys.Main.Step.Account,
-                    preferSide = GuideSide.Above,
-                    holeRadius = 28.dp
-                )
-                .fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            onClick = toAccountManageScreen
-        ) {
-            AccountAvatarRow(
-                modifier = Modifier.fillMaxWidth(),
-                account = account,
-            )
-        }
-
-        BackgroundCard(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-        ) {
-            VersionsContent(
-                modifier = Modifier.fillMaxWidth(),
-                onLaunchGame = onLaunchGame,
-                toVersionManageScreen = toVersionManageScreen,
-                toVersionSettingsScreen = toVersionSettingsScreen,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ActionMenu(
+private fun RightMenu(
     isVisible: Boolean,
     onLaunchGame: (Version?) -> Unit,
-    swapDirection: AnimatedDirection,
-    pickUpScale: () -> Float,
     modifier: Modifier = Modifier,
     toAccountManageScreen: () -> Unit = {},
     toVersionManageScreen: () -> Unit = {},
     toVersionSettingsScreen: () -> Unit = {}
 ) {
-    val ctx = rememberAnimatedContext(isVisible = isVisible)
+    val xOffset by swapAnimateDpAsState(
+        targetValue = 40.dp,
+        swapIn = isVisible,
+        isHorizontal = true
+    )
 
-    val account by AccountsManager.currentAccountFlow.collectAsStateWithLifecycle()
-
-    val contentModifier = modifier.graphicsLayer {
-        val scale = pickUpScale()
-        scaleX = scale
-        scaleY = scale
-    }.animated(ctx, from = swapDirection)
-
-    if (isTaller) {
-        ActionMenuTallerContent(
-            modifier = contentModifier,
-            account = account,
-            dockedSide = dockedSide,
-            onLaunchGame = onLaunchGame,
-            toAccountManageScreen = toAccountManageScreen,
-            toVersionManageScreen = toVersionManageScreen,
-            toVersionSettingsScreen = toVersionSettingsScreen,
-        )
-    } else {
-        ActionMenuCardContent(
-            modifier = contentModifier,
-            account = account,
+    BackgroundCard(
+        modifier = modifier.offset { IntOffset(x = xOffset.roundToPx(), y = 0) },
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        RightMenuContent(
+            modifier = Modifier.fillMaxSize(),
             onLaunchGame = onLaunchGame,
             toAccountManageScreen = toAccountManageScreen,
             toVersionManageScreen = toVersionManageScreen,
