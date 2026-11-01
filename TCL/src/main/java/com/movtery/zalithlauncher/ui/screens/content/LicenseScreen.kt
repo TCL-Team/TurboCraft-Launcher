@@ -41,6 +41,7 @@ import com.movtery.zalithlauncher.viewmodel.ScreenBackStackViewModel
 import io.github.rosemoe.sora.text.Content
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.movtery.zalithlauncher.R
 
 @Composable
 fun LicenseScreen(

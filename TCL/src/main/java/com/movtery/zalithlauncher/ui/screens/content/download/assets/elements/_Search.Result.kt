@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -55,7 +55,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -125,106 +124,92 @@ fun ResultListLayout(
     onNavigatePage: (Int) -> Unit,
     swapToDownload: (Platform, projectId: String, iconUrl: String?) -> Unit = { _, _, _ -> }
 ) {
-    PullToRefreshBox(
-        modifier = modifier,
-        isRefreshing = false,
-        enabled = searchState !is SearchAssetsState.Searching,
-        onRefresh = onReload
-    ) {
-        when (searchState) {
-            is SearchAssetsState.Searching -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(all = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    LinearWavyProgressIndicator(
-                        modifier = Modifier.width(168.dp),
-                        wavelength = 32.dp
-                    )
+    when (searchState) {
+        is SearchAssetsState.Searching -> {
+            Box(
+                modifier.padding(all = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                LinearWavyProgressIndicator(
+                    modifier = Modifier.width(168.dp),
+                    wavelength = 32.dp
+                )
+            }
+        }
+        is SearchAssetsState.Success -> {
+            val page = searchState.page
+
+            val listState = rememberLazyListState()
+            val maxCollapsePx = with(LocalDensity.current) { controllerHeight.toPx() }
+
+            //计算缩放比例，滑动偏移限制在0 ~ maxCollapsePx之间
+            val fraction by remember {
+                derivedStateOf {
+                    val index = listState.firstVisibleItemIndex
+                    val offset = listState.firstVisibleItemScrollOffset.toFloat()
+
+                    when {
+                        index > 0 -> 1f
+                        else -> (offset.coerceIn(0f, maxCollapsePx) / maxCollapsePx)
+                    }
                 }
             }
-            is SearchAssetsState.Success -> {
-                val page = searchState.page
 
-                val listState = rememberLazyListState()
-                val maxCollapsePx = with(LocalDensity.current) { controllerHeight.toPx() }
+            Box(modifier = modifier) {
+                ResultList(
+                    modifier = Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 60.dp, bottom = 6.dp),
+                    classes = classes,
+                    data = page.data,
+                    swapToDownload = swapToDownload
+                )
 
-                //计算缩放比例，滑动偏移限制在0 ~ maxCollapsePx之间
-                val fraction by remember {
-                    derivedStateOf {
-                        val index = listState.firstVisibleItemIndex
-                        val offset = listState.firstVisibleItemScrollOffset.toFloat()
+                val targetScale = 1f - (1f - controllerMinScale) * fraction
+                val animatedScale by animateFloatAsState(targetScale)
+                val targetAlpha = 1f - (1f - controllerMinAlpha) * fraction
+                val animatedAlpha by animateFloatAsState(targetAlpha)
 
-                        when {
-                            index > 0 -> 1f
-                            else -> (offset.coerceIn(0f, maxCollapsePx) / maxCollapsePx)
+                Row(
+                    modifier = Modifier
+                        .height(controllerHeight)
+                        .align(Alignment.TopEnd)
+                        .padding(top = 12.dp, end = 6.dp)
+                        .alpha(animatedAlpha)
+                        .graphicsLayer {
+                            scaleX = animatedScale
+                            scaleY = animatedScale
+                            transformOrigin = TransformOrigin(1f, 0f)
                         }
-                    }
-                }
-
-                Box(modifier = Modifier.fillMaxSize()) {
-                    ResultList(
-                        modifier = Modifier.fillMaxSize(),
-                        state = listState,
-                        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 60.dp, bottom = 6.dp),
-                        classes = classes,
-                        data = page.data,
-                        swapToDownload = swapToDownload,
-                        installedInfo = installedInfo
+                ) {
+                    PageController(
+                        modifier = Modifier.padding(end = 6.dp),
+                        page = page,
+                        onPreviousPage = {
+                            onPreviousPage(page.pageNumber)
+                        },
+                        onNextPage = {
+                            onNextPage(page.pageNumber, page.isLastPage)
+                        },
+                        onNavigatePage = onNavigatePage,
                     )
-
-                    val targetScale = 1f - (1f - controllerMinScale) * fraction
-                    val animatedScale by animateFloatAsState(targetScale)
-                    val targetAlpha = 1f - (1f - controllerMinAlpha) * fraction
-                    val animatedAlpha by animateFloatAsState(targetAlpha)
-
-                    Row(
-                        modifier = Modifier
-                            .height(controllerHeight)
-                            .align(Alignment.TopEnd)
-                            .padding(top = 12.dp, end = 6.dp)
-                            .graphicsLayer {
-                                alpha = animatedAlpha
-                                scaleX = animatedScale
-                                scaleY = animatedScale
-                                transformOrigin = TransformOrigin(1f, 0f)
-                            }
-                    ) {
-                        PageController(
-                            modifier = Modifier.padding(end = 6.dp),
-                            page = page,
-                            onPreviousPage = {
-                                onPreviousPage(page.pageNumber)
-                            },
-                            onNextPage = {
-                                onNextPage(page.pageNumber, page.isLastPage)
-                            },
-                            onNavigatePage = onNavigatePage,
-                        )
-                    }
                 }
             }
-            is SearchAssetsState.Error -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(all = 12.dp)
-                ) {
-                    ScalingLabel(
-                        modifier = Modifier.align(Alignment.Center),
-                        text = {
-                            AndroidStringText(
-                                text = androidText(
-                                    R.string.download_assets_failed_to_get_result,
-                                    searchState.message
-                                )
-                            )
-                        },
-                        onClick = onReload
-                    )
-                }
+        }
+        is SearchAssetsState.Error -> {
+            Box(modifier.padding(all = 12.dp)) {
+                ScalingLabel(
+                    modifier = Modifier.align(Alignment.Center),
+                    text = {
+                        AndroidStringText(
+                            text = buildAppendedText {
+                                append(R.string.download_assets_failed_to_get_result)
+                                append(searchState.message)
+                            }
+                        )
+                    },
+                    onClick = onReload
+                )
             }
         }
     }
@@ -374,8 +359,7 @@ private fun ResultList(
     contentPadding: PaddingValues = PaddingValues(),
     classes: PlatformClasses,
     data: List<Pair<PlatformSearchData, ModTranslations.McMod?>>,
-    swapToDownload: (Platform, projectId: String, iconUrl: String?) -> Unit = { _, _, _ -> },
-    installedInfo: ((Platform, projectId: String) -> InstalledMod?)? = null
+    swapToDownload: (Platform, projectId: String, iconUrl: String?) -> Unit = { _, _, _ -> }
 ) {
     val context = LocalContext.current
     LazyColumn(

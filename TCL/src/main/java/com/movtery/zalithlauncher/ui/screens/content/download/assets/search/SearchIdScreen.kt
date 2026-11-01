@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -54,6 +55,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -66,17 +68,16 @@ import com.movtery.zalithlauncher.game.download.assets.platform.PlatformProject
 import com.movtery.zalithlauncher.game.download.assets.platform.UnsupportedClassesException
 import com.movtery.zalithlauncher.game.download.assets.platform.getProjectByVersion
 import com.movtery.zalithlauncher.game.download.assets.platform.isAllNull
-import com.movtery.zalithlauncher.game.download.assets.utils.getMcMod
 import com.movtery.zalithlauncher.game.download.assets.utils.ModTranslations
+import com.movtery.zalithlauncher.game.download.assets.utils.getMcMod
 import com.movtery.zalithlauncher.game.download.assets.utils.getMcmodTitle
+import com.movtery.zalithlauncher.game.download.assets.utils.getTranslations
 import com.movtery.zalithlauncher.ui.AndroidStringText
 import com.movtery.zalithlauncher.ui.base.BaseScreen
-import com.movtery.zalithlauncher.ui.components.AnimatedDirection
+import com.movtery.zalithlauncher.ui.buildAppendedText
 import com.movtery.zalithlauncher.ui.components.BackgroundCard
 import com.movtery.zalithlauncher.ui.components.OwnOutlinedTextField
 import com.movtery.zalithlauncher.ui.components.ScalingLabel
-import com.movtery.zalithlauncher.ui.components.animated
-import com.movtery.zalithlauncher.ui.components.rememberAnimatedContext
 import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
 import com.movtery.zalithlauncher.ui.screens.TitledNavKey
@@ -85,6 +86,7 @@ import com.movtery.zalithlauncher.ui.screens.content.download.assets.elements.Pr
 import com.movtery.zalithlauncher.ui.screens.content.download.assets.elements.ResultProjectLayout
 import com.movtery.zalithlauncher.ui.screens.content.download.assets.elements.ScreenshotItemLayout
 import com.movtery.zalithlauncher.utils.animation.getAnimateTween
+import com.movtery.zalithlauncher.utils.animation.swapAnimateDpAsState
 import com.movtery.zalithlauncher.utils.logging.Logger
 import com.movtery.zalithlauncher.utils.string.isEmptyOrBlank
 import io.ktor.client.plugins.ClientRequestException
@@ -104,6 +106,7 @@ private sealed interface SearchIdOperation {
     data class Result(
         val project: PlatformProject,
         val mcMod: ModTranslations.McMod?,
+        val mod: ModTranslations,
     ) : SearchIdOperation
 
     /** 未找到该项目 */
@@ -142,9 +145,11 @@ private class SearchIdViewModel: ViewModel() {
                 )
                 project.checkClasses()
                 val classes = project.platformClasses(defaultClasses)
+                val translations = classes.getTranslations()
                 operation = SearchIdOperation.Result(
                     project = project,
-                    mcMod = project.getMcMod(classes),
+                    mcMod = project.getMcMod(translations),
+                    mod = translations,
                 )
             }.onFailure { e ->
                 operation = when (e) {
@@ -271,10 +276,13 @@ private fun ContentResult(
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues()
 ) {
-    val ctx = rememberAnimatedContext(isVisible = isVisible)
+    val yOffset by swapAnimateDpAsState(
+        targetValue = (-40).dp,
+        swapIn = isVisible
+    )
 
     Box(
-        modifier = modifier.animated(ctx),
+        modifier = modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
         contentAlignment = Alignment.Center
     ) {
         when (operation) {
@@ -294,6 +302,7 @@ private fun ContentResult(
                 ResultLayout(
                     project = operation.project,
                     mcmod = operation.mcMod,
+                    mod = operation.mod,
                     defaultClasses = defaultClasses,
                     onView = onView,
                     openLink = openLink,
@@ -353,6 +362,7 @@ private fun IconTip(
 @Composable
 private fun ResultLayout(
     mcmod: ModTranslations.McMod?,
+    mod: ModTranslations,
     project: PlatformProject,
     defaultClasses: PlatformClasses,
     onView: (Platform, PlatformClasses, id: String, iconUrl: String?) -> Unit,
@@ -432,6 +442,7 @@ private fun ResultLayout(
                                 platform = platform,
                                 urls = urls,
                                 mcmod = mcmod,
+                                mod = mod,
                                 openLink = openLink,
                             )
                         }
@@ -467,10 +478,14 @@ private fun ContentFilter(
     onPlatformChange: (Platform) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val ctx = rememberAnimatedContext(isVisible = isVisible)
+    val xOffset by swapAnimateDpAsState(
+        targetValue = 40.dp,
+        swapIn = isVisible,
+        isHorizontal = true
+    )
 
     Column(
-        modifier = modifier.animated(ctx, from = AnimatedDirection.Right),
+        modifier = modifier.offset { IntOffset(x = xOffset.roundToPx(), y = 0) },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {

@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ package com.movtery.zalithlauncher.ui.screens.content.download.assets.search
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -29,6 +30,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -49,18 +51,17 @@ import com.movtery.zalithlauncher.game.download.assets.platform.navigatePage
 import com.movtery.zalithlauncher.game.download.assets.platform.nextPage
 import com.movtery.zalithlauncher.game.download.assets.platform.previousPage
 import com.movtery.zalithlauncher.game.download.assets.platform.searchAssets
+import com.movtery.zalithlauncher.game.download.assets.utils.ModTranslations
 import com.movtery.zalithlauncher.game.download.assets.utils.searchMcMods
 import com.movtery.zalithlauncher.game.version.installed.VersionsManager
 import com.movtery.zalithlauncher.ui.base.BaseScreen
-import com.movtery.zalithlauncher.ui.components.AnimatedDirection
-import com.movtery.zalithlauncher.ui.components.animated
-import com.movtery.zalithlauncher.ui.components.rememberAnimatedContext
 import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.TitledNavKey
 import com.movtery.zalithlauncher.ui.screens.content.download.assets.elements.AssetsPage
 import com.movtery.zalithlauncher.ui.screens.content.download.assets.elements.ResultListLayout
 import com.movtery.zalithlauncher.ui.screens.content.download.assets.elements.SearchAssetsState
 import com.movtery.zalithlauncher.ui.screens.content.download.assets.elements.SearchFilter
+import com.movtery.zalithlauncher.utils.animation.swapAnimateDpAsState
 import com.movtery.zalithlauncher.utils.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -93,6 +94,9 @@ private class SearchScreenViewModel(
 
     var searchPlatform by mutableStateOf(initialPlatform)
     var searchFilter by mutableStateOf(PlatformSearchFilter())
+
+    /** 过滤器变更时的回调，由外部设置以持久化保存过滤器 */
+    var onFilterChange: (PlatformSearchFilter) -> Unit = {}
 
     private val _searchedMcMods = MutableStateFlow<List<ModTranslations.McMod>>(emptyList())
     /** 搜索得到的所有 MCMOD 项目 */
@@ -340,12 +344,12 @@ fun SearchAssetsScreen(
         Triple(screenKey, currentKey, false)
     ) { isVisible ->
         Row {
-            val resultCtx = rememberAnimatedContext(isVisible = isVisible)
+            val yOffset by swapAnimateDpAsState(targetValue = (-40).dp, swapIn = isVisible)
             ResultListLayout(
                 modifier = Modifier
                     .fillMaxHeight()
                     .weight(7f)
-                    .animated(resultCtx),
+                    .offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                 classes = platformClasses,
                 searchState = viewModel.searchResult,
                 onReload = {
@@ -399,13 +403,17 @@ fun SearchAssetsScreen(
                 }
             )
 
-            val filterCtx = rememberAnimatedContext(isVisible = isVisible)
+            val xOffset by swapAnimateDpAsState(
+                targetValue = 40.dp,
+                swapIn = isVisible,
+                isHorizontal = true
+            )
             val searchedMcMods by viewModel.searchedMcMods.collectAsStateWithLifecycle()
             SearchFilter(
                 modifier = Modifier
                     .fillMaxHeight()
                     .weight(3f)
-                    .animated(filterCtx, from = AnimatedDirection.Right),
+                    .offset { IntOffset(x = xOffset.roundToPx(), y = 0) },
                 contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp, end = 12.dp),
                 enablePlatform = enablePlatform,
                 searchPlatform = viewModel.searchPlatform,
