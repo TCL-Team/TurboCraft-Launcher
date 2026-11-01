@@ -39,6 +39,8 @@ import com.movtery.zalithlauncher.game.launch.loadLanguage
 import com.movtery.zalithlauncher.game.sdl.SdlBridge
 import com.movtery.zalithlauncher.game.sdl.handleGamepadKeyEvent
 import com.movtery.zalithlauncher.game.version.installed.GraphicsApi
+import com.movtery.zalithlauncher.viewmodel.VulkanCheckCache
+import com.movtery.zalithlauncher.utils.logging.Logger
 import com.movtery.zalithlauncher.game.version.installed.utils.isLowerVer
 import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.setting.enums.GamepadInputMode
@@ -56,6 +58,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.libsdl.app.SDLActivity
 import org.lwjgl.glfw.CallbackBridge
+
+private const val TAG = "GameHandler"
 
 class GameHandler(
     val activity: Activity,
@@ -118,7 +122,22 @@ class GameHandler(
             set("overrideWidth", screenSize.width.toString())
             set("overrideHeight", screenSize.height.toString())
 
-            val graphicsApi = version.getGraphicsApi()
+            //强制 Vulkan 但设备/驱动拿不到 Vulkan 设备时，游戏会直接崩溃在启动阶段
+            //（Minecraft 26.4+ 的 renderpearl 后端）。这种情况退回 OpenGL，
+            //游戏会走 OpenGL 兜底，至少还能进游戏。
+            val requestedGraphicsApi = version.getGraphicsApi()
+            val graphicsApi = if (
+                requestedGraphicsApi == GraphicsApi.VULKAN &&
+                !VulkanCheckCache.isSupported(version)
+            ) {
+                Logger.warning(
+                    TAG,
+                    "Vulkan is not usable for ${version.getVersionName()} with the current driver, falling back to OpenGL."
+                )
+                GraphicsApi.OPENGL
+            } else {
+                requestedGraphicsApi
+            }
             val graphicsOption = "preferredGraphicsBackend"
             when (graphicsApi) {
                 GraphicsApi.DEFAULT, GraphicsApi.DEFAULT_OPENGL -> {
