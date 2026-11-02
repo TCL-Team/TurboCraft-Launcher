@@ -58,13 +58,11 @@ fun SplashScreen(state: AppState) {
     val steps = state.bootstrapSteps
     val completed = steps.count { it.done || it.failed }
     val target = if (steps.isEmpty()) 0f else completed.toFloat() / steps.size
-    val progress by animateFloatAsState(target = target, animationSpec = tween(400), label = "boot")
+    val progress by animateFloatAsState(targetValue = target, animationSpec = tween(400), label = "boot")
 
     val logo = remember {
-        runCatching {
-            SplashScreen::class.java.classLoader?.getResourceAsStream("icon/launcher.png")
-                ?.let { loadImageBitmap(it) }
-        }.getOrNull()
+        val stream = SplashScreen::class.java.classLoader?.getResourceAsStream("icon/launcher.png")
+        if (stream == null) null else runCatching { loadImageBitmap(stream) }.getOrNull()
     }
 
     Box(
