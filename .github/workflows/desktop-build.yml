@@ -1,0 +1,90 @@
+name: Desktop Build
+
+# TurboCraft Launcher — PC (Windows) edition
+# Android build se bilkul alag: `desktop/` ka apna standalone Gradle build hai.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "arena/**"
+    paths:
+      - "desktop/**"
+      - ".github/workflows/desktop-build.yml"
+  pull_request:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/desktop-build.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Compile (Kotlin / Compose Desktop)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.5.0"
+
+      - name: Compile Kotlin
+        run: gradle compileKotlin --stacktrace
+
+      - name: Build jar
+        run: gradle jar --stacktrace
+
+  package:
+    name: Package (Windows exe)
+    needs: compile
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.5.0"
+
+      - name: Create distributable app image
+        run: gradle createDistributable --stacktrace
+
+      - name: Package MSI (WiX)
+        continue-on-error: true
+        run: gradle packageMsi --stacktrace
+
+      - name: Upload app image
+        uses: actions/upload-artifact@v4
+        with:
+          name: TurboCraftLauncher-windows
+          path: desktop/build/compose/binaries/main/app/**
+          if-no-files-found: warn
+
+      - name: Upload MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: TurboCraftLauncher-msi
+          path: desktop/build/compose/binaries/main/msi/*.msi
+          if-no-files-found: ignore
