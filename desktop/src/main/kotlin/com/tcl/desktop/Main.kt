@@ -40,7 +40,7 @@ fun main() {
             // Game process launcher band hone par bhi chalta rehta hai (default)
             onCloseRequest = { exitApplication() },
             state = windowState,
-            title = "TurboCraft Launcher",
+            title = Brand.APP_NAME,
         ) {
             TclTheme(dark = dark) {
                 LauncherRoot(state = state, dark = dark, onExit = ::exitApplication)

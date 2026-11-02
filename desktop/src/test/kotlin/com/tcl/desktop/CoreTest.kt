@@ -206,3 +206,27 @@ class CoreTest {
         assertTrue(library.rules.allows())
     }
 }
+
+class BrandTest {
+    @Test
+    fun `brand comes from gradle properties`() {
+        // Ye test branding pipeline ko pakadta hai: agar generateBrand kharab hua
+        // to yahi fail hoga (naam/version khaali ya placeholder).
+        assertTrue(Brand.APP_NAME.isNotBlank(), "APP_NAME khaali")
+        assertTrue(Brand.IDENTIFIER.isNotBlank(), "IDENTIFIER khaali")
+        assertTrue(Brand.IDENTIFIER.none { it == ' ' }, "IDENTIFIER me space nahi hona chahiye")
+        assertTrue(Regex("""^\d+\.\d+\.\d+""").containsMatchIn(Brand.VERSION_NAME), "VERSION_NAME: ${Brand.VERSION_NAME}")
+        assertTrue(Brand.VERSION_CODE > 0)
+        assertTrue(Brand.HOME_URL.startsWith("https://"))
+        assertTrue(Brand.INITIALS.length in 1..3, "INITIALS: ${Brand.INITIALS}")
+        assertTrue(Brand.USER_AGENT.startsWith(Brand.IDENTIFIER))
+    }
+
+    @Test
+    fun `data folder follows launcher name`() {
+        assertTrue(
+            com.tcl.desktop.core.AppPaths.root.name == Brand.IDENTIFIER,
+            "data folder branding se nahi aaya"
+        )
+    }
+}

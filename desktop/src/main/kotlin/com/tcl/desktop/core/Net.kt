@@ -10,6 +10,7 @@
 
 package com.tcl.desktop.core
 
+import com.tcl.desktop.Brand
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -35,7 +36,7 @@ object Net {
     private fun request(url: String, headers: Map<String, String>): HttpRequest.Builder {
         val builder = HttpRequest.newBuilder(URI.create(url))
             .timeout(Duration.ofMinutes(10))
-            .header("User-Agent", "TurboCraftLauncher/0.1 (desktop)")
+            .header("User-Agent", Brand.USER_AGENT)
         headers.forEach { (key, value) -> builder.header(key, value) }
         return builder
     }

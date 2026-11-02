@@ -10,24 +10,25 @@
 
 package com.tcl.desktop.core
 
+import com.tcl.desktop.Brand
 import java.io.File
 import java.nio.file.Files
 
 /**
  * Saare launcher paths ek jagah.
  *
- * Windows par `%APPDATA%\TurboCraftLauncher`, baaki OS par `~/.turboCraft` —
+ * Windows par `%APPDATA%\<launcher_name>`, baaki OS par `~/.<launcher_name>` —
  * game folder bilkul `.minecraft` jaisa layout follow karta hai.
  */
 object AppPaths {
     private val home: File by lazy {
         val userHome = System.getProperty("user.home") ?: "."
         val appData = System.getenv("APPDATA")
-        if (appData.isNullOrBlank()) File(userHome, ".turboCraft") else File(appData)
+        if (appData.isNullOrBlank()) File(userHome, "." + Brand.IDENTIFIER) else File(appData)
     }
 
     /** Launcher root (settings, accounts, java, logs) */
-    val root: File = File(home, "TurboCraftLauncher")
+    val root: File = File(home, Brand.IDENTIFIER)
 
     /** `.minecraft` equivalent */
     val game: File = File(root, "game")

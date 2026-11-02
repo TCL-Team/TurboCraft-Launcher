@@ -21,6 +21,11 @@ desktop/                     ← alag standalone Gradle build (Android module ko
     ui/                      TCL look: sidebar + glass cards (home/versions/accounts/settings/logs)
 ```
 
+## Naam / version badalna
+
+Sirf **`desktop/gradle.properties`** edit karo — poora launcher (UI, window title,
+data folder, exe/MSI, user-agent) wahan se aata hai. Details: [BRANDING.md](BRANDING.md).
+
 ## Build (developer machine)
 
 ```bash
@@ -47,6 +52,8 @@ Gradle 9.5.x use karo (repo me wrapper nahi hai, kyunki build alag hai).
 
 - Vanilla Minecraft (release / snapshot / old) install — assets tak, sha1 verify ke saath
 - Fabric loader — version row par `+ Fabric` dabao (baaki loaders agle step)
+- Mods screen — list, enable/disable (`.disabled` rename), delete, folder open
+- Branding — ek `gradle.properties` se naam + version sab jagah
 - Launch: classpath, rules, placeholders, `--width/--height`, log tail
 - Microsoft account (device code — browser me code daalo) + offline accounts
 - Java auto: system JDK dhoondta hai, warna Temurin 8/17/21 download karta hai

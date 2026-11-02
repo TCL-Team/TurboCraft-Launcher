@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tcl.desktop.Brand
 import com.tcl.desktop.core.AppPaths
 import com.tcl.desktop.core.AppState
 import com.tcl.desktop.core.JavaManager
@@ -61,7 +62,7 @@ fun SettingsScreen(state: AppState) {
         item {
             Column {
                 Text("Settings", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                Label("Sab kuch %APPDATA%\\TurboCraftLauncher me rehta hai.")
+                Label("Sab kuch %APPDATA%\\${Brand.IDENTIFIER} me rehta hai.")
             }
         }
 
@@ -201,6 +202,21 @@ fun SettingsScreen(state: AppState) {
                         text = "Install folder: ${AppPaths.root.absolutePath}",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                    )
+                }
+            }
+        }
+
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    CardTitle("About")
+                    Label("${Brand.APP_NAME} · v${Brand.VERSION_NAME} (build ${Brand.VERSION_CODE})")
+                    Label("${Brand.VENDOR} · ${Brand.HOME_URL}")
+                    Spacer(Modifier.height(4.dp))
+                    Label(
+                        "Naam / version badalna hai? Sirf desktop/gradle.properties edit karo — " +
+                            "window title, UI, data folder, exe/MSI ka naam, sab wahan se aata hai."
                     )
                 }
             }

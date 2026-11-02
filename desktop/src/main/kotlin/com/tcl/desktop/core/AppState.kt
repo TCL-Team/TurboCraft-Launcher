@@ -19,7 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class Screen { HOME, VERSIONS, DOWNLOAD, ACCOUNTS, SETTINGS, LOGS }
+enum class Screen { HOME, VERSIONS, DOWNLOAD, MODS, ACCOUNTS, SETTINGS, LOGS }
 
 /**
  * Poora launcher state ek jagah — Compose UI isko observe karta hai.

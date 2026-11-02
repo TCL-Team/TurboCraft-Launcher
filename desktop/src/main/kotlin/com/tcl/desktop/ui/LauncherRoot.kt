@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -44,6 +45,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tcl.desktop.Brand
 import com.tcl.desktop.core.AppState
 import com.tcl.desktop.core.Screen
 
@@ -64,6 +66,7 @@ fun LauncherRoot(state: AppState, dark: Boolean, onExit: () -> Unit) {
                         Screen.HOME -> HomeScreen(state)
                         Screen.VERSIONS -> VersionsScreen(state)
                         Screen.DOWNLOAD -> VersionsScreen(state, focusDownload = true)
+                        Screen.MODS -> ModsScreen(state)
                         Screen.ACCOUNTS -> AccountsScreen(state)
                         Screen.SETTINGS -> SettingsScreen(state)
                         Screen.LOGS -> LogsScreen(state)
@@ -93,7 +96,7 @@ private fun Sidebar(state: AppState) {
                 .background(Brush.linearGradient(listOf(TclBlue, TclBlueLight))),
             contentAlignment = Alignment.Center
         ) {
-            Text("TC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text(Brand.INITIALS, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
         }
         Spacer(Modifier.height(10.dp))
 
@@ -103,6 +106,9 @@ private fun Sidebar(state: AppState) {
         NavItem(state.screen == Screen.VERSIONS, "Versions", { NavIcon(Icons.Outlined.Download, state.screen == Screen.VERSIONS) }) {
             state.screen = Screen.VERSIONS
             state.loadRemoteVersions()
+        }
+        NavItem(state.screen == Screen.MODS, "Mods", { NavIcon(Icons.Outlined.Extension, state.screen == Screen.MODS) }) {
+            state.screen = Screen.MODS
         }
         NavItem(state.screen == Screen.ACCOUNTS, "Account", { NavIcon(Icons.Outlined.AccountCircle, state.screen == Screen.ACCOUNTS) }) {
             state.screen = Screen.ACCOUNTS
@@ -146,7 +152,7 @@ private fun StatusBar(state: AppState) {
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             if (state.gameRunning) Chip("Game running", highlight = true)
-            Chip("v0.1.0 · Windows")
+            Chip("v${Brand.VERSION_NAME} · Windows")
         }
     }
 }

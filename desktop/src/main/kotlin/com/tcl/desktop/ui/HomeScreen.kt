@@ -51,7 +51,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tcl.desktop.Brand
 import com.tcl.desktop.core.Account
+import com.tcl.desktop.Brand
 import com.tcl.desktop.core.AccountType
 import com.tcl.desktop.core.AppState
 import com.tcl.desktop.core.Screen
@@ -96,13 +98,13 @@ private fun HeroCard(state: AppState) {
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "TurboCraft Launcher",
+                    Brand.APP_NAME,
                     color = Color.White,
                     fontSize = 30.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    "Windows edition · Minecraft Java",
+                    "Windows edition · Minecraft Java · v${Brand.VERSION_NAME}",
                     color = Color.White.copy(alpha = 0.75f),
                     fontSize = 13.sp
                 )

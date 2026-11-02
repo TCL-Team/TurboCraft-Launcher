@@ -134,22 +134,41 @@ jobs:
         continue-on-error: true
         run: gradle packageMsi --stacktrace --console=plain
 
+      # Zip ke andar ek top-level folder + "pehle extract karo" README rakhte hain.
+      # Warna user zip ke andar se seedha .exe dabaa deta hai aur jpackage
+      # "app\<name>.cfg: No such file or directory" error deta hai.
       - name: Zip portable app image
         run: |
           cd build/compose/binaries/main/app
-          powershell -Command "Compress-Archive -Path 'TurboCraftLauncher/*' -DestinationPath 'TurboCraftLauncher-windows-portable.zip' -Force"
+          APP_DIR=$(find . -maxdepth 1 -mindepth 1 -type d | head -1)
+          APP_NAME=$(basename "$APP_DIR")
+          cat > "$APP_DIR/README-PEHLE-PADHO.txt" <<'TXT'
+          TurboCraft Launcher (portable)
+          ==============================
+          ZAROORI: Pehle is zip ko extract karo, phir .exe chalao.
+          Zip ke andar se seedha exe dabane par "app\...cfg: No such file
+          or directory" error aata hai — kyunki Windows zip ko temp me
+          kholta hai aur saath ke app/ + runtime/ folders wahan nahi hote.
+
+          1. Zip par right click -> "Extract All..."
+          2. Extract hui folder me jaakar launcher ka .exe chalao
+          3. Settings me RAM aur Java apne hisaab se set kar lo
+
+          Agar install karna aasan lage to MSI use karo.
+          TXT
+          powershell -Command "Compress-Archive -Path '$APP_NAME' -DestinationPath '$APP_NAME-windows-portable.zip' -Force"
+          echo "PORTABLE_ZIP=$APP_NAME-windows-portable.zip" >> "$GITHUB_ENV"
 
       - name: Upload app image
         uses: actions/upload-artifact@v4
         with:
-          name: TurboCraftLauncher-windows
-          path: |
-            desktop/build/compose/binaries/main/app/TurboCraftLauncher-windows-portable.zip
+          name: launcher-windows-portable
+          path: desktop/build/compose/binaries/main/app/*-windows-portable.zip
           if-no-files-found: warn
 
       - name: Upload MSI
         uses: actions/upload-artifact@v4
         with:
-          name: TurboCraftLauncher-msi
+          name: launcher-msi
           path: desktop/build/compose/binaries/main/msi/*.msi
           if-no-files-found: ignore

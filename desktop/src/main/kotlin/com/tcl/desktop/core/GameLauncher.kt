@@ -11,6 +11,7 @@
 package com.tcl.desktop.core
 
 import com.google.gson.JsonElement
+import com.tcl.desktop.Brand
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -46,8 +47,8 @@ object GameLauncher {
             "user_type" to if (account.type == AccountType.MICROSOFT) "msa" else "legacy",
             "version_type" to resolved.type,
             "natives_directory" to nativesDir.absolutePath,
-            "launcher_name" to "TurboCraftLauncher",
-            "launcher_version" to "0.2.0",
+            "launcher_name" to Brand.IDENTIFIER,
+            "launcher_version" to Brand.VERSION_NAME,
             "classpath" to classpath,
             "classpath_separator" to File.pathSeparator,
             "library_directory" to AppPaths.libraries.absolutePath,
