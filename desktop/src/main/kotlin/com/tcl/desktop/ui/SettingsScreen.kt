@@ -34,6 +34,10 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -114,11 +118,16 @@ fun SettingsScreen(state: AppState) {
             GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     CardTitle("Game window")
+                    var widthText by remember { mutableStateOf(settings.windowWidth.toString()) }
+                    var heightText by remember { mutableStateOf(settings.windowHeight.toString()) }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedTextField(
-                            value = settings.windowWidth.toString(),
+                            value = widthText,
                             onValueChange = { value ->
-                                value.toIntOrNull()?.let { w -> state.updateSettings { it.windowWidth = w.coerceIn(640, 7680) } }
+                                widthText = value.filter { it.isDigit() }.take(4)
+                                widthText.toIntOrNull()?.let { w ->
+                                    if (w >= 640) state.updateSettings { it.windowWidth = w }
+                                }
                             },
                             label = { Text("Width") },
                             singleLine = true,
@@ -126,9 +135,12 @@ fun SettingsScreen(state: AppState) {
                             modifier = Modifier.width(160.dp)
                         )
                         OutlinedTextField(
-                            value = settings.windowHeight.toString(),
+                            value = heightText,
                             onValueChange = { value ->
-                                value.toIntOrNull()?.let { h -> state.updateSettings { it.windowHeight = h.coerceIn(480, 4320) } }
+                                heightText = value.filter { it.isDigit() }.take(4)
+                                heightText.toIntOrNull()?.let { h ->
+                                    if (h >= 480) state.updateSettings { it.windowHeight = h }
+                                }
                             },
                             label = { Text("Height") },
                             singleLine = true,

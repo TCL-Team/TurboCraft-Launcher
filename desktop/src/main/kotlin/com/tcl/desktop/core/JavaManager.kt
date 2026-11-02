@@ -134,9 +134,12 @@ object JavaManager {
             onLog("Java: ${it.source} se mila ${it.majorVersion}")
             return@withContext it
         }
-        installed.firstOrNull { it.majorVersion > required }?.let {
-            onLog("Java: ${it.majorVersion} mila (chahiye $required), isi ko use kar raha hoon")
-            return@withContext it
+        // Java 17+ wale versions naye JDK par bhi chal jaate hain, lekin 1.8 ko Java 8 hi chahiye
+        if (required >= 17) {
+            installed.firstOrNull { it.majorVersion > required }?.let {
+                onLog("Java: ${it.majorVersion} mila (chahiye $required), isi ko use kar raha hoon")
+                return@withContext it
+            }
         }
 
         onLog("Java $required nahi mila — Temurin download ho raha hai…")
@@ -164,7 +167,7 @@ object JavaManager {
         // Zip ke andar ek top-level folder hota hai (jdk-21.0.x+y)
         val nested = target.listFiles()?.firstOrNull { it.isDirectory && File(it, "bin/java.exe").isFile }
         if (nested != null) {
-            nested.listFiles()?.forEach { file -> file.renameTo(File(target, file.name)) }
+            nested.copyRecursively(target, overwrite = true)
             nested.deleteRecursively()
         }
 
