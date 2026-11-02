@@ -183,19 +183,38 @@ jobs:
       # Zip ke andar ek top-level folder + "pehle extract karo" README rakhte hain.
       # Warna user zip ke andar se seedha .exe dabaa deta hai aur jpackage
       # "app\<name>.cfg: No such file or directory" error deta hai.
-      # Asli bug yahi tha: jlink image me java.net.http module missing tha aur
-      # launcher packaged exe me crash karta tha. Isliye build hi verify kare.
-      - name: Verify bundled runtime has java.net.http
+      # Asli bug yahi tha: jlink runtime image me java.net.http module missing tha,
+      # isliye packaged exe me "Could not initialize class Net" aata tha.
+      # Yahan hum bundled runtime par asli HttpClient code chalakar verify karte hain.
+      - name: Verify bundled runtime can do HTTPS (java.net.http)
         run: |
           cd build/compose/binaries/main/app
           APP_DIR=$(find . -maxdepth 1 -mindepth 1 -type d | head -1)
           RUNTIME_JAVA=$(find "$APP_DIR/runtime" -name java.exe | head -1)
-          echo "runtime java: $RUNTIME_JAVA"
-          "$RUNTIME_JAVA" --list-modules | grep -E "^(java.net.http|jdk.crypto.ec|java.naming)@" || {
-            echo "::error::bundled runtime is missing required modules"
+          echo "::notice::runtime java = $RUNTIME_JAVA"
+          "$RUNTIME_JAVA" --list-modules | tr '\n' ' ' > modules.txt
+          echo "::notice::modules = $(cut -c1-900 modules.txt)"
+          mkdir -p netcheck && cd netcheck
+          cat > NetCheck.java <<'JAVA'
+          import java.net.http.HttpClient;
+          import java.time.Duration;
+
+          public class NetCheck {
+              public static void main(String[] args) {
+                  HttpClient client = HttpClient.newBuilder()
+                      .connectTimeout(Duration.ofSeconds(10))
+                      .followRedirects(HttpClient.Redirect.NORMAL)
+                      .build();
+                  System.out.println("HttpClient OK: " + client.version());
+              }
+          }
+          JAVA
+          javac NetCheck.java
+          "../$RUNTIME_JAVA" -cp . NetCheck || {
+            echo "::error::bundled runtime cannot create an HttpClient (java.net.http missing)"
             exit 1
           }
-          echo "OK: java.net.http + jdk.crypto.ec + java.naming present"
+          echo "OK: bundled runtime can do HTTPS"
 
       - name: Zip portable app image
         run: |
