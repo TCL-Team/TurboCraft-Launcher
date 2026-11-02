@@ -41,11 +41,24 @@ jobs:
         with:
           gradle-version: "9.5.0"
 
+      # Compile errors ko workflow annotations me convert karta hai, taaki
+      # PR/run page par seedha error dikhe (log download ke bina bhi).
       - name: Compile Kotlin
-        run: gradle compileKotlin --stacktrace
+        run: |
+          set -o pipefail
+          gradle compileKotlin --stacktrace --console=plain 2>&1 | tee compile.log
+
+      - name: Surface compile errors
+        if: failure()
+        run: |
+          grep -E '^e: |error:' compile.log | head -60 | while IFS= read -r line; do
+            echo "::error::$line"
+          done
+          echo "::error::last lines: $(tail -5 compile.log | tr '\n' ' ' | cut -c1-900)"
+          exit 1
 
       - name: Build jar
-        run: gradle jar --stacktrace
+        run: gradle jar --stacktrace --console=plain
 
   package:
     name: Package (Windows exe)

@@ -46,9 +46,3 @@ compose.desktop {
         }
     }
 }
-
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    compilerOptions {
-        freeCompilerArgs.add("-Xjvm-default=all")
-    }
-}
