@@ -81,6 +81,23 @@ self-contained JRE ke saath (user ko Java install karna nahi padta).
 Runtime par abhi test nahi hua (sandbox me Windows/JDK nahi hai) — pehla real
 launch test user ke PC par hoga.
 
+## v0.4.0 — TCL parity pass
+
+- **Splash bootstrap** (Android jaisa): launcher khulte hi folders, Java runtime
+  (Temurin auto-download), Minecraft version list, Fabric meta aur installed versions
+  scan hote hain — progress steps ke saath, phir UI khulti hai.
+- **Loader picker**: version chunne par dialog — Vanilla / Fabric / Quilt / NeoForge / Forge,
+  har ek ke versions ki list (newest first). Forge/NeoForge official installer headless
+  chalte hain (`--installClient`).
+- **Modrinth** (`Mods → Browse mods / Modpacks`): selected version + loader ke hisaab se
+  search, one-click install; required dependencies bhi (depth 3).
+- **Modpacks**: `.mrpack` download → base MC + loader install → isolated
+  `versions/pack-*/game` folder me mods + overrides; doosre versions untouched.
+- **Mods per version**: har version ka apna mods folder, toggle/remove/open.
+- **Microsoft sign-in fix**: browser + localhost PKCE (no code typing), device-code
+  fallback, configurable app id (Settings), readable Microsoft error messages.
+- **Icon**: TCL ka asli logo (Android `ic_launcher`) window + MSI + exe me.
+
 ## Next
 
 1. Fabric / NeoForge / Forge install (version json merge)
