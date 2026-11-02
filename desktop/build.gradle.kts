@@ -123,8 +123,6 @@ compose.desktop {
             packageVersion = launcherVersionName
             description = "$launcherAppName for Windows"
             vendor = launcherVendor
-            // TCL ka asli logo (Android ke ic_launcher se)
-            iconFile.set(project.file("src/main/resources/icon/launcher.ico"))
 
             // jlink sirf wahi modules deta hai jo maangein. HttpClient `java.net.http`
             // me hai — ye missing tha, isliye packaged exe me
@@ -134,6 +132,8 @@ compose.desktop {
             includeAllModules = true
 
             windows {
+                // TCL ka asli logo (Android ke ic_launcher se)
+                iconFile.set(project.file("src/main/resources/icon/launcher.ico"))
                 menu = true
                 shortcut = true
                 dirChooser = true
