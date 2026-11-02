@@ -29,7 +29,7 @@ class AppState(private val scope: CoroutineScope) {
 
     var settings by mutableStateOf(SettingsStore.load())
         private set
-    var accounts by mutableStateOf(Accounts.load())
+    var accounts: List<Account> by mutableStateOf(Accounts.load())
         private set
     var selectedAccount by mutableStateOf(accounts.firstOrNull())
     var screen by mutableStateOf(Screen.HOME)
