@@ -37,14 +37,20 @@ wo Compose me dobara likhna hi padta. Isliye:
 - Auth: Microsoft device-code flow (browser + code, koi embedded webview nahi),
   token refresh, offline UUIDs
 - UI: Home (hero card, version dropdown, Play, progress), Versions (filter +
-  install/play), Accounts, Settings, Logs
+  install/play, `+ Fabric`), Accounts, Settings, Logs
+- Fabric loader: `VersionResolver` child+parent json merge (`inheritsFrom`),
+  `meta.fabricmc.net` se latest stable loader, profile json + libraries
 
 ## Verification
 
-CI run **`41398822157`** — dono jobs green:
+CI runs (sab green):
 
-- `Compile (Kotlin / Compose Desktop)` — success
-- `Package (Windows exe)` — success, artifacts: portable app image + MSI (~99 MB each)
+- `41398822157` — compile + Windows package (pehla working build)
+- `41400622255` — core unit tests (rules, placeholders, java mapping, args) + Xvfb smoke run
+- `41401534155` — Fabric support ke saath compile + package + smoke
+
+Released: **`desktop-v0.2.0`** → MSI (~100 MB) + portable zip (~99 MB),
+self-contained JRE ke saath (user ko Java install karna nahi padta).
 
 Runtime par abhi test nahi hua (sandbox me Windows/JDK nahi hai) — pehla real
 launch test user ke PC par hoga.
