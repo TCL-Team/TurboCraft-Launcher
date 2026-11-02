@@ -105,6 +105,52 @@ jobs:
           fi
           exit 0
 
+  screenshot:
+    name: UI screenshot (Xvfb)
+    needs: compile
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.5.0"
+
+      - name: Capture launcher window
+        env:
+          SKIKO_RENDER_API: SOFTWARE
+          LIBGL_ALWAYS_SOFTWARE: "1"
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1 imagemagick x11-apps
+          Xvfb :99 -screen 0 1440x900x24 &
+          sleep 2
+          export DISPLAY=:99
+          gradle run --console=plain > run.log 2>&1 &
+          GRADLE_PID=$!
+          sleep 45
+          import -window root ui-home.png || xwd -root -silent | convert xwd:- ui-home.png || true
+          ls -la ui-home.png || true
+          kill $GRADLE_PID || true
+          tail -20 run.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshot
+          path: desktop/ui-home.png
+          if-no-files-found: warn
+
   package:
     name: Package (Windows exe)
     needs: compile
@@ -137,6 +183,20 @@ jobs:
       # Zip ke andar ek top-level folder + "pehle extract karo" README rakhte hain.
       # Warna user zip ke andar se seedha .exe dabaa deta hai aur jpackage
       # "app\<name>.cfg: No such file or directory" error deta hai.
+      # Asli bug yahi tha: jlink image me java.net.http module missing tha aur
+      # launcher packaged exe me crash karta tha. Isliye build hi verify kare.
+      - name: Verify bundled runtime has java.net.http
+        run: |
+          cd build/compose/binaries/main/app
+          APP_DIR=$(find . -maxdepth 1 -mindepth 1 -type d | head -1)
+          RUNTIME_JAVA=$(find "$APP_DIR/runtime" -name java.exe | head -1)
+          echo "runtime java: $RUNTIME_JAVA"
+          "$RUNTIME_JAVA" --list-modules | grep -E "^(java.net.http|jdk.crypto.ec|java.naming)@" || {
+            echo "::error::bundled runtime is missing required modules"
+            exit 1
+          }
+          echo "OK: java.net.http + jdk.crypto.ec + java.naming present"
+
       - name: Zip portable app image
         run: |
           cd build/compose/binaries/main/app
