@@ -57,6 +57,9 @@ jobs:
           echo "::error::last lines: $(tail -5 compile.log | tr '\n' ' ' | cut -c1-900)"
           exit 1
 
+      - name: Unit tests (core)
+        run: gradle test --stacktrace --console=plain
+
       - name: Build jar
         run: gradle jar --stacktrace --console=plain
 
@@ -84,17 +87,22 @@ jobs:
 
       # Window khol kar 40s chhod dete hain — startup crash pakadne ke liye.
       - name: Run launcher headless
+        env:
+          SKIKO_RENDER_API: SOFTWARE
+          LIBGL_ALWAYS_SOFTWARE: "1"
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1
           set +e
           xvfb-run -a timeout 90 gradle run --console=plain > run.log 2>&1
           code=$?
-          echo "exit code: $code (124 = timeout = theek hai)"
-          grep -E "Exception|FATAL|NoClassDefFound" run.log | head -20 | while IFS= read -r line; do
-            echo "::error::$line"
-          done
+          echo "exit code: $code (124 = timeout = window khula aur chalta raha)"
           tail -25 run.log
-          if grep -q "Exception in thread" run.log; then exit 1; fi
+          if grep -qE "Exception in thread|NoClassDefFoundError|ExceptionInInitializerError" run.log; then
+            grep -E "Exception in thread|NoClassDefFoundError|ExceptionInInitializerError" run.log | head -10 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          fi
           exit 0
 
   package:
