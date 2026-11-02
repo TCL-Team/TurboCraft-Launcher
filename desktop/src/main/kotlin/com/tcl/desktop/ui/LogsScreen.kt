@@ -11,7 +11,6 @@
 package com.tcl.desktop.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,19 +20,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DeleteSweep
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tcl.desktop.core.AppPaths
@@ -47,44 +41,39 @@ fun LogsScreen(state: AppState) {
         if (state.logs.isNotEmpty()) listState.scrollToItem(state.logs.size - 1)
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 22.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text("Logs", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                Label("Game log bhi: ${AppPaths.logs.absolutePath}")
+                SectionHeader("Logs")
+                Caption("Game logs: ${AppPaths.logs.absolutePath}")
             }
-            Button(
-                onClick = { state.logs.clear() },
-                shape = androidx.compose.foundation.shape.RoundedCornerShape(50),
-                colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.14f))
-            ) {
-                Icon(Icons.Outlined.DeleteSweep, null, tint = Color.White)
-                Text("Clear", color = Color.White, modifier = Modifier.padding(start = 6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SecondaryButton(text = "Open folder", onClick = { state.openLogsFolder() })
+                SecondaryButton(text = "Clear", onClick = { state.logs.clear() })
             }
         }
-        Box(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
-            GlassCard(modifier = Modifier.fillMaxSize()) {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    if (state.logs.isEmpty()) {
-                        item { Label("Khaali hai.") }
-                    }
-                    itemsIndexed(state.logs) { _, line ->
-                        Text(
-                            text = line,
-                            fontSize = 11.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                            maxLines = 1
-                        )
-                    }
+
+        SectionCard(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (state.logs.isEmpty()) {
+                    item { BodyText("Nothing here yet. Install or launch a version.", dim = true) }
+                }
+                itemsIndexed(state.logs) { _, line ->
+                    Text(
+                        text = line,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f),
+                        maxLines = 2
+                    )
                 }
             }
         }

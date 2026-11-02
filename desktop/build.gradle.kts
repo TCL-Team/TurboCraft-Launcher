@@ -124,6 +124,21 @@ compose.desktop {
             description = "$launcherAppName for Windows"
             vendor = launcherVendor
 
+            // jlink sirf wahi modules deta hai jo hum maangein. Java ka HttpClient
+            // `java.net.http` module me hai — ye missing tha, isliye packaged exe me
+            // "Could not initialize class ... Net" aata tha (source build me chal jaata tha,
+            // kyunki wahan poora JDK hota hai).
+            modules(
+                "java.net.http",
+                "java.naming",
+                "java.management",
+                "java.security.jgss",
+                "java.sql",
+                "jdk.crypto.ec",       // TLS (ECDHE) — HTTPS ke liye zaroori
+                "jdk.crypto.cryptoki",
+                "jdk.unsupported",
+            )
+
             windows {
                 menu = true
                 shortcut = true

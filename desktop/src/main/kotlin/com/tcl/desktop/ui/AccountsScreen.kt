@@ -10,7 +10,6 @@
 
 package com.tcl.desktop.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -26,14 +25,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.PersonAdd
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,8 +39,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,86 +51,83 @@ fun AccountsScreen(state: AppState) {
     var name by remember { mutableStateOf("") }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 22.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
             Column {
-                Text("Accounts", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                Label("Microsoft account game ke liye chahiye; offline single-player ke liye.")
+                SectionHeader("Accounts")
+                Caption("Sign in with Microsoft to play online. Offline accounts are for single-player and testing.")
             }
         }
 
         item {
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
+            SectionCard(modifier = Modifier.fillMaxWidth()) {
+                CardTitle("Microsoft account")
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CardTitle("Microsoft account")
-                    Label(
+                    BodyText(
                         if (state.deviceCode != null) {
-                            "Browser me code daalo: ${state.deviceCode}"
+                            "Your browser is open. Enter this code: ${state.deviceCode}"
                         } else {
-                            "Login par click karo — browser khulega, wahan code daal dena. Launcher apne aap wait karega."
+                            "Press sign in, then enter the code shown in your browser. The launcher waits for you."
                         }
                     )
-                    Button(
-                        onClick = { state.startMicrosoftLogin() },
-                        enabled = !state.busy,
-                        shape = RoundedCornerShape(50),
-                        colors = ButtonDefaults.buttonColors(containerColor = TclBlue)
-                    ) {
-                        Icon(Icons.Outlined.AccountCircle, null, tint = Color.White)
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (state.busy) "Wait…" else "Microsoft se login", color = Color.White)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PrimaryButton(
+                            text = if (state.busy) "Waiting…" else "Sign in with Microsoft",
+                            enabled = !state.busy,
+                            onClick = { state.startMicrosoftLogin() }
+                        ) {
+                            Icon(Icons.Outlined.AccountCircle, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                        }
+                        if (state.deviceCode != null) {
+                            SecondaryButton(text = "Copy code", onClick = {
+                                runCatching {
+                                    java.awt.Toolkit.getDefaultToolkit().systemClipboard
+                                        .setContents(java.awt.datatransfer.StringSelection(state.deviceCode), null)
+                                }
+                            })
+                        }
                     }
                 }
             }
         }
 
         item {
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
+            SectionCard(modifier = Modifier.fillMaxWidth()) {
+                CardTitle("Offline account")
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CardTitle("Offline account")
-                    Label("Sasta/local testing ke liye. Server par premium account hi chalega.")
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
+                    BodyText("A username only. Only works on servers that allow cracked accounts.")
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedTextField(
                             value = name,
                             onValueChange = { if (it.length <= 16) name = it },
-                            placeholder = { Text("Player name") },
+                            placeholder = { Text("Username") },
                             singleLine = true,
                             shape = RoundedCornerShape(50),
                             modifier = Modifier.width(260.dp)
                         )
-                        Button(
+                        PrimaryButton(
+                            text = "Add account",
+                            enabled = name.isNotBlank(),
                             onClick = {
                                 state.addOfflineAccount(name)
                                 name = ""
-                            },
-                            enabled = name.isNotBlank(),
-                            shape = RoundedCornerShape(50),
-                            colors = ButtonDefaults.buttonColors(containerColor = TclBlue)
+                            }
                         ) {
-                            Icon(Icons.Outlined.PersonAdd, null, tint = Color.White)
+                            Icon(Icons.Outlined.PersonAdd, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Add", color = Color.White)
                         }
                     }
                 }
             }
         }
 
-        item {
-            Text(
-                "SAVED ACCOUNTS",
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
-            )
-        }
+        item { Caption("SAVED ACCOUNTS") }
 
         if (state.accounts.isEmpty()) {
-            item { Label("Abhi koi account nahi hai.") }
+            item { BodyText("No accounts yet.", dim = true) }
         } else {
             items(state.accounts) { account ->
                 AccountRow(
@@ -147,7 +138,7 @@ fun AccountsScreen(state: AppState) {
                 )
             }
         }
-        item { Spacer(Modifier.height(20.dp)) }
+        item { Spacer(Modifier.height(16.dp)) }
     }
 }
 
@@ -158,10 +149,9 @@ private fun AccountRow(
     onSelect: () -> Unit,
     onRemove: () -> Unit,
 ) {
-    GlassCard(
+    SectionCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onSelect),
-        shape = RoundedCornerShape(18.dp),
-        alpha = if (selected) 0.75f else 0.45f
+        shape = RoundedCornerShape(18.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
@@ -172,22 +162,25 @@ private fun AccountRow(
                 Avatar(account, size = 40)
                 Column {
                     Text(account.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    Label(
+                    Caption(
                         when (account.type) {
-                            AccountType.MICROSOFT -> "Microsoft" + if (account.isExpired) " · refresh hoga" else " · valid"
+                            AccountType.MICROSOFT ->
+                                if (account.isExpired) "Microsoft · will refresh on launch" else "Microsoft · signed in"
                             AccountType.OFFLINE -> "Offline · ${account.uuid.take(8)}…"
                         }
                     )
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (selected) Chip("active", highlight = true)
-                OutlinedButton(
-                    onClick = onRemove,
-                    shape = RoundedCornerShape(50),
-                    modifier = Modifier.height(36.dp)
-                ) {
-                    Icon(Icons.Outlined.Delete, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
+                if (selected) Tag("active", highlight = true)
+                SecondaryButton(text = "Remove", onClick = onRemove) {
+                    Icon(
+                        Icons.Outlined.Delete,
+                        null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.width(6.dp))
                 }
             }
         }

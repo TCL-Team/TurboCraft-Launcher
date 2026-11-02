@@ -26,12 +26,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -67,37 +65,26 @@ fun ModsScreen(state: AppState) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("Mods", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                    Label("${mods.size} mods · $enabledCount chalu · ${Mods.folder.absolutePath}")
+                    SectionHeader("Mods")
+                    Caption("${mods.size} mods · $enabledCount enabled · ${Mods.folder.absolutePath}")
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { Mods.openFolder() },
-                        shape = RoundedCornerShape(50),
-                        colors = ButtonDefaults.buttonColors(containerColor = TclBlue)
-                    ) {
-                        Icon(Icons.Outlined.FolderOpen, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    PrimaryButton(text = "Open folder", onClick = { Mods.openFolder() }) {
+                        Icon(Icons.Outlined.FolderOpen, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Folder kholo", color = Color.White, fontSize = 13.sp)
                     }
-                    Button(
-                        onClick = { tick++ },
-                        shape = RoundedCornerShape(50),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.12f))
-                    ) {
-                        Icon(Icons.Outlined.Refresh, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    }
+                    SecondaryButton(text = "Refresh", onClick = { tick++ })
                 }
             }
         }
 
         if (mods.isEmpty()) {
             item {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CardTitle("Abhi koi mod nahi hai")
-                        Label("Folder khol kar `.jar` files daal do — Fabric/Quilt mods chalenge. Phir refresh dabao.")
-                        Label("Mods har version ke saath shared hote hain (game/mods).")
+                SectionCard(modifier = Modifier.fillMaxWidth()) {
+                    CardTitle("No mods yet")
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        BodyText("Open the folder and drop your .jar mods in. They load with Fabric versions.")
+                        Caption("Mods are shared between all versions (game/mods).")
                     }
                 }
             }
@@ -122,10 +109,9 @@ fun ModsScreen(state: AppState) {
 
 @Composable
 private fun ModRow(mod: ModFile, onToggle: () -> Unit, onDelete: () -> Unit) {
-    GlassCard(
+    SectionCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        alpha = if (mod.enabled) 0.55f else 0.32f
+        shape = RoundedCornerShape(18.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
@@ -134,18 +120,11 @@ private fun ModRow(mod: ModFile, onToggle: () -> Unit, onDelete: () -> Unit) {
         ) {
             Column(modifier = Modifier.padding(end = 12.dp)) {
                 Text(mod.name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Label("${mod.sizeLabel} · " + if (mod.enabled) "chalu" else "band")
+                Caption("${mod.sizeLabel} · " + if (mod.enabled) "enabled" else "disabled")
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Switch(checked = mod.enabled, onCheckedChange = { onToggle() })
-                OutlinedButton(onClick = onDelete, shape = RoundedCornerShape(50), modifier = Modifier.height(34.dp)) {
-                    Icon(
-                        Icons.Outlined.Delete,
-                        null,
-                        modifier = Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+                SecondaryButton(text = "Remove", onClick = onDelete)
             }
         }
     }

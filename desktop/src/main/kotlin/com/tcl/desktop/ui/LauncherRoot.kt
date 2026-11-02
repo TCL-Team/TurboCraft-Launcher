@@ -10,7 +10,9 @@
 
 package com.tcl.desktop.ui
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,13 +26,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Article
-import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Extension
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -58,14 +61,13 @@ fun LauncherRoot(state: AppState, dark: Boolean, onExit: () -> Unit) {
 
     LauncherBackground(dark = dark) {
         Row(modifier = Modifier.fillMaxSize()) {
-            Sidebar(state = state)
+            NavigationRail(state)
             Column(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.06f)))
+                TopBar(state)
                 Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     when (state.screen) {
                         Screen.HOME -> HomeScreen(state)
-                        Screen.VERSIONS -> VersionsScreen(state)
-                        Screen.DOWNLOAD -> VersionsScreen(state, focusDownload = true)
+                        Screen.VERSIONS, Screen.INSTALL -> VersionsScreen(state)
                         Screen.MODS -> ModsScreen(state)
                         Screen.ACCOUNTS -> AccountsScreen(state)
                         Screen.SETTINGS -> SettingsScreen(state)
@@ -78,81 +80,171 @@ fun LauncherRoot(state: AppState, dark: Boolean, onExit: () -> Unit) {
     }
 }
 
+/** Android edition ka navigation rail — icon + label, selected item highlight */
 @Composable
-private fun Sidebar(state: AppState) {
+private fun NavigationRail(state: AppState) {
     Column(
         modifier = Modifier
-            .width(96.dp)
+            .width(88.dp)
             .fillMaxHeight()
-            .background(Color.Black.copy(alpha = 0.18f))
-            .padding(vertical = 18.dp, horizontal = 10.dp),
+            .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f))
+            .padding(vertical = 16.dp, horizontal = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(46.dp)
+                .size(42.dp)
                 .clip(CircleShape)
-                .background(Brush.linearGradient(listOf(TclBlue, TclBlueLight))),
+                .background(Brush.linearGradient(listOf(Accent, AccentSoft))),
             contentAlignment = Alignment.Center
         ) {
-            Text(Brand.INITIALS, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text(
+                text = Brand.INITIALS,
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
         }
-        Spacer(Modifier.height(10.dp))
 
-        NavItem(state.screen == Screen.HOME, "Home", { NavIcon(Icons.Outlined.Home, state.screen == Screen.HOME) }) {
-            state.screen = Screen.HOME
-        }
-        NavItem(state.screen == Screen.VERSIONS, "Versions", { NavIcon(Icons.Outlined.Download, state.screen == Screen.VERSIONS) }) {
+        Spacer(Modifier.height(14.dp))
+
+        RailItem(Icons.Outlined.Home, "Home", state.screen == Screen.HOME) { state.screen = Screen.HOME }
+        RailItem(Icons.Outlined.Widgets, "Install", state.screen == Screen.VERSIONS || state.screen == Screen.INSTALL) {
             state.screen = Screen.VERSIONS
             state.loadRemoteVersions()
         }
-        NavItem(state.screen == Screen.MODS, "Mods", { NavIcon(Icons.Outlined.Extension, state.screen == Screen.MODS) }) {
-            state.screen = Screen.MODS
-        }
-        NavItem(state.screen == Screen.ACCOUNTS, "Account", { NavIcon(Icons.Outlined.AccountCircle, state.screen == Screen.ACCOUNTS) }) {
-            state.screen = Screen.ACCOUNTS
-        }
-        NavItem(state.screen == Screen.LOGS, "Logs", { NavIcon(Icons.Outlined.Article, state.screen == Screen.LOGS) }) {
-            state.screen = Screen.LOGS
-        }
+        RailItem(Icons.Outlined.Extension, "Mods", state.screen == Screen.MODS) { state.screen = Screen.MODS }
+        RailItem(Icons.Outlined.AccountCircle, "Account", state.screen == Screen.ACCOUNTS) { state.screen = Screen.ACCOUNTS }
+        RailItem(Icons.Outlined.Article, "Logs", state.screen == Screen.LOGS) { state.screen = Screen.LOGS }
 
         Spacer(Modifier.weight(1f))
 
-        NavItem(state.screen == Screen.SETTINGS, "Settings", { NavIcon(Icons.Outlined.Settings, state.screen == Screen.SETTINGS) }) {
-            state.screen = Screen.SETTINGS
+        RailItem(Icons.Outlined.Settings, "Settings", state.screen == Screen.SETTINGS) { state.screen = Screen.SETTINGS }
+    }
+}
+
+@Composable
+private fun RailItem(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+    val background = if (selected) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+    } else {
+        Color.Transparent
+    }
+    val tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(background)
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = tint,
+            modifier = Modifier.size(22.dp)
+        )
+        AnimatedVisibility(visible = selected) {
+            Text(text = label, fontSize = 10.sp, color = tint, fontWeight = FontWeight.Medium)
         }
     }
 }
 
 @Composable
-private fun NavIcon(icon: ImageVector, selected: Boolean) {
-    Icon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = if (selected) TclBlueLight else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-        modifier = Modifier.size(22.dp)
-    )
+private fun TopBar(state: AppState) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column {
+            Text(
+                text = Brand.APP_NAME,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Caption("${if (state.installed.isEmpty()) "No versions installed" else "${state.installed.size} versions installed"} · ${state.selectedVersion.ifBlank { "nothing selected" }}")
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (state.gameRunning) {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        "Minecraft is running",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+            }
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    "v${Brand.VERSION_NAME}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
 
 @Composable
 private fun StatusBar(state: AppState) {
+    val color = if (state.statusIsError) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.22f))
-            .padding(horizontal = 18.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.9f))
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = state.status,
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (state.gameRunning) Chip("Game running", highlight = true)
-            Chip("v${Brand.VERSION_NAME} · Windows")
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(
+                Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(if (state.statusIsError) MaterialTheme.colorScheme.error else AccentSoft)
+            )
+            Text(
+                text = state.status,
+                style = MaterialTheme.typography.labelMedium,
+                color = color,
+                maxLines = 1
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (state.busy) {
+                Text(
+                    "Working…",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Text(
+                "Windows · ${Brand.VERSION_CODE}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }

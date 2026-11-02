@@ -24,14 +24,30 @@ import java.security.MessageDigest
 import java.time.Duration
 import java.util.zip.ZipInputStream
 
+/** User ko dikhane layak network error (stack trace nahi) */
+class NetworkException(message: String, cause: Throwable? = null) : Exception(message, cause)
+
 /**
  * HTTP layer — koi third-party library nahi, JDK ka HttpClient.
+ *
+ * Client lazy banaya hai: agar runtime me `java.net.http` module na ho to
+ * error saaf message deta hai (pehle "Could not initialize class Net" aata tha).
  */
 object Net {
-    private val client: HttpClient = HttpClient.newBuilder()
-        .connectTimeout(Duration.ofSeconds(20))
-        .followRedirects(HttpClient.Redirect.NORMAL)
-        .build()
+    private val client: HttpClient by lazy {
+        try {
+            HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(20))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build()
+        } catch (error: Throwable) {
+            throw NetworkException(
+                "This build is missing the Java HTTP module (java.net.http). " +
+                    "Please download the latest launcher build.",
+                error
+            )
+        }
+    }
 
     private fun request(url: String, headers: Map<String, String>): HttpRequest.Builder {
         val builder = HttpRequest.newBuilder(URI.create(url))
@@ -41,13 +57,32 @@ object Net {
         return builder
     }
 
+    /** Ek friendly message — kya galat hua, user kya kare */
+    private fun enrich(url: String, error: Throwable): Nothing {
+        val host = runCatching { URI.create(url).host }.getOrNull() ?: url
+        val message = when {
+            error is NetworkException -> error.message ?: "Network error"
+            error is java.net.UnknownHostException ->
+                "Can't reach $host — no internet connection or DNS is blocked."
+            error is java.net.ConnectException || error is java.net.http.HttpConnectTimeoutException ->
+                "Can't connect to $host — check your internet connection or firewall."
+            error is java.net.http.HttpTimeoutException ->
+                "$host took too long to respond. Try again."
+            error is javax.net.ssl.SSLException ->
+                "Secure connection to $host failed. Check your system date/time and try again."
+            else -> "$host: ${error.message ?: error.javaClass.simpleName}"
+        }
+        throw NetworkException(message, error)
+    }
+
     fun getString(url: String, headers: Map<String, String> = emptyMap()): String {
-        val response = client.send(
-            request(url, headers).GET().build(),
-            HttpResponse.BodyHandlers.ofString()
-        )
+        val response = try {
+            client.send(request(url, headers).GET().build(), HttpResponse.BodyHandlers.ofString())
+        } catch (error: Throwable) {
+            enrich(url, error)
+        }
         check(response.statusCode() in 200..299) {
-            "HTTP ${response.statusCode()} for $url"
+            "Server returned HTTP ${response.statusCode()} for ${runCatching { URI.create(url).host }.getOrElse { url }}"
         }
         return response.body()
     }
@@ -56,28 +91,41 @@ object Net {
         val body = fields.entries.joinToString("&") { (key, value) ->
             "${URLEncoder.encode(key, Charsets.UTF_8)}=${URLEncoder.encode(value, Charsets.UTF_8)}"
         }
-        val response = client.send(
-            request(url, headers + mapOf("Content-Type" to "application/x-www-form-urlencoded"))
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .build(),
-            HttpResponse.BodyHandlers.ofString()
-        )
+        val response = try {
+            client.send(
+                request(url, headers + mapOf("Content-Type" to "application/x-www-form-urlencoded"))
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .build(),
+                HttpResponse.BodyHandlers.ofString()
+            )
+        } catch (error: Throwable) {
+            enrich(url, error)
+        }
         return response.body()
     }
 
     fun postJson(url: String, json: String, headers: Map<String, String> = emptyMap()): String {
-        val response = client.send(
-            request(url, headers + mapOf("Content-Type" to "application/json", "Accept" to "application/json"))
-                .POST(HttpRequest.BodyPublishers.ofString(json))
-                .build(),
-            HttpResponse.BodyHandlers.ofString()
-        )
+        val response = try {
+            client.send(
+                request(url, headers + mapOf("Content-Type" to "application/json", "Accept" to "application/json"))
+                    .POST(HttpRequest.BodyPublishers.ofString(json))
+                    .build(),
+                HttpResponse.BodyHandlers.ofString()
+            )
+        } catch (error: Throwable) {
+            enrich(url, error)
+        }
         return response.body()
     }
 
+    /** Quick connectivity check (launcher start par) */
+    suspend fun isOnline(): Boolean = withContext(Dispatchers.IO) {
+        runCatching { getString(MojangApi.VERSION_MANIFEST).isNotBlank() }.getOrDefault(false)
+    }
+
     /**
-     * File download (resume ke bina, simple aur reliable).
-     * @param expectedSha1 diya ho to pehle check hota hai ki file puraani/sahi hai ya nahi
+     * File download (no resume, simple + reliable).
+     * @param expectedSha1 agar diya hai to pehle check hota hai ki file sahi hai ya nahi
      */
     suspend fun download(
         url: String,
@@ -95,8 +143,11 @@ object Net {
         target.parentFile?.mkdirs()
         val tmp = File(target.parentFile, "${target.name}.part")
 
-        val request = request(url, emptyMap()).GET().build()
-        val response = client.send(request, HttpResponse.BodyHandlers.ofInputStream())
+        val response = try {
+            client.send(request(url, emptyMap()).GET().build(), HttpResponse.BodyHandlers.ofInputStream())
+        } catch (error: Throwable) {
+            enrich(url, error)
+        }
         check(response.statusCode() in 200..299) {
             "HTTP ${response.statusCode()} for $url"
         }

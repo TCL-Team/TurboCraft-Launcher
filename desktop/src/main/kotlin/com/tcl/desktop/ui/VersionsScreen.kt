@@ -10,7 +10,6 @@
 
 package com.tcl.desktop.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,15 +19,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -42,7 +42,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -50,10 +49,9 @@ import androidx.compose.ui.unit.sp
 import com.tcl.desktop.core.AppState
 
 @Composable
-fun VersionsScreen(state: AppState, focusDownload: Boolean = false) {
-    var filter by remember { mutableStateOf(if (focusDownload) "" else "") }
+fun VersionsScreen(state: AppState) {
+    var query by remember { mutableStateOf("") }
     var typeFilter by remember { mutableStateOf("release") }
-    val query = filter.ifBlank { state.versionFilter }
 
     val visible = state.remoteVersions
         .filter { entry ->
@@ -65,120 +63,122 @@ fun VersionsScreen(state: AppState, focusDownload: Boolean = false) {
             }
             typeOk && (query.isBlank() || entry.id.contains(query, ignoreCase = true))
         }
-        .take(120)
+        .take(150)
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 26.dp, vertical = 22.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text("Versions", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                Label("${state.installed.size} installed · ${state.remoteVersions.size} available")
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    SectionHeader("Versions")
+                    Caption("${state.installed.size} installed · ${state.remoteVersions.size} available")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        placeholder = { Text("Search versions, e.g. 1.21") },
+                        leadingIcon = { Icon(Icons.Outlined.Search, null, modifier = Modifier.size(18.dp)) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(50),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        modifier = Modifier.width(280.dp)
+                    )
+                    SecondaryButton(
+                        text = "Refresh",
+                        enabled = !state.busy,
+                        onClick = { state.loadRemoteVersions(force = true) }
+                    ) {
+                        Icon(Icons.Outlined.Refresh, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                    }
+                }
             }
-            Spacer(Modifier.width(12.dp))
-            OutlinedTextField(
-                value = filter,
-                onValueChange = { filter = it },
-                placeholder = { Text("Version dhundo, e.g. 1.21.6") },
-                leadingIcon = { Icon(Icons.Outlined.Search, null) },
-                singleLine = true,
-                shape = RoundedCornerShape(50),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                modifier = Modifier.width(300.dp)
+        }
+
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    "release" to "Releases",
+                    "snapshot" to "Snapshots",
+                    "old" to "Old versions",
+                    "all" to "All"
+                ).forEach { (key, label) ->
+                    Pill(label, selected = typeFilter == key, onClick = { typeFilter = key })
+                }
+            }
+        }
+
+        if (state.progress != null && state.busy) {
+            item {
+                val progress = state.progress!!
+                SectionCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(progress.stage, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            Caption(if (progress.filesTotal > 0) "${progress.filesDone}/${progress.filesTotal}" else "")
+                        }
+                        LinearProgressIndicator(
+                            progress = { progress.fraction.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50))
+                        )
+                        Caption(progress.currentFile.ifBlank { "…" })
+                    }
+                }
+            }
+        }
+
+        if (state.installed.isNotEmpty() && query.isBlank() && typeFilter != "old") {
+            item { Caption("INSTALLED") }
+            items(state.installed) { id ->
+                VersionRow(
+                    id = id,
+                    type = if (id.startsWith("fabric-loader")) "fabric" else "installed",
+                    installed = true,
+                    selected = state.selectedVersion == id,
+                    busy = state.busy,
+                    installLabel = null,
+                    onSelect = { state.selectVersion(id) },
+                    onPlay = { state.play(id) },
+                    onFabric = if (id.startsWith("fabric-loader")) null else ({ state.installFabric(id) })
+                )
+            }
+            item { Caption("AVAILABLE") }
+        }
+
+        if (state.remoteVersions.isEmpty()) {
+            item {
+                SectionCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BodyText(if (state.remoteLoading) "Loading version list…" else "Couldn't load the version list")
+                        Caption("Check your internet connection, then press Refresh.")
+                    }
+                }
+            }
+        }
+
+        items(visible) { entry ->
+            val installed = entry.id in state.installed
+            VersionRow(
+                id = entry.id,
+                type = entry.type,
+                installed = installed,
+                selected = state.selectedVersion == entry.id,
+                busy = state.busy,
+                installLabel = if (installed) null else "Install",
+                onSelect = { if (installed) state.selectVersion(entry.id) else state.installVersion(entry.id) },
+                onPlay = { state.play(entry.id) },
+                onFabric = if (installed) ({ state.installFabric(entry.id) }) else null
             )
         }
 
-        Spacer(Modifier.height(14.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("release" to "Releases", "snapshot" to "Snapshots", "old" to "Old", "all" to "Sab").forEach { (key, label) ->
-                val selected = typeFilter == key
-                Text(
-                    text = label,
-                    fontSize = 12.sp,
-                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(if (selected) TclBlue else Color.White.copy(alpha = 0.07f))
-                        .clickable { typeFilter = key }
-                        .padding(horizontal = 14.dp, vertical = 7.dp)
-                )
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        if (state.busy && state.progress != null) {
-            val progress = state.progress!!
-            GlassCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(progress.stage, fontWeight = FontWeight.SemiBold)
-                        Label(if (progress.filesTotal > 0) "${progress.filesDone}/${progress.filesTotal}" else "")
-                    }
-                    LinearProgressIndicator(
-                        progress = { progress.fraction.coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50))
-                    )
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-        }
-
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (state.installed.isNotEmpty() && query.isBlank()) {
-                item {
-                    Text(
-                        "INSTALLED",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                        modifier = Modifier.padding(bottom = 2.dp)
-                    )
-                }
-                items(state.installed) { id ->
-                    VersionRow(
-                        id = id,
-                        type = if (id.startsWith("fabric-loader-")) "fabric" else "installed",
-                        installed = true,
-                        selected = state.selectedVersion == id,
-                        busy = state.busy,
-                        onInstall = { state.selectVersion(id) },
-                        onPlay = { state.selectVersion(id); state.launchGame() },
-                        onFabric = if (id.startsWith("fabric-loader-")) null else ({ state.installFabric(id) })
-                    )
-                }
-                item { Spacer(Modifier.height(10.dp)) }
-                item {
-                    Text(
-                        "AVAILABLE",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                        modifier = Modifier.padding(bottom = 2.dp)
-                    )
-                }
-            }
-
-            if (state.remoteVersions.isEmpty()) {
-                item { Label(if (state.busy) "Manifest load ho raha hai…" else "Koi version nahi mila — internet check karo") }
-            }
-
-            items(visible) { entry ->
-                VersionRow(
-                    id = entry.id,
-                    type = entry.type,
-                    installed = entry.id in state.installed,
-                    selected = state.selectedVersion == entry.id,
-                    busy = state.busy,
-                    onInstall = {
-                        if (entry.id in state.installed) state.selectVersion(entry.id) else state.installVersion(entry.id)
-                    },
-                    onPlay = { state.selectVersion(entry.id); state.launchGame() },
-                    onFabric = if (entry.id in state.installed) ({ state.installFabric(entry.id) }) else null
-                )
-            }
-        }
+        item { Spacer(Modifier.height(16.dp)) }
     }
 }
 
@@ -189,73 +189,43 @@ private fun VersionRow(
     installed: Boolean,
     selected: Boolean,
     busy: Boolean,
-    onInstall: () -> Unit,
+    installLabel: String?,
+    onSelect: () -> Unit,
     onPlay: () -> Unit,
     onFabric: (() -> Unit)? = null,
 ) {
-    GlassCard(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        alpha = if (selected) 0.75f else 0.45f
-    ) {
+    SectionCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onSelect).padding(horizontal = 18.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(id, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    Chip(
-                        text = when (type) {
-                            "snapshot" -> "snapshot"
-                            "installed" -> "installed"
-                            "fabric" -> "fabric"
-                            "old_beta", "old_alpha" -> "old"
-                            else -> "release"
-                        },
-                        highlight = selected
-                    )
-                    if (selected) Chip("selected", highlight = true)
-                }
-                Label(if (installed) "Install hai — Play ke liye taiyaar" else "Download karna hoga (~250 MB)")
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(id, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Tag(
+                    text = when (type) {
+                        "snapshot" -> "snapshot"
+                        "installed" -> "installed"
+                        "fabric" -> "fabric"
+                        "old_beta", "old_alpha" -> "old"
+                        else -> "release"
+                    },
+                    highlight = selected
+                )
+                if (selected) Tag("selected", highlight = true)
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (onFabric != null) {
-                    Button(
-                        onClick = onFabric,
-                        enabled = !busy,
-                        shape = RoundedCornerShape(50),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.12f))
-                    ) {
-                        Text("+ Fabric", color = Color.White, fontSize = 13.sp)
-                    }
+                    SecondaryButton(text = "+ Fabric", enabled = !busy, onClick = onFabric)
                 }
                 if (installed) {
-                    Button(
-                        onClick = onPlay,
-                        enabled = !busy,
-                        shape = RoundedCornerShape(50),
-                        colors = ButtonDefaults.buttonColors(containerColor = TclBlue)
-                    ) {
-                        Text("Play", color = Color.White, fontSize = 13.sp)
+                    PrimaryButton(text = "Play", enabled = !busy, onClick = onPlay) {
+                        Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
                     }
-                }
-                Button(
-                    onClick = onInstall,
-                    enabled = !busy,
-                    shape = RoundedCornerShape(50),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (installed) Color.White.copy(alpha = 0.12f) else TclBlue,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text(
-                        text = if (installed) "Select" else "Install",
-                        color = Color.White,
-                        fontSize = 13.sp
-                    )
+                } else if (installLabel != null) {
+                    SecondaryButton(text = installLabel, enabled = !busy, onClick = onSelect)
                 }
             }
         }

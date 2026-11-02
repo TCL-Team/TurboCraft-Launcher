@@ -19,7 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-enum class Screen { HOME, VERSIONS, DOWNLOAD, MODS, ACCOUNTS, SETTINGS, LOGS }
+enum class Screen { HOME, VERSIONS, INSTALL, MODS, ACCOUNTS, SETTINGS, LOGS }
 
 /**
  * Poora launcher state ek jagah — Compose UI isko observe karta hai.
@@ -38,11 +38,15 @@ class AppState(private val scope: CoroutineScope) {
     var remoteVersions by mutableStateOf<List<ManifestEntry>>(emptyList())
         private set
     var versionFilter by mutableStateOf("")
-    var status by mutableStateOf("Taiyaar hai")
+    var status by mutableStateOf("Ready")
+    var statusIsError by mutableStateOf(false)
+        private set
     var progress by mutableStateOf<InstallProgress?>(null)
     var busy by mutableStateOf(false)
     var gameRunning by mutableStateOf(false)
     var deviceCode by mutableStateOf<String?>(null)
+    var remoteLoading by mutableStateOf(false)
+        private set
 
     val logs = mutableStateListOf<String>()
 
@@ -52,10 +56,24 @@ class AppState(private val scope: CoroutineScope) {
         scope.launch(Dispatchers.Main) { block() }
     }
 
+    private fun setStatus(message: String, error: Boolean = false) {
+        status = message
+        statusIsError = error
+    }
+
+    private fun fail(prefix: String, error: Throwable) {
+        val message = when (error) {
+            is NetworkException -> error.message ?: prefix
+            else -> error.message ?: error.javaClass.simpleName
+        }
+        ui { setStatus("$prefix: $message", error = true) }
+        log("$prefix: ${error.message ?: error.javaClass.name}")
+    }
+
     fun log(line: String) {
         ui {
             logs += line
-            if (logs.size > 400) logs.removeRange(0, logs.size - 400)
+            if (logs.size > 500) logs.removeRange(0, logs.size - 500)
         }
     }
 
@@ -81,32 +99,32 @@ class AppState(private val scope: CoroutineScope) {
         }
     }
 
-    fun loadRemoteVersions() {
-        if (remoteVersions.isNotEmpty() || busy) return
-        busy = true
-        status = "Minecraft versions load ho rahe hain…"
+    /** Minecraft version list (manifest) */
+    fun loadRemoteVersions(force: Boolean = false) {
+        if (remoteLoading || (remoteVersions.isNotEmpty() && !force)) return
+        remoteLoading = true
+        setStatus("Loading Minecraft versions…")
         scope.launch(Dispatchers.IO) {
             runCatching { installer.listVersions() }
                 .onSuccess { manifest ->
                     ui {
                         remoteVersions = manifest.versions
-                        busy = false
-                        status = "${manifest.versions.size} versions mile"
+                        remoteLoading = false
+                        setStatus("${manifest.versions.size} versions available")
                     }
                 }
                 .onFailure { error ->
-                    ui {
-                        busy = false
-                        status = "Versions load fail: ${error.message}"
-                    }
+                    ui { remoteLoading = false }
+                    fail("Couldn't load versions", error)
                 }
         }
     }
 
-    fun installVersion(versionId: String) {
+    /** Sirf install (koi launch nahi) */
+    fun installVersion(versionId: String, playAfter: Boolean = false) {
         if (busy) return
         busy = true
-        progress = InstallProgress(stage = "Shuru…")
+        progress = InstallProgress(stage = "Preparing…")
         scope.launch(Dispatchers.IO) {
             runCatching {
                 installer.install(versionId) { p -> ui { progress = p } }
@@ -116,17 +134,33 @@ class AppState(private val scope: CoroutineScope) {
                     progress = null
                     refreshInstalled()
                     selectVersion(versionId)
-                    screen = Screen.HOME
-                    status = "$versionId install ho gaya"
+                    setStatus("$versionId installed")
                 }
+                // user ne Play dabaya tha to install ke turant baad launch
+                if (playAfter) launchGame()
             }.onFailure { error ->
                 ui {
                     busy = false
                     progress = null
-                    status = "Install fail: ${error.message}"
                 }
-                log("Install error: ${error.message}")
+                fail("Install failed", error)
             }
+        }
+    }
+
+    /** Play button: version install nahi hai to pehle install, phir launch */
+    fun play(versionId: String = selectedVersion.ifBlank { installed.firstOrNull().orEmpty() }) {
+        if (versionId.isBlank()) {
+            setStatus("Pick a version first", error = true)
+            screen = Screen.INSTALL
+            return
+        }
+        selectVersion(versionId)
+        if (versionId !in installed) {
+            setStatus("Installing $versionId, then launching…")
+            installVersion(versionId, playAfter = true)
+        } else {
+            launchGame()
         }
     }
 
@@ -134,7 +168,7 @@ class AppState(private val scope: CoroutineScope) {
     fun installFabric(baseVersion: String) {
         if (busy) return
         busy = true
-        progress = InstallProgress(stage = "Fabric loader dhundh raha hoon…")
+        progress = InstallProgress(stage = "Looking up Fabric loader…")
         scope.launch(Dispatchers.IO) {
             runCatching {
                 FabricInstaller.install(baseVersion, onProgress = { p -> ui { progress = p } })
@@ -144,31 +178,31 @@ class AppState(private val scope: CoroutineScope) {
                     progress = null
                     refreshInstalled()
                     selectVersion(id)
-                    status = "Fabric ready: $id"
+                    setStatus("Fabric ready · $id")
                 }
             }.onFailure { error ->
                 ui {
                     busy = false
                     progress = null
-                    status = "Fabric install fail: ${error.message}"
                 }
-                log("Fabric error: ${error.message}")
+                fail("Fabric install failed", error)
             }
         }
     }
 
     fun addOfflineAccount(name: String) {
-        if (name.isBlank()) return
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
         val account = Account(
             type = AccountType.OFFLINE,
-            name = name.trim(),
-            uuid = Accounts.offlineUuid(name.trim()),
+            name = trimmed,
+            uuid = Accounts.offlineUuid(trimmed),
             accessToken = "0"
         )
         accounts = accounts.filterNot { it.name == account.name && it.type == AccountType.OFFLINE } + account
         Accounts.save(accounts)
         selectAccount(account)
-        status = "Offline account jud gaya: ${account.name}"
+        setStatus("Offline account added: ${account.name}")
     }
 
     fun removeAccount(account: Account) {
@@ -182,19 +216,18 @@ class AppState(private val scope: CoroutineScope) {
     fun startMicrosoftLogin() {
         if (busy) return
         busy = true
-        status = "Microsoft login shuru…"
+        setStatus("Starting Microsoft sign-in…")
         scope.launch(Dispatchers.IO) {
             runCatching {
                 val (info, code) = MicrosoftAuth.startLogin()
                 ui {
                     deviceCode = info.userCode
-                    status = "Browser me ${info.verificationUri} kholo, code: ${info.userCode}"
+                    setStatus("Enter code ${info.userCode} at ${info.verificationUri}")
                 }
-                // Browser khol do
                 runCatching {
                     java.awt.Desktop.getDesktop().browse(java.net.URI.create(info.verificationUri))
                 }
-                MicrosoftAuth.loginWithDeviceCode(info, code) { message -> ui { status = message } }
+                MicrosoftAuth.loginWithDeviceCode(info, code) { message -> ui { setStatus(message) } }
             }.onSuccess { account ->
                 ui {
                     busy = false
@@ -202,37 +235,36 @@ class AppState(private val scope: CoroutineScope) {
                     accounts = (accounts.filterNot { it.uuid == account.uuid } + account)
                     Accounts.save(accounts)
                     selectAccount(account)
-                    status = "Login ho gaya: ${account.name}"
+                    setStatus("Signed in as ${account.name}")
                 }
             }.onFailure { error ->
                 ui {
                     busy = false
                     deviceCode = null
-                    status = "Login fail: ${error.message}"
                 }
-                log("Login error: ${error.message}")
+                fail("Sign-in failed", error)
             }
         }
     }
 
     fun launchGame() {
         val account = selectedAccount ?: run {
-            status = "Pehle account add karo"
+            setStatus("Add an account first", error = true)
             screen = Screen.ACCOUNTS
             return
         }
         if (gameRunning) {
-            status = "Game already chal raha hai"
+            setStatus("Minecraft is already running")
             return
         }
         val versionId = selectedVersion.ifBlank { installed.firstOrNull().orEmpty() }
         if (versionId.isBlank()) {
-            status = "Pehle koi version install karo"
-            screen = Screen.DOWNLOAD
+            setStatus("Install a version first", error = true)
+            screen = Screen.INSTALL
             return
         }
 
-        status = "Launch ho raha hai…"
+        setStatus("Launching $versionId…")
         scope.launch(Dispatchers.IO) {
             runCatching {
                 GameLauncher.launch(
@@ -244,27 +276,28 @@ class AppState(private val scope: CoroutineScope) {
             }.onSuccess { result ->
                 ui {
                     gameRunning = true
-                    status = "Minecraft chal raha hai"
+                    setStatus("Minecraft is running")
                 }
                 scope.launch(Dispatchers.IO) {
                     val code = result.process.waitFor()
                     ui {
                         gameRunning = false
-                        status = "Game band ho gaya (exit $code)"
+                        setStatus("Minecraft closed (exit code $code)")
                     }
                 }
             }.onFailure { error ->
-                ui {
-                    gameRunning = false
-                    status = "Launch fail: ${error.message}"
-                }
-                log("Launch error: ${error.message}")
+                ui { gameRunning = false }
+                fail("Launch failed", error)
             }
         }
     }
 
     fun openGameFolder() {
         runCatching { java.awt.Desktop.getDesktop().open(AppPaths.game) }
+    }
+
+    fun openLogsFolder() {
+        runCatching { java.awt.Desktop.getDesktop().open(AppPaths.logs) }
     }
 
     suspend fun pingStatus() = withContext(Dispatchers.IO) { AppPaths.gameSizeMb() }

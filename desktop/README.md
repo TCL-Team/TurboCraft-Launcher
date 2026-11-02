@@ -51,6 +51,7 @@ Gradle 9.5.x use karo (repo me wrapper nahi hai, kyunki build alag hai).
 ## Abhi kya kaam karta hai (MVP)
 
 - Vanilla Minecraft (release / snapshot / old) install — assets tak, sha1 verify ke saath
+- Play = agar version installed nahi hai to pehle download/install, phir turant launch
 - Fabric loader — version row par `+ Fabric` dabao (baaki loaders agle step)
 - Mods screen — list, enable/disable (`.disabled` rename), delete, folder open
 - Branding — ek `gradle.properties` se naam + version sab jagah
