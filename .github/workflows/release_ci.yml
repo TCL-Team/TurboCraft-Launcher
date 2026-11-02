@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   Build:
+    # Desktop (PC) releases alag workflow se banti hain — unke liye Android APK mat banao
+    if: ${{ !startsWith(github.event.release.tag_name, 'desktop-') }}
     uses: ./.github/workflows/build.yml
     with:
       variant: Release

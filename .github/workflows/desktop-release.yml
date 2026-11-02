@@ -1,0 +1,74 @@
+name: Desktop Release
+
+# Tag `desktop-v*` push karne par Windows build GitHub release me chala jaata hai.
+#   git tag desktop-v0.1.0 && git push origin desktop-v0.1.0
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build + publish Windows release
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.5.0"
+
+      - name: Build app image + MSI
+        run: |
+          gradle createDistributable --stacktrace --console=plain
+          gradle packageMsi --stacktrace --console=plain
+
+      - name: Pack portable zip
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          cd build/compose/binaries/main/app
+          powershell -Command "Compress-Archive -Path 'TurboCraftLauncher/*' -DestinationPath 'TurboCraftLauncher-${TAG}-windows-portable.zip' -Force"
+          cp "TurboCraftLauncher-${TAG}-windows-portable.zip" "$GITHUB_WORKSPACE/"
+
+      - name: Create / update release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          cd "$GITHUB_WORKSPACE"
+          NOTES="## TurboCraft Launcher — Windows ($TAG)
+
+          PC edition ka pehla working MVP (naya Kotlin core, Compose Desktop UI).
+
+          - Vanilla Minecraft install (libraries, assets, natives)
+          - Launch + Microsoft (device code) / offline accounts
+          - Java 8/17/21 auto detect + Temurin auto download
+          - TCL-style UI: home, versions, accounts, settings, logs
+
+          **Kaise chalayein:** MSI install karo, ya portable zip extract karke \`TurboCraftLauncher.exe\` chalao.
+          Java pehle se install karne ki zaroorat nahi — runtime saath hai."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "TurboCraftLauncher-${TAG}-windows-portable.zip" --clobber
+            gh release upload "$TAG" desktop/build/compose/binaries/main/msi/*.msi --clobber
+          else
+            gh release create "$TAG" \
+              "TurboCraftLauncher-${TAG}-windows-portable.zip" \
+              desktop/build/compose/binaries/main/msi/*.msi \
+              --title "TurboCraft Launcher $TAG (Windows)" \
+              --notes "$NOTES"
+          fi
