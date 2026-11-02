@@ -43,7 +43,14 @@ private const val TAG = "TaskFlowExecutor"
  * 动态任务流执行器，按照阶段顺序执行任务流
  */
 class TaskFlowExecutor(
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    /**
+     * 是否把正在执行的任务同步到任务栏（侧边 Task Menu）。
+     *
+     * 只有本身没有进度界面的任务流（例如启动游戏）才需要打开；
+     * 安装/导入这类流程自己会弹对话框展示任务列表，再同步一份会看到两个一模一样的框。
+     */
+    private val publishToTaskBar: Boolean = false
 ) {
     /**
      * 任务流阶段，包含一个阶段的所有任务
@@ -76,6 +83,7 @@ class TaskFlowExecutor(
      */
     private fun publishTask(titledTask: TitledTask) {
         clearPublishedTasks()
+        if (!publishToTaskBar) return
         val task = titledTask.task
         //任务开始前先用标题占位，避免侧边栏出现没有文字的空行
         task.updateMessage(titledTask.title)

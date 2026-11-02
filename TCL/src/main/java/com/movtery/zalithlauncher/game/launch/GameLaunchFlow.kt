@@ -73,7 +73,8 @@ private class LaunchCheckFailed(
  * 游戏启动器
  */
 class GameLaunchFlow(scope: CoroutineScope) {
-    private val taskExecutor = TaskFlowExecutor(scope)
+    //启动游戏没有自己的进度界面，所以实时同步到任务栏展示
+    private val taskExecutor = TaskFlowExecutor(scope, publishToTaskBar = true)
     val tasksFlow: StateFlow<List<TitledTask>> = taskExecutor.tasksFlow
 
     /**
