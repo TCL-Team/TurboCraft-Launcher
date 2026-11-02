@@ -185,17 +185,21 @@ jobs:
       # "app\<name>.cfg: No such file or directory" error deta hai.
       # Asli bug yahi tha: jlink runtime image me java.net.http module missing tha,
       # isliye packaged exe me "Could not initialize class Net" aata tha.
-      # Yahan hum bundled runtime par asli HttpClient code chalakar verify karte hain.
+      # Yahan bundled runtime par asli HttpClient code chala kar verify karte hain.
       - name: Verify bundled runtime can do HTTPS (java.net.http)
+        shell: pwsh
         run: |
-          cd build/compose/binaries/main/app
-          APP_DIR=$(find . -maxdepth 1 -mindepth 1 -type d | head -1)
-          RUNTIME_JAVA=$(find "$APP_DIR/runtime" -name java.exe | head -1)
-          echo "::notice::runtime java = $RUNTIME_JAVA"
-          "$RUNTIME_JAVA" --list-modules | tr '\n' ' ' > modules.txt
-          echo "::notice::modules = $(cut -c1-900 modules.txt)"
-          mkdir -p netcheck && cd netcheck
-          cat > NetCheck.java <<'JAVA'
+          $app = Get-ChildItem -Path "build/compose/binaries/main/app" -Directory | Select-Object -First 1
+          Write-Host "app dir: $($app.FullName)"
+          Get-ChildItem -Path $app.FullName -Depth 1 | Select-Object -First 20 | ForEach-Object { Write-Host "  " $_.FullName }
+          $java = Get-ChildItem -Path $app.FullName -Recurse -Filter java.exe | Select-Object -First 1
+          if (-not $java) { Write-Error "no java.exe in the packaged runtime"; exit 1 }
+          Write-Host "runtime java: $($java.FullName)"
+          & $java.FullName --list-modules | Select-String -Pattern "java.net.http|jdk.crypto.ec|java.naming"
+
+          $work = Join-Path $env:RUNNER_TEMP "netcheck"
+          New-Item -ItemType Directory -Force -Path $work | Out-Null
+          @'
           import java.net.http.HttpClient;
           import java.time.Duration;
 
@@ -208,13 +212,11 @@ jobs:
                   System.out.println("HttpClient OK: " + client.version());
               }
           }
-          JAVA
-          javac NetCheck.java
-          "../$RUNTIME_JAVA" -cp . NetCheck || {
-            echo "::error::bundled runtime cannot create an HttpClient (java.net.http missing)"
-            exit 1
-          }
-          echo "OK: bundled runtime can do HTTPS"
+          '@ | Set-Content -Path (Join-Path $work "NetCheck.java") -Encoding UTF8
+          & javac (Join-Path $work "NetCheck.java") -d $work
+          & $java.FullName -cp $work NetCheck
+          if ($LASTEXITCODE -ne 0) { Write-Error "bundled runtime cannot create HttpClient (java.net.http missing)"; exit 1 }
+          Write-Host "OK: bundled runtime can do HTTPS"
 
       - name: Zip portable app image
         run: |
