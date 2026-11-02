@@ -332,10 +332,18 @@ private fun VersionsCard(state: AppState) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(id, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text(
+                                com.tcl.desktop.core.Packs.displayName(id),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
                             if (id == state.selectedVersion) Tag("active", highlight = true)
-                            if (id.startsWith("FabricInstaller") || id.startsWith("fabric-loader")) {
-                                Tag("fabric")
+                            when {
+                                id.startsWith("fabric-loader") -> Tag("fabric")
+                                id.startsWith("quilt-loader") -> Tag("quilt")
+                                id.startsWith("neoforge-") -> Tag("neoforge")
+                                id.contains("-forge-") -> Tag("forge")
+                                id.startsWith("pack-") -> Tag("modpack", highlight = true)
                             }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

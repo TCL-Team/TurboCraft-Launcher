@@ -37,6 +37,8 @@ data class Settings(
     var jvmArgs: String = "",
     /** Launcher band hone par game process band karna hai? */
     var quitGameOnClose: Boolean = false,
+    /** Microsoft app (client) id — khaali = launcher ka default */
+    var msClientId: String = "",
     /** Discord Rich Presence */
     var discordPresence: Boolean = true,
 )

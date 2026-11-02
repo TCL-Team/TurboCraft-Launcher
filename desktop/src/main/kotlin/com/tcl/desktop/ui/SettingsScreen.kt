@@ -114,6 +114,29 @@ fun SettingsScreen(state: AppState) {
 
         item {
             SectionCard(modifier = Modifier.fillMaxWidth()) {
+                CardTitle("Microsoft account (advanced)")
+                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BodyText("App (client) id used for Microsoft sign-in")
+                    OutlinedTextField(
+                        value = settings.msClientId,
+                        onValueChange = { value -> state.updateSettings { it.msClientId = value.trim() } },
+                        placeholder = { Text(com.tcl.desktop.core.MicrosoftAuth.DEFAULT_CLIENT_ID) },
+                        label = { Text("Microsoft app id") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Caption(
+                        "Register a free app at portal.azure.com → App registrations → " +
+                            "Mobile and desktop applications, redirect URI http://localhost, " +
+                            "allow public client flows, then paste the Application (client) ID here."
+                    )
+                }
+            }
+        }
+
+        item {
+            SectionCard(modifier = Modifier.fillMaxWidth()) {
                 CardTitle("Game window")
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     var widthText by remember { mutableStateOf(settings.windowWidth.toString()) }

@@ -32,12 +32,14 @@ object GameLauncher {
         java: JavaRuntime,
     ): List<String> {
         val nativesDir = AppPaths.versionNatives(versionId).also { it.mkdirs() }
+        val gameDir = AppPaths.gameDirFor(versionId).also { it.mkdirs() }
+        require(gameDir.isDirectory) { "Game folder not writable: $gameDir" }
         val classpath = resolved.classpath()
 
         val placeholders = mapOf(
             "auth_player_name" to account.name,
             "version_name" to versionId,
-            "game_directory" to AppPaths.game.absolutePath,
+            "game_directory" to gameDir.absolutePath,
             "assets_root" to AppPaths.assets.absolutePath,
             "game_assets" to File(AppPaths.assets, "virtual/legacy").absolutePath,
             "assets_index_name" to (resolved.assetIndex ?: "legacy"),
@@ -150,6 +152,7 @@ object GameLauncher {
     ) = withContext(Dispatchers.IO) {
         AppPaths.ensure()
         val resolved = VersionResolver.resolve(versionId)
+        AppPaths.gameDirFor(versionId).mkdirs()
 
         onLog("Java runtime check…")
         val java = JavaManager.ensure(
@@ -171,7 +174,7 @@ object GameLauncher {
         logFile.parentFile?.mkdirs()
 
         val process = ProcessBuilder(command)
-            .directory(AppPaths.game)
+            .directory(AppPaths.gameDirFor(versionId))
             .redirectErrorStream(true)
             .start()
 

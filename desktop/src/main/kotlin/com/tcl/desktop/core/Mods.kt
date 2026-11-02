@@ -37,10 +37,17 @@ data class ModFile(
 object Mods {
     private const val DISABLED = ".disabled"
 
+    /** Default (shared) mods folder */
     val folder: File get() = File(AppPaths.game, "mods")
 
-    fun list(): List<ModFile> {
-        val dir = folder.also { it.mkdirs() }
+    /** Selected version ka mods folder — isolated modpacks apna folder rakhte hain */
+    fun folderFor(versionId: String): File =
+        if (versionId.isBlank()) folder else AppPaths.modsDirFor(versionId).also { it.mkdirs() }
+
+    fun folderLabel(versionId: String): String = folderFor(versionId).absolutePath
+
+    fun list(versionId: String = ""): List<ModFile> {
+        val dir = folderFor(versionId).also { it.mkdirs() }
         return dir.listFiles()
             ?.filter { it.isFile && (it.name.endsWith(".jar") || it.name.endsWith(".jar$DISABLED")) }
             ?.map { ModFile(it, !it.name.endsWith(DISABLED)) }
@@ -78,15 +85,17 @@ object Mods {
     fun delete(mod: ModFile): Boolean = runCatching { mod.file.delete() }.getOrDefault(false)
 
     /** Mods folder me daalne ke liye — user file picker se choose karta hai */
-    fun import(files: List<File>): Int {
+    fun import(versionId: String, files: List<File>): Int {
+        val folder = folderFor(versionId)
         folder.mkdirs()
         return files.count { source ->
             runCatching { source.copyTo(File(folder, source.name), overwrite = true) }.isSuccess
         }
     }
 
-    fun openFolder() {
+    fun openFolder(versionId: String = "") {
         runCatching {
+            val folder = folderFor(versionId)
             folder.mkdirs()
             java.awt.Desktop.getDesktop().open(folder)
         }

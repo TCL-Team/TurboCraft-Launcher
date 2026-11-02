@@ -170,7 +170,10 @@ private fun TopBar(state: AppState) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
-            Caption("${if (state.installed.isEmpty()) "No versions installed" else "${state.installed.size} versions installed"} · ${state.selectedVersion.ifBlank { "nothing selected" }}")
+            Caption(
+                (if (state.installed.isEmpty()) "No versions installed" else "${state.installed.size} versions installed") +
+                    " · " + com.tcl.desktop.core.Packs.displayName(state.selectedVersion.ifBlank { "nothing selected" })
+            )
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (state.gameRunning) {

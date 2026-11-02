@@ -48,7 +48,30 @@ class AppState(private val scope: CoroutineScope) {
     var remoteLoading by mutableStateOf(false)
         private set
 
+    // ── startup (Android jaisa: pehle components, phir UI) ──────────────────
+    var bootstrapped by mutableStateOf(false)
+        private set
+    var bootstrapSteps by mutableStateOf<List<BootstrapStep>>(emptyList())
+        private set
+
+    // ── loader picker ──────────────────────────────────────────────────────
+    var loaderTargetVersion by mutableStateOf<String?>(null)
+    var loaderType by mutableStateOf(LoaderType.VANILLA)
+    var loaderVersionList by mutableStateOf<List<LoaderVersion>>(emptyList())
+    var loaderVersionsLoading by mutableStateOf(false)
+    var selectedLoaderVersion by mutableStateOf<String?>(null)
+
+    // ── Modrinth browser ───────────────────────────────────────────────────
+    var browseQuery by mutableStateOf("")
+    var browseType by mutableStateOf("mod")
+    var browseResults by mutableStateOf<List<ProjectHit>>(emptyList())
+    var browseLoading by mutableStateOf(false)
+    var browseError by mutableStateOf<String?>(null)
+
     val logs = mutableStateListOf<String>()
+
+    val msClientId: String
+        get() = settings.msClientId.takeIf { it.isNotBlank() } ?: MicrosoftAuth.DEFAULT_CLIENT_ID
 
     val selectedVersion: String get() = settings.selectedVersion
 
@@ -74,6 +97,213 @@ class AppState(private val scope: CoroutineScope) {
         ui {
             logs += line
             if (logs.size > 500) logs.removeRange(0, logs.size - 500)
+        }
+    }
+
+    /** Launcher start par components (Java etc.) ka setup */
+    fun startBootstrap() {
+        if (bootstrapSteps.isNotEmpty()) return
+        scope.launch {
+            runCatching {
+                Bootstrap.run(javaMajor = 21) { steps ->
+                    scope.launch(Dispatchers.Main) { bootstrapSteps = steps }
+                }
+            }
+            withContext(Dispatchers.Main) {
+                bootstrapped = true
+                refreshInstalled()
+                loadRemoteVersions()
+            }
+        }
+    }
+
+    // ── loaders ────────────────────────────────────────────────────────────
+
+    fun openLoaderPicker(baseVersion: String) {
+        loaderTargetVersion = baseVersion
+        loaderType = LoaderType.FABRIC
+        selectedLoaderVersion = null
+        loadLoaderVersions()
+    }
+
+    fun closeLoaderPicker() {
+        loaderTargetVersion = null
+        loaderVersionList = emptyList()
+        selectedLoaderVersion = null
+    }
+
+    fun selectLoader(type: LoaderType, loaderVersion: String? = null) {
+        loaderType = type
+        selectedLoaderVersion = loaderVersion
+        loadLoaderVersions()
+    }
+
+    private fun loadLoaderVersions() {
+        val target = loaderTargetVersion ?: return
+        if (loaderType == LoaderType.VANILLA || loaderType == LoaderType.OPTIFINE) {
+            loaderVersionList = emptyList()
+            return
+        }
+        loaderVersionsLoading = true
+        scope.launch(Dispatchers.IO) {
+            runCatching { Loaders.list(loaderType, target) }
+                .onSuccess { list ->
+                    ui {
+                        loaderVersionList = list
+                        selectedLoaderVersion = list.firstOrNull()?.version
+                        loaderVersionsLoading = false
+                    }
+                }
+                .onFailure { error ->
+                    ui { loaderVersionsLoading = false }
+                    log("Loader list failed: ${error.message}")
+                }
+        }
+    }
+
+    /** Loader picker se install — vanilla ho to seedha version install */
+    fun installWithLoader() {
+        val target = loaderTargetVersion ?: return
+        if (busy) return
+        if (loaderType == LoaderType.VANILLA) {
+            closeLoaderPicker()
+            installVersion(target)
+            return
+        }
+        busy = true
+        progress = InstallProgress(stage = "Preparing ${loaderType.label}…")
+        val type = loaderType
+        val version = selectedLoaderVersion
+        closeLoaderPicker()
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                if (!AppPaths.versionJson(target).exists()) {
+                    installer.install(target) { p -> ui { progress = p } }
+                }
+                Loaders.install(type, target, version) { p -> ui { progress = p } }
+            }.onSuccess { id ->
+                ui {
+                    busy = false
+                    progress = null
+                    refreshInstalled()
+                    selectVersion(id)
+                    setStatus("${type.label} installed · $id")
+                }
+            }.onFailure { error ->
+                ui {
+                    busy = false
+                    progress = null
+                }
+                fail("${type.label} install failed", error)
+            }
+        }
+    }
+
+    // ── Modrinth ───────────────────────────────────────────────────────────
+
+    fun searchProjects(query: String = browseQuery, type: String = browseType) {
+        browseQuery = query
+        browseType = type
+        browseLoading = true
+        browseError = null
+        val gameVersion = selectedVersion.takeIf { it.isNotBlank() }?.let { id ->
+            Packs.read(id)?.mcVersion ?: VersionResolver.resolve(id).let { resolved ->
+                runCatching { VersionResolver.resolve(id).jarId }.getOrNull()
+            }
+        }
+        val loader = selectedVersion.takeIf { it.isNotBlank() }?.let { id ->
+            when {
+                id.startsWith("fabric") || id.startsWith("pack-") -> "fabric"
+                id.startsWith("quilt") -> "quilt"
+                id.startsWith("neoforge") -> "neoforge"
+                id.startsWith("forge") -> "forge"
+                else -> null
+            }
+        }
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                Modrinth.search(
+                    query = query,
+                    projectType = type,
+                    gameVersion = if (type == "mod") gameVersion else null,
+                    loader = if (type == "mod") loader else null
+                )
+            }.onSuccess { hits -> ui { browseResults = hits; browseLoading = false } }
+                .onFailure { error ->
+                    ui {
+                        browseLoading = false
+                        browseError = error.message
+                    }
+                }
+        }
+    }
+
+    /** Mod ka compatible version dhundh kar mods folder me daalta hai */
+    fun installMod(hit: ProjectHit) {
+        if (busy) return
+        val versionId = selectedVersion
+        busy = true
+        setStatus("Looking for a compatible file…")
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val meta = Packs.read(versionId)
+                val mc = meta?.mcVersion ?: VersionResolver.resolve(versionId).jarId
+                val loader = when {
+                    meta?.loader?.isNotBlank() == true -> meta.loader
+                    versionId.startsWith("quilt") -> "quilt"
+                    versionId.startsWith("neoforge") -> "neoforge"
+                    versionId.startsWith("forge") -> "forge"
+                    versionId.startsWith("fabric") || versionId.startsWith("pack-") -> "fabric"
+                    else -> null
+                }
+                val versions = Modrinth.versions(hit.id, mc, loader)
+                val chosen = versions.firstOrNull()
+                    ?: Modrinth.versions(hit.id).firstOrNull()
+                    ?: error("No file for Minecraft $mc${loader?.let { " / $it" } ?: ""}")
+                Modrinth.installMod(
+                    version = chosen,
+                    targetModsDir = AppPaths.modsDirFor(versionId),
+                    gameVersion = mc,
+                    loader = loader,
+                    onStatus = { message -> ui { setStatus(message) } }
+                )
+            }.onSuccess { count ->
+                ui {
+                    busy = false
+                    setStatus("$count file(s) added to ${Mods.folderLabel(selectedVersion)}")
+                }
+            }.onFailure { error ->
+                ui { busy = false }
+                fail("Mod install failed", error)
+            }
+        }
+    }
+
+    /** Modrinth modpack install (naya isolated version banata hai) */
+    fun installModpack(hit: ProjectHit) {
+        if (busy) return
+        busy = true
+        setStatus("Fetching ${hit.title}…")
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val versions = Modrinth.versions(hit.id)
+                val chosen = versions.firstOrNull() ?: error("No versions available for this modpack")
+                ModpackInstaller.install(hit.id, chosen, onProgress = { p -> ui { progress = p } })
+            }.onSuccess { packId ->
+                ui {
+                    busy = false
+                    progress = null
+                    refreshInstalled()
+                    selectVersion(packId)
+                    setStatus("Modpack installed · ${Packs.displayName(packId)}")
+                }
+            }.onFailure { error ->
+                ui {
+                    busy = false
+                    progress = null
+                }
+                fail("Modpack install failed", error)
+            }
         }
     }
 
@@ -213,21 +443,26 @@ class AppState(private val scope: CoroutineScope) {
         }
     }
 
-    fun startMicrosoftLogin() {
+    fun startMicrosoftLogin(useDeviceCode: Boolean = false) {
         if (busy) return
         busy = true
         setStatus("Starting Microsoft sign-in…")
+        val clientId = msClientId
         scope.launch(Dispatchers.IO) {
             runCatching {
-                val (info, code) = MicrosoftAuth.startLogin()
-                ui {
-                    deviceCode = info.userCode
-                    setStatus("Enter code ${info.userCode} at ${info.verificationUri}")
+                if (useDeviceCode) {
+                    val info = MicrosoftAuth.requestDeviceCode(clientId)
+                    ui {
+                        deviceCode = info.userCode
+                        setStatus("Enter code ${info.userCode} at ${info.verificationUri}")
+                    }
+                    runCatching {
+                        java.awt.Desktop.getDesktop().browse(java.net.URI.create(info.verificationUri))
+                    }
+                    MicrosoftAuth.signInWithDeviceCode(info, clientId) { message -> ui { setStatus(message) } }
+                } else {
+                    MicrosoftAuth.signInWithBrowser(clientId, onStatus = { message -> ui { setStatus(message) } })
                 }
-                runCatching {
-                    java.awt.Desktop.getDesktop().browse(java.net.URI.create(info.verificationUri))
-                }
-                MicrosoftAuth.loginWithDeviceCode(info, code) { message -> ui { setStatus(message) } }
             }.onSuccess { account ->
                 ui {
                     busy = false

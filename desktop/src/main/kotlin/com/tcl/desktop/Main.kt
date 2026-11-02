@@ -12,6 +12,7 @@ package com.tcl.desktop
 
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -21,6 +22,7 @@ import androidx.compose.ui.window.rememberWindowState
 import com.tcl.desktop.core.AppPaths
 import com.tcl.desktop.core.AppState
 import com.tcl.desktop.ui.LauncherRoot
+import com.tcl.desktop.ui.SplashScreen
 import com.tcl.desktop.ui.TclTheme
 
 fun main() {
@@ -41,9 +43,14 @@ fun main() {
             onCloseRequest = { exitApplication() },
             state = windowState,
             title = Brand.APP_NAME,
+            icon = painterResource("icon/launcher.png"),
         ) {
             TclTheme(dark = dark) {
-                LauncherRoot(state = state, dark = dark, onExit = ::exitApplication)
+                if (state.bootstrapped) {
+                    LauncherRoot(state = state, dark = dark, onExit = ::exitApplication)
+                } else {
+                    SplashScreen(state)
+                }
             }
         }
     }

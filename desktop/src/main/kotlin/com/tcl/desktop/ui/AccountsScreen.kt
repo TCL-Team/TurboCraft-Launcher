@@ -69,18 +69,24 @@ fun AccountsScreen(state: AppState) {
                         if (state.deviceCode != null) {
                             "Your browser is open. Enter this code: ${state.deviceCode}"
                         } else {
-                            "Press sign in, then enter the code shown in your browser. The launcher waits for you."
+                            "Your browser opens, you sign in, and the launcher picks up the token automatically — " +
+                                "no password ever touches the launcher."
                         }
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         PrimaryButton(
                             text = if (state.busy) "Waiting…" else "Sign in with Microsoft",
                             enabled = !state.busy,
-                            onClick = { state.startMicrosoftLogin() }
+                            onClick = { state.startMicrosoftLogin(useDeviceCode = false) }
                         ) {
                             Icon(Icons.Outlined.AccountCircle, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                         }
+                        SecondaryButton(
+                            text = "Use a device code instead",
+                            enabled = !state.busy,
+                            onClick = { state.startMicrosoftLogin(useDeviceCode = true) }
+                        )
                         if (state.deviceCode != null) {
                             SecondaryButton(text = "Copy code", onClick = {
                                 runCatching {
@@ -90,6 +96,10 @@ fun AccountsScreen(state: AppState) {
                             })
                         }
                     }
+                    Caption(
+                        "Using app id ${state.msClientId}. If Microsoft rejects it, register a free app " +
+                            "in Settings → Microsoft app id (takes 2 minutes)."
+                    )
                 }
             }
         }

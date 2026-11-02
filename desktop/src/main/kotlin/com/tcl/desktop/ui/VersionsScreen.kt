@@ -10,6 +10,7 @@
 
 package com.tcl.desktop.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,12 +47,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.window.Dialog
 import com.tcl.desktop.core.AppState
+import com.tcl.desktop.core.LoaderType
 
 @Composable
 fun VersionsScreen(state: AppState) {
     var query by remember { mutableStateOf("") }
     var typeFilter by remember { mutableStateOf("release") }
+
+    if (state.loaderTargetVersion != null) {
+        LoaderPickerDialog(state)
+    }
 
     val visible = state.remoteVersions
         .filter { entry ->
@@ -172,7 +180,9 @@ fun VersionsScreen(state: AppState) {
                 selected = state.selectedVersion == entry.id,
                 busy = state.busy,
                 installLabel = if (installed) null else "Install",
-                onSelect = { if (installed) state.selectVersion(entry.id) else state.installVersion(entry.id) },
+                onSelect = {
+                    if (installed) state.selectVersion(entry.id) else state.openLoaderPicker(entry.id)
+                },
                 onPlay = { state.play(entry.id) },
                 onFabric = if (installed) ({ state.installFabric(entry.id) }) else null
             )
@@ -226,6 +236,94 @@ private fun VersionRow(
                     }
                 } else if (installLabel != null) {
                     SecondaryButton(text = installLabel, enabled = !busy, onClick = onSelect)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Android edition jaisa: version chunne ke baad loader choose karo
+ * (Vanilla / Fabric / Quilt / NeoForge / Forge).
+ */
+@Composable
+private fun LoaderPickerDialog(state: AppState) {
+    val target = state.loaderTargetVersion ?: return
+    val available = listOf(
+        LoaderType.VANILLA,
+        LoaderType.FABRIC,
+        LoaderType.QUILT,
+        LoaderType.NEOFORGE,
+        LoaderType.FORGE
+    )
+
+    Dialog(onDismissRequest = { state.closeLoaderPicker() }) {
+        SectionCard(modifier = Modifier.width(560.dp)) {
+            CardTitle("Install $target")
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                BodyText("Choose a mod loader")
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    available.forEach { type ->
+                        Pill(
+                            text = type.label,
+                            selected = state.loaderType == type,
+                            onClick = { state.selectLoader(type) }
+                        )
+                    }
+                }
+
+                if (state.loaderType != LoaderType.VANILLA) {
+                    if (state.loaderVersionsLoading) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            BodyText("Loading ${state.loaderType.label} versions…")
+                        }
+                    } else if (state.loaderVersionList.isEmpty()) {
+                        BodyText("No ${state.loaderType.label} build found for $target.", dim = true)
+                    } else {
+                        Caption("${state.loaderVersionList.size} builds · newest first")
+                        LazyColumn(modifier = Modifier.height(180.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(state.loaderVersionList.take(40)) { loaderVersion ->
+                                val selected = state.selectedLoaderVersion == loaderVersion.version
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(
+                                            if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+                                            else MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
+                                        )
+                                        .clickable { state.selectLoader(state.loaderType, loaderVersion.version) }
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(loaderVersion.version, fontSize = 13.sp)
+                                    if (loaderVersion.stable) Tag("stable")
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    BodyText("Plain Minecraft, no mod loader. Fabric/Quilt/Forge can be added later.")
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = { state.closeLoaderPicker() }) { Text("Cancel") }
+                    Spacer(Modifier.width(8.dp))
+                    PrimaryButton(
+                        text = if (state.loaderType == LoaderType.VANILLA) "Install" else "Install ${state.loaderType.label}",
+                        enabled = !state.busy && (
+                            state.loaderType == LoaderType.VANILLA ||
+                                (state.loaderVersionList.isNotEmpty() && state.selectedLoaderVersion != null)
+                            ),
+                        onClick = { state.installWithLoader() }
+                    )
                 }
             }
         }

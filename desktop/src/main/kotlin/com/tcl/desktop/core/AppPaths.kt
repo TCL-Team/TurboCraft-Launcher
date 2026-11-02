@@ -55,6 +55,18 @@ object AppPaths {
     fun versionNatives(versionId: String): File = File(versionDir(versionId), "natives")
     fun versionLog(versionId: String): File = File(logs, "$versionId-latest.log")
 
+    /** Modpack / isolated instance ka apna game folder (agar bana ho) */
+    fun versionGameDir(versionId: String): File = File(versionDir(versionId), "game")
+
+    /** Version ka actual --gameDir: isolated ho to apna, warna shared `.minecraft` */
+    fun gameDirFor(versionId: String): File =
+        versionGameDir(versionId).takeIf { it.isDirectory } ?: game
+
+    fun modsDirFor(versionId: String): File = File(gameDirFor(versionId), "mods")
+
+    /** Modpack metadata (name, icon, version) — sirf modpack versions ke liye */
+    fun packMetaFile(versionId: String): File = File(versionDir(versionId), "pack.json")
+
     fun libraryFile(path: String): File = File(libraries, path)
     fun assetObject(hash: String): File = File(assetObjects, hash.substring(0, 2) + "/" + hash)
     fun assetIndex(id: String): File = File(assetIndexes, "$id.json")
