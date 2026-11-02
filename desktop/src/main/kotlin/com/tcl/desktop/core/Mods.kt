@@ -50,18 +50,18 @@ object Mods {
 
     /** Mod jar ke andar se display name / version nikalta hai (na mile to file name) */
     fun displayInfo(mod: ModFile): String {
-        return runCatching {
+        val fromJar: String? = runCatching {
             ZipFile(mod.file).use { zip ->
-                val fabric = zip.getEntry("fabric.mod.json")
-                if (fabric != null) {
-                    val json = zip.getInputStream(fabric).bufferedReader().readText()
+                zip.getEntry("fabric.mod.json")?.let { entry ->
+                    val json = zip.getInputStream(entry).bufferedReader().readText()
                     val obj = MojangApi.gson().fromJson(json, com.google.gson.JsonObject::class.java)
                     val name = obj.get("name")?.asString
                     val version = obj.get("version")?.asString
-                    if (!name.isNullOrBlank()) return@use listOfNotNull(name, version).joinToString(" ")
+                    if (name.isNullOrBlank()) null else listOfNotNull(name, version).joinToString(" ")
                 }
             }
-        }.getOrNull() ?: mod.name
+        }.getOrNull()
+        return fromJar ?: mod.name
     }
 
     fun toggle(mod: ModFile): Boolean {

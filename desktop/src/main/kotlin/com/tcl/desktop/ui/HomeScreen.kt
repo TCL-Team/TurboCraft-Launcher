@@ -53,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tcl.desktop.Brand
 import com.tcl.desktop.core.Account
-import com.tcl.desktop.Brand
 import com.tcl.desktop.core.AccountType
 import com.tcl.desktop.core.AppState
 import com.tcl.desktop.core.Screen
