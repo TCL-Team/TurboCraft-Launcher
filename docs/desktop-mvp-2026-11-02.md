@@ -98,6 +98,29 @@ launch test user ke PC par hoga.
   fallback, configurable app id (Settings), readable Microsoft error messages.
 - **Icon**: TCL ka asli logo (Android `ic_launcher`) window + MSI + exe me.
 
+## v0.5.0 — mobile parity (auth + content)
+
+**Microsoft login = Android jaisa hi.** Mobile ka `MicrosoftAuthenticator.kt` padha:
+wo **Live Connect device code** use karta hai (`login.live.com/oauth20_connect.srf`,
+client id `00000000402b5328`, scope `service::user.auth.xboxlive.com::MBI_SSL`) —
+isme **redirect URI hota hi nahi**, isliye PC par jo `invalid_request: redirect_uri`
+error aata tha, wo ab nahi aayega. Token polling `oauth20_token.srf`,
+phir XBL (raw RpsTicket, 400 par `d=` retry), XSTS (`XErr` codes ka Hindi/English
+message), Minecraft services, ownership check — sab mobile ke code se matched.
+
+**Modrinth 400 fix:** `facets` galat JSON thi (`[[..]],[[..]]`). Ab sahi
+`[["project_type:mod"],["versions:1.21"]]` banti hai, aur empty search par
+`index=downloads` (Popular) use hota hai.
+
+**Icons:** `IconCache` + `RemoteIcon` — mod/modpack ke logo Modrinth CDN se
+download hote hain (memory + disk cache), home ki installed list me bhi dikhte hain.
+
+**Mobile se aur port kiya:**
+- Resource packs + Shaders tabs (Modrinth se install, installed list, delete)
+- Per-instance **Files** (folder kholo) aur **Delete** (instance + uska data)
+- Launcher **update checker** (GitHub releases) — start par quiet check, Settings me card
+- Device-code card UI: bada code, copy button, link dobara kholo
+
 ## Next
 
 1. Fabric / NeoForge / Forge install (version json merge)
