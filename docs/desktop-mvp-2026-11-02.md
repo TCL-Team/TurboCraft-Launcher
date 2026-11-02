@@ -40,6 +40,17 @@ wo Compose me dobara likhna hi padta. Isliye:
   install/play, `+ Fabric`), Accounts, Settings, Logs
 - Fabric loader: `VersionResolver` child+parent json merge (`inheritsFrom`),
   `meta.fabricmc.net` se latest stable loader, profile json + libraries
+- Mods screen: list, enable/disable (`.jar` ↔ `.jar.disabled`), delete, folder open
+- **Branding:** `desktop/gradle.properties` — ek file se naam, version, vendor, URL;
+  `generateBrand` task `Brand.kt` banata hai (window title, UI, data folder, exe/MSI,
+  user-agent, game args sab wahan se). Details: `desktop/BRANDING.md`
+
+## Portable zip / exe error (user report)
+
+`app\<name>.cfg: No such file or directory` — zip ke **andar se** exe chalane par
+aata hai (Windows zip ko temp me mount karta hai, saath ke `app/` + `runtime/`
+folders wahan nahi hote). Fix: zip me top-level folder + `README-PEHLE-PADHO.txt`,
+aur MSI recommend. Wo launcher ka bug nahi tha.
 
 ## Verification
 
@@ -49,7 +60,7 @@ CI runs (sab green):
 - `41400622255` — core unit tests (rules, placeholders, java mapping, args) + Xvfb smoke run
 - `41401534155` — Fabric support ke saath compile + package + smoke
 
-Released: **`desktop-v0.2.0`** → MSI (~100 MB) + portable zip (~99 MB),
+Released: **`desktop-v0.3.0`** → MSI (~100 MB) + portable zip (~99 MB),
 self-contained JRE ke saath (user ko Java install karna nahi padta).
 
 Runtime par abhi test nahi hua (sandbox me Windows/JDK nahi hai) — pehla real
