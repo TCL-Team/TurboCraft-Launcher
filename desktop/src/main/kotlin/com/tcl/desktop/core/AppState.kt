@@ -206,19 +206,17 @@ class AppState(private val scope: CoroutineScope) {
         browseType = type
         browseLoading = true
         browseError = null
-        val gameVersion = selectedVersion.takeIf { it.isNotBlank() }?.let { id ->
-            Packs.read(id)?.mcVersion ?: VersionResolver.resolve(id).let { resolved ->
-                runCatching { VersionResolver.resolve(id).jarId }.getOrNull()
-            }
-        }
-        val loader = selectedVersion.takeIf { it.isNotBlank() }?.let { id ->
-            when {
-                id.startsWith("fabric") || id.startsWith("pack-") -> "fabric"
-                id.startsWith("quilt") -> "quilt"
-                id.startsWith("neoforge") -> "neoforge"
-                id.startsWith("forge") -> "forge"
-                else -> null
-            }
+        val selected = selectedVersion
+        val packMeta = runCatching { Packs.read(selected) }.getOrNull()
+        val gameVersion = packMeta?.mcVersion?.takeIf { it.isNotBlank() }
+            ?: runCatching { VersionResolver.resolve(selected).jarId }.getOrNull()
+        val loader = when {
+            packMeta?.loader?.isNotBlank() == true -> packMeta.loader
+            selected.startsWith("fabric") || selected.startsWith("pack-") -> "fabric"
+            selected.startsWith("quilt") -> "quilt"
+            selected.startsWith("neoforge") -> "neoforge"
+            selected.contains("-forge-") -> "forge"
+            else -> null
         }
         scope.launch(Dispatchers.IO) {
             runCatching {
@@ -247,13 +245,14 @@ class AppState(private val scope: CoroutineScope) {
         scope.launch(Dispatchers.IO) {
             runCatching {
                 val meta = Packs.read(versionId)
-                val mc = meta?.mcVersion ?: VersionResolver.resolve(versionId).jarId
+                val mc = meta?.mcVersion?.takeIf { it.isNotBlank() }
+                    ?: VersionResolver.resolve(versionId).jarId
                 val loader = when {
                     meta?.loader?.isNotBlank() == true -> meta.loader
+                    versionId.startsWith("fabric") || versionId.startsWith("pack-") -> "fabric"
                     versionId.startsWith("quilt") -> "quilt"
                     versionId.startsWith("neoforge") -> "neoforge"
-                    versionId.startsWith("forge") -> "forge"
-                    versionId.startsWith("fabric") || versionId.startsWith("pack-") -> "fabric"
+                    versionId.contains("-forge-") -> "forge"
                     else -> null
                 }
                 val versions = Modrinth.versions(hit.id, mc, loader)
