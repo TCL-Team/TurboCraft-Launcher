@@ -57,6 +57,7 @@ fun LauncherRoot(state: AppState, dark: Boolean, onExit: () -> Unit) {
     LaunchedEffect(Unit) {
         state.refreshInstalled()
         state.loadRemoteVersions()
+        state.checkForUpdates(quiet = true)
     }
 
     LauncherBackground(dark = dark) {

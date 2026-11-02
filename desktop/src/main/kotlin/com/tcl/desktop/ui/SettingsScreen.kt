@@ -213,6 +213,33 @@ fun SettingsScreen(state: AppState) {
 
         item {
             SectionCard(modifier = Modifier.fillMaxWidth()) {
+                CardTitle("Updates")
+                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val info = state.updateInfo
+                    BodyText(
+                        when {
+                            !state.updateChecked -> "Check GitHub releases for a newer launcher build."
+                            info == null -> "No releases found."
+                            info.isNewer -> "Update available: ${info.version} (you have ${Brand.VERSION_NAME})"
+                            else -> "You're on the latest version (${Brand.VERSION_NAME})."
+                        }
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        PrimaryButton(
+                            text = "Check for updates",
+                            enabled = !state.busy,
+                            onClick = { state.checkForUpdates() }
+                        )
+                        if (state.updateInfo?.isNewer == true) {
+                            SecondaryButton(text = "Download update", onClick = { state.openUpdatePage() })
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            SectionCard(modifier = Modifier.fillMaxWidth()) {
                 CardTitle("About")
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     BodyText("${Brand.APP_NAME} · v${Brand.VERSION_NAME} (build ${Brand.VERSION_CODE})")

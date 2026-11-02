@@ -83,9 +83,11 @@ fun ModsScreen(state: AppState) {
         Spacer(Modifier.height(12.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Pill("Installed", selected = tab == "installed", onClick = { tab = "installed" })
+            Pill("Mods", selected = tab == "installed", onClick = { tab = "installed" })
             Pill("Browse mods", selected = tab == "mods", onClick = { tab = "mods" })
             Pill("Modpacks", selected = tab == "modpacks", onClick = { tab = "modpacks" })
+            Pill("Resource packs", selected = tab == "resourcepack", onClick = { tab = "resourcepack" })
+            Pill("Shaders", selected = tab == "shader", onClick = { tab = "shader" })
         }
 
         Spacer(Modifier.height(12.dp))
@@ -93,6 +95,7 @@ fun ModsScreen(state: AppState) {
         when (tab) {
             "mods" -> BrowseTab(state, "mod")
             "modpacks" -> BrowseTab(state, "modpack")
+            "resourcepack", "shader" -> FilessTab(state, tab)
             else -> InstalledTab(state)
         }
     }
@@ -177,7 +180,16 @@ private fun BrowseTab(state: AppState, type: String) {
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text(if (type == "mod") "Search mods on Modrinth" else "Search modpacks") },
+                placeholder = {
+                    Text(
+                        when (type) {
+                            "modpack" -> "Search modpacks"
+                            "resourcepack" -> "Search resource packs"
+                            "shader" -> "Search shaders"
+                            else -> "Search mods on Modrinth"
+                        }
+                    )
+                },
                 leadingIcon = { Icon(Icons.Outlined.Search, null, modifier = Modifier.size(18.dp)) },
                 singleLine = true,
                 shape = RoundedCornerShape(50),
@@ -220,7 +232,11 @@ private fun BrowseTab(state: AppState, type: String) {
                         busy = state.busy,
                         isModpack = type == "modpack",
                         onInstall = {
-                            if (type == "modpack") state.installModpack(hit) else state.installMod(hit)
+                            when (type) {
+                                "modpack" -> state.installModpack(hit)
+                                "resourcepack", "shader" -> state.installContent(type, hit)
+                                else -> state.installMod(hit)
+                            }
                         }
                     )
                 }
@@ -267,4 +283,69 @@ private fun formatDownloads(count: Long): String = when {
     count >= 1_000_000 -> "%.1fM".format(count / 1_000_000.0)
     count >= 1_000 -> "%.0fK".format(count / 1_000.0)
     else -> count.toString()
+}
+
+/** Already-installed resource packs / shaders (game folder se) */
+@Composable
+private fun FilessTab(state: AppState, kind: String) {
+    var tick by remember { mutableIntStateOf(0) }
+    val files = remember(tick, kind, state.selectedVersion) {
+        com.tcl.desktop.core.ContentInstaller.list(kind, state.selectedVersion)
+    }
+    val label = if (kind == "shader") "Shaders" else "Resource packs"
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                BodyText("$label · ${files.size} installed")
+                Caption("Folder: ${if (kind == "shader") "shaderpacks" else "resourcepacks"} · ${state.selectedVersion}")
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SecondaryButton(text = "Refresh", onClick = { tick++ })
+                PrimaryButton(
+                    text = "Browse on Modrinth",
+                    onClick = { state.searchProjects("", kind) }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+
+        if (files.isEmpty()) {
+            SectionCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    BodyText("Nothing installed yet.")
+                    Caption("Use “Browse on Modrinth”, or drop files in the folder and press Refresh.")
+                }
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(files) { file ->
+                    SectionCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(file.name, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                                Caption("${file.length() / 1024} KB")
+                            }
+                            SecondaryButton(
+                                text = "Delete",
+                                onClick = {
+                                    com.tcl.desktop.core.ContentInstaller.delete(kind, state.selectedVersion, file)
+                                    tick++
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

@@ -18,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.tcl.desktop.Brand
 
 enum class Screen { HOME, VERSIONS, INSTALL, MODS, ACCOUNTS, SETTINGS, LOGS }
 
@@ -68,6 +69,8 @@ class AppState(private val scope: CoroutineScope) {
     var browseResults by mutableStateOf<List<ProjectHit>>(emptyList())
     var browseLoading by mutableStateOf(false)
     var browseError by mutableStateOf<String?>(null)
+    var updateInfo by mutableStateOf<UpdateInfo?>(null)
+    var updateChecked by mutableStateOf(false)
 
     val logs = mutableStateListOf<String>()
 
@@ -537,6 +540,77 @@ class AppState(private val scope: CoroutineScope) {
                 ui { gameRunning = false }
                 fail("Launch failed", error)
             }
+        }
+    }
+
+    /** Version (instance) delete — modpack ka data bhi saath jaata hai */
+    fun deleteVersion(versionId: String) {
+        val dir = AppPaths.versionDir(versionId)
+        runCatching { dir.deleteRecursively() }
+        refreshInstalled()
+        setStatus("Deleted $versionId")
+    }
+
+    fun openVersionFolder(versionId: String) {
+        runCatching {
+            val dir = AppPaths.versionDir(versionId)
+            java.awt.Desktop.getDesktop().open(if (dir.isDirectory) dir else AppPaths.gameDirFor(versionId))
+        }
+    }
+
+    /** Resource pack / shader install (Modrinth) */
+    fun installContent(kind: String, hit: ProjectHit) {
+        if (busy) return
+        val versionId = selectedVersion
+        if (versionId.isBlank()) {
+            setStatus("Select a version first", error = true)
+            return
+        }
+        busy = true
+        setStatus("Installing ${hit.title}…")
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val mc = runCatching { VersionResolver.resolve(versionId).jarId }.getOrNull()
+                ContentInstaller.install(kind, hit, versionId, mc) { message -> ui { setStatus(message) } }
+            }.onSuccess { file ->
+                ui {
+                    busy = false
+                    setStatus("$file installed")
+                }
+            }.onFailure { error ->
+                ui { busy = false }
+                fail("Install failed", error)
+            }
+        }
+    }
+
+    /** Launcher update check (GitHub releases) — mobile jaisa */
+    fun checkForUpdates(quiet: Boolean = false) {
+        if (!quiet) setStatus("Checking for launcher updates…")
+        scope.launch(Dispatchers.IO) {
+            runCatching { Updater.latest() }
+                .onSuccess { info ->
+                    ui {
+                        updateInfo = info
+                        updateChecked = true
+                        when {
+                            info == null -> if (!quiet) setStatus("No releases found") else Unit
+                            info.isNewer -> setStatus("Update available: ${info.version}")
+                            else -> if (!quiet) setStatus("You're on the latest version (${Brand.VERSION_NAME})")
+                        }
+                    }
+                }
+                .onFailure { error ->
+                    ui { updateChecked = true }
+                    if (!quiet) fail("Update check failed", error)
+                }
+        }
+    }
+
+    fun openUpdatePage() {
+        runCatching {
+            val url = updateInfo?.downloadUrl ?: updateInfo?.pageUrl ?: Brand.HOME_URL
+            java.awt.Desktop.getDesktop().browse(java.net.URI.create(url))
         }
     }
 

@@ -211,3 +211,42 @@ object Modrinth {
     fun cdnFileUrl(projectId: String, versionId: String, filename: String) =
         "$CDN/$projectId/versions/$versionId/$filename"
 }
+
+/** Resource pack / shader install — file seedha game folder me (no loader). */
+object ContentInstaller {
+
+    private fun targetDir(kind: String, versionId: String) = when (kind) {
+        "shader" -> java.io.File(AppPaths.gameDirFor(versionId), "shaderpacks")
+        else -> java.io.File(AppPaths.gameDirFor(versionId), "resourcepacks")
+    }
+
+    suspend fun install(
+        kind: String,
+        hit: ProjectHit,
+        versionId: String,
+        gameVersion: String?,
+        onStatus: (String) -> Unit = {},
+    ): String = withContext(Dispatchers.IO) {
+        val versions = Modrinth.versions(hit.id, gameVersion, null)
+        val chosen = versions.firstOrNull() ?: Modrinth.versions(hit.id).firstOrNull()
+            ?: error("No downloadable file for ${hit.title}")
+        val file = chosen.primaryFile ?: error("No file in that version")
+        val dir = targetDir(kind, versionId).also { it.mkdirs() }
+        onStatus("Downloading ${file.filename}")
+        Net.download(file.url, File(dir, file.filename), file.sha1)
+        file.filename
+    }
+
+    fun list(kind: String, versionId: String): List<File> =
+        targetDir(kind, versionId).listFiles()?.filter { it.isFile }?.sortedBy { it.name.lowercase() }
+            ?: emptyList()
+
+    fun delete(kind: String, versionId: String, file: File): Boolean = runCatching { file.delete() }.getOrDefault(false)
+
+    fun openFolder(kind: String, versionId: String) {
+        runCatching {
+            val dir = targetDir(kind, versionId).also { it.mkdirs() }
+            java.awt.Desktop.getDesktop().open(dir)
+        }
+    }
+}

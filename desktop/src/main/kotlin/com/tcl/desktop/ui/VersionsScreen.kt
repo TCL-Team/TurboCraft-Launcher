@@ -155,7 +155,9 @@ fun VersionsScreen(state: AppState) {
                     installLabel = null,
                     onSelect = { state.selectVersion(id) },
                     onPlay = { state.play(id) },
-                    onFabric = if (id.startsWith("fabric-loader")) null else ({ state.installFabric(id) })
+                    onFabric = null,
+                    onDelete = if (id == state.selectedVersion && state.gameRunning) null else ({ state.deleteVersion(id) }),
+                    onOpenFolder = ({ state.openVersionFolder(id) })
                 )
             }
             item { Caption("AVAILABLE") }
@@ -204,6 +206,8 @@ private fun VersionRow(
     onSelect: () -> Unit,
     onPlay: () -> Unit,
     onFabric: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
+    onOpenFolder: (() -> Unit)? = null,
 ) {
     SectionCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
         Row(
@@ -231,6 +235,12 @@ private fun VersionRow(
                     SecondaryButton(text = "+ Fabric", enabled = !busy, onClick = onFabric)
                 }
                 if (installed) {
+                    if (onOpenFolder != null) {
+                        SecondaryButton(text = "Files", enabled = !busy, onClick = onOpenFolder)
+                    }
+                    if (onDelete != null) {
+                        SecondaryButton(text = "Delete", enabled = !busy, onClick = onDelete)
+                    }
                     PrimaryButton(text = "Play", enabled = !busy, onClick = onPlay) {
                         Icon(Icons.Filled.PlayArrow, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
