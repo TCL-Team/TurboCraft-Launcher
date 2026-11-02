@@ -130,6 +130,33 @@ class AppState(private val scope: CoroutineScope) {
         }
     }
 
+    /** Vanilla version ke upar Fabric loader install karta hai */
+    fun installFabric(baseVersion: String) {
+        if (busy) return
+        busy = true
+        progress = InstallProgress(stage = "Fabric loader dhundh raha hoon…")
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                FabricInstaller.install(baseVersion) { p -> ui { progress = p } }
+            }.onSuccess { id ->
+                ui {
+                    busy = false
+                    progress = null
+                    refreshInstalled()
+                    selectVersion(id)
+                    status = "Fabric ready: $id"
+                }
+            }.onFailure { error ->
+                ui {
+                    busy = false
+                    progress = null
+                    status = "Fabric install fail: ${error.message}"
+                }
+                log("Fabric error: ${error.message}")
+            }
+        }
+    }
+
     fun addOfflineAccount(name: String) {
         if (name.isBlank()) return
         val account = Account(
@@ -213,12 +240,6 @@ class AppState(private val scope: CoroutineScope) {
                     account = account,
                     settings = settings,
                     onLog = { line -> log(line) },
-                    onExit = { code ->
-                        ui {
-                            gameRunning = false
-                            status = "Game band ho gaya (exit $code)"
-                        }
-                    }
                 )
             }.onSuccess { result ->
                 ui {

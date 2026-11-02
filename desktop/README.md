@@ -15,6 +15,8 @@ desktop/                     ← alag standalone Gradle build (Android module ko
     core/JavaManager.kt      Java 8/17/21 detect + Temurin auto-download
     core/Auth.kt             Microsoft device-code login, offline accounts
     core/GameLauncher.kt     arguments builder, ProcessBuilder, log tail
+    core/VersionResolver.kt  inheritsFrom merge (loader profiles ke liye)
+    core/LoaderInstaller.kt  Fabric loader install (meta.fabricmc.net)
     core/AppState.kt         poora launcher state (Compose observable)
     ui/                      TCL look: sidebar + glass cards (home/versions/accounts/settings/logs)
 ```
@@ -44,6 +46,7 @@ Gradle 9.5.x use karo (repo me wrapper nahi hai, kyunki build alag hai).
 ## Abhi kya kaam karta hai (MVP)
 
 - Vanilla Minecraft (release / snapshot / old) install — assets tak, sha1 verify ke saath
+- Fabric loader — version row par `+ Fabric` dabao (baaki loaders agle step)
 - Launch: classpath, rules, placeholders, `--width/--height`, log tail
 - Microsoft account (device code — browser me code daalo) + offline accounts
 - Java auto: system JDK dhoondta hai, warna Temurin 8/17/21 download karta hai
@@ -51,6 +54,6 @@ Gradle 9.5.x use karo (repo me wrapper nahi hai, kyunki build alag hai).
 
 ## Agla kaam (parity ke liye)
 
-Fabric / NeoForge / Forge loader install, mods + shader manager, modpack import
+Quilt / NeoForge / Forge loader install, mods + shader manager, modpack import
 (.mrpack / CurseForge zip), multiple instances, Discord RPC, mobile ↔ PC sync,
 launcher auto-update.

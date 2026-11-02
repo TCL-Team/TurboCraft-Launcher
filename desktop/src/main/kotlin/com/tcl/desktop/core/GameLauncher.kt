@@ -11,7 +11,6 @@
 package com.tcl.desktop.core
 
 import com.google.gson.JsonElement
-import com.google.gson.JsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -24,42 +23,32 @@ data class LaunchResult(val process: Process, val command: List<String>)
  */
 object GameLauncher {
 
-    fun classpath(versionId: String, version: VersionJson): String {
-        val entries = mutableListOf<String>()
-        AppPaths.versionJar(versionId).takeIf { it.isFile }?.let { entries += it.absolutePath }
-
-        version.libraries.filter { it.rules.allows() }.forEach { library ->
-            val path = library.downloads?.artifact?.path ?: libraryNameToPath(library.name)
-            val file = AppPaths.libraryFile(path)
-            if (file.isFile) entries += file.absolutePath
-        }
-        return entries.joinToString(File.pathSeparator)
-    }
-
     fun buildCommand(
         versionId: String,
-        version: VersionJson,
+        resolved: ResolvedVersion,
         account: Account,
         settings: Settings,
         java: JavaRuntime,
     ): List<String> {
         val nativesDir = AppPaths.versionNatives(versionId).also { it.mkdirs() }
+        val classpath = resolved.classpath()
+
         val placeholders = mapOf(
             "auth_player_name" to account.name,
             "version_name" to versionId,
             "game_directory" to AppPaths.game.absolutePath,
             "assets_root" to AppPaths.assets.absolutePath,
             "game_assets" to File(AppPaths.assets, "virtual/legacy").absolutePath,
-            "assets_index_name" to (version.assets ?: version.assetIndex?.id ?: "legacy"),
+            "assets_index_name" to (resolved.assetIndex ?: "legacy"),
             "auth_uuid" to account.uuid.replace("-", ""),
             "auth_access_token" to account.accessToken,
             "auth_session" to "token:${account.accessToken}:${account.uuid}",
             "user_type" to if (account.type == AccountType.MICROSOFT) "msa" else "legacy",
-            "version_type" to (version.type ?: "release"),
+            "version_type" to resolved.type,
             "natives_directory" to nativesDir.absolutePath,
             "launcher_name" to "TurboCraftLauncher",
-            "launcher_version" to "0.1.0",
-            "classpath" to classpath(versionId, version),
+            "launcher_version" to "0.2.0",
+            "classpath" to classpath,
             "classpath_separator" to File.pathSeparator,
             "library_directory" to AppPaths.libraries.absolutePath,
             "user_properties" to "{}",
@@ -71,32 +60,30 @@ object GameLauncher {
 
         val command = mutableListOf(java.javaExe.absolutePath)
 
-        // Memory + user JVM args
         command += "-Xmx${settings.memoryMb}M"
         command += "-Xms${(settings.memoryMb / 2).coerceAtLeast(512)}M"
         if (settings.jvmArgs.isNotBlank()) {
             splitArgs(settings.jvmArgs).forEach { command += it }
         }
 
-        val jvmArgs = version.arguments?.jvm.orEmpty()
-        if (jvmArgs.isNotEmpty()) {
-            resolveArguments(jvmArgs, placeholders).forEach { command += it }
+        if (resolved.jvmArguments.isNotEmpty()) {
+            resolveArguments(resolved.jvmArguments, placeholders).forEach { command += it }
         } else {
             command += "-Djava.library.path=${nativesDir.absolutePath}"
             command += "-cp"
-            command += classpath(versionId, version)
+            command += classpath
         }
 
-        command += version.mainClass ?: "net.minecraft.client.main.Main"
+        command += resolved.mainClass
 
-        val gameArgs: List<String> = if (version.arguments?.game?.isNotEmpty() == true) {
-            resolveArguments(version.arguments.game, placeholders)
+        val gameArgs: List<String> = if (resolved.gameArguments.isNotEmpty()) {
+            resolveArguments(resolved.gameArguments, placeholders)
         } else {
-            splitArgs(version.minecraftArguments ?: "").map { replacePlaceholders(it, placeholders) }
+            splitArgs(resolved.legacyArguments ?: "").map { replacePlaceholders(it, placeholders) }
         }
         command += gameArgs
 
-        // Window size (agar game args me nahi hai)
+        // Window size (agar manifest khud --width nahi bhej raha)
         if (gameArgs.none { it == "--width" } && settings.windowWidth > 0) {
             command += listOf("--width", settings.windowWidth.toString())
             command += listOf("--height", settings.windowHeight.toString())
@@ -159,27 +146,24 @@ object GameLauncher {
         account: Account,
         settings: Settings,
         onLog: (String) -> Unit,
-        onExit: (Int) -> Unit,
     ) = withContext(Dispatchers.IO) {
         AppPaths.ensure()
-        val jsonFile = AppPaths.versionJson(versionId)
-        require(jsonFile.isFile) { "Version '$versionId' install nahi hai" }
-        val version = MojangApi.parse(jsonFile.readText())
+        val resolved = VersionResolver.resolve(versionId)
 
         onLog("Java runtime check…")
         val java = JavaManager.ensure(
-            mcVersion = version.id.ifBlank { versionId },
-            manifestMajor = version.javaVersion?.majorVersion,
+            mcVersion = resolved.jarId.ifBlank { versionId },
+            manifestMajor = resolved.javaMajor,
             customPath = settings.javaPath,
             onLog = onLog
         )
 
-        val a = if (account.type == AccountType.MICROSOFT && account.isExpired) {
+        val authenticated = if (account.type == AccountType.MICROSOFT && account.isExpired) {
             onLog("Microsoft token refresh…")
             MicrosoftAuth.refresh(account)
         } else account
 
-        val command = buildCommand(versionId, version, a, settings, java)
+        val command = buildCommand(versionId, resolved, authenticated, settings, java)
         onLog("Command: " + command.joinToString(" "))
 
         val logFile = AppPaths.versionLog(versionId)

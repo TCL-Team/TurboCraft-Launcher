@@ -97,30 +97,7 @@ class GameInstaller {
         }
 
         // 2. Libraries + natives
-        val libs = version.libraries.filter { it.rules.allows() }
-        onProgress(InstallProgress(stage = "Libraries…", filesTotal = libs.size))
-        downloadAll(
-            items = libs.mapNotNull { library ->
-                val artifact = library.downloads?.artifact
-                val path = artifact?.path ?: libraryNameToPath(library.name)
-                val url = artifact?.url ?: "${library.url ?: "https://libraries.minecraft.net/"}${libraryNameToPath(library.name)}"
-                DownloadItem(url = url, target = AppPaths.libraryFile(path), sha1 = artifact?.sha1, size = artifact?.size ?: 0)
-            },
-            stage = "Libraries…",
-            onProgress = onProgress
-        )
-
-        // Natives (legacy versions)
-        val nativesDir = AppPaths.versionNatives(versionId)
-        nativesDir.mkdirs()
-        libs.forEach { library ->
-            val classifier = library.nativeClassifier() ?: return@forEach
-            val artifact = library.downloads?.classifiers?.get(classifier) ?: return@forEach
-            val url = artifact.url ?: return@forEach
-            val zip = File(AppPaths.root, "cache/natives/${artifact.path ?: "${library.name}-$classifier.jar"}")
-            Net.download(url, zip, artifact.sha1)
-            zip.inputStream().use { Net.unzip(it, nativesDir, library.extract?.exclude ?: emptyList()) }
-        }
+        installLibrariesOf(version, versionId, "Libraries…", onProgress)
 
         // 3. Assets
         version.assetIndex?.let { index ->
@@ -174,6 +151,49 @@ class GameInstaller {
 
         onProgress(InstallProgress(stage = "Ho gaya", filesDone = 1, filesTotal = 1))
         version
+    }
+
+    /**
+     * Version (ya loader profile) ki saari libraries + legacy natives download karta hai.
+     * Vanilla install aur Fabric/Quilt install dono isi ko use karte hain.
+     */
+    suspend fun installLibrariesOf(
+        version: VersionJson,
+        versionId: String,
+        stage: String = "Libraries…",
+        onProgress: (InstallProgress) -> Unit = {},
+    ) = withContext(Dispatchers.IO) {
+        val libs = version.libraries.filter { it.rules.allows() }
+        onProgress(InstallProgress(stage = stage, filesTotal = libs.size))
+        downloadAll(
+            items = libs.mapNotNull { library ->
+                val artifact = library.downloads?.artifact
+                val path = artifact?.path ?: libraryNameToPath(library.name)
+                val url = artifact?.url
+                    ?: "${library.url ?: "https://libraries.minecraft.net/"}${libraryNameToPath(library.name)}"
+                DownloadItem(
+                    url = url,
+                    target = AppPaths.libraryFile(path),
+                    sha1 = artifact?.sha1,
+                    size = artifact?.size ?: 0
+                )
+            },
+            stage = stage,
+            onProgress = onProgress
+        )
+
+        // Natives (legacy versions)
+        val nativesDir = AppPaths.versionNatives(versionId)
+        nativesDir.mkdirs()
+        libs.forEach { library ->
+            val classifier = library.nativeClassifier() ?: return@forEach
+            val artifact = library.downloads?.classifiers?.get(classifier) ?: return@forEach
+            val url = artifact.url ?: return@forEach
+            val zip = File(AppPaths.root, "cache/natives/${artifact.path ?: "${library.name}-$classifier.jar"}")
+            Net.download(url, zip, artifact.sha1)
+            zip.inputStream().use { Net.unzip(it, nativesDir, library.extract?.exclude ?: emptyList()) }
+        }
+        Unit
     }
 
     private data class DownloadItem(

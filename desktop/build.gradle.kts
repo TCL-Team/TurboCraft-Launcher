@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.tcl"
-version = "0.1.0"
+version = "0.2.0"
 
 kotlin {
     jvmToolchain(21)
@@ -39,7 +39,7 @@ compose.desktop {
             // Portable app-image is what CI ships; Msi/Exe need WiX on the build machine.
             targetFormats(TargetFormat.Exe, TargetFormat.Msi)
             packageName = "TurboCraftLauncher"
-            packageVersion = "0.1.0"
+            packageVersion = "0.2.0"
             description = "TurboCraft Launcher for Windows"
             vendor = "TCL Team"
 

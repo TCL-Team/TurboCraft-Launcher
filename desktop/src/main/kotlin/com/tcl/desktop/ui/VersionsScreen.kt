@@ -140,12 +140,13 @@ fun VersionsScreen(state: AppState, focusDownload: Boolean = false) {
                 items(state.installed) { id ->
                     VersionRow(
                         id = id,
-                        type = "installed",
+                        type = if (id.startsWith("fabric-loader-")) "fabric" else "installed",
                         installed = true,
                         selected = state.selectedVersion == id,
                         busy = state.busy,
                         onInstall = { state.selectVersion(id) },
-                        onPlay = { state.selectVersion(id); state.launchGame() }
+                        onPlay = { state.selectVersion(id); state.launchGame() },
+                        onFabric = if (id.startsWith("fabric-loader-")) null else ({ state.installFabric(id) })
                     )
                 }
                 item { Spacer(Modifier.height(10.dp)) }
@@ -173,7 +174,8 @@ fun VersionsScreen(state: AppState, focusDownload: Boolean = false) {
                     onInstall = {
                         if (entry.id in state.installed) state.selectVersion(entry.id) else state.installVersion(entry.id)
                     },
-                    onPlay = { state.selectVersion(entry.id); state.launchGame() }
+                    onPlay = { state.selectVersion(entry.id); state.launchGame() },
+                    onFabric = if (entry.id in state.installed) ({ state.installFabric(entry.id) }) else null
                 )
             }
         }
@@ -189,6 +191,7 @@ private fun VersionRow(
     busy: Boolean,
     onInstall: () -> Unit,
     onPlay: () -> Unit,
+    onFabric: (() -> Unit)? = null,
 ) {
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
@@ -207,6 +210,7 @@ private fun VersionRow(
                         text = when (type) {
                             "snapshot" -> "snapshot"
                             "installed" -> "installed"
+                            "fabric" -> "fabric"
                             "old_beta", "old_alpha" -> "old"
                             else -> "release"
                         },
@@ -218,6 +222,16 @@ private fun VersionRow(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (onFabric != null) {
+                    Button(
+                        onClick = onFabric,
+                        enabled = !busy,
+                        shape = RoundedCornerShape(50),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.12f))
+                    ) {
+                        Text("+ Fabric", color = Color.White, fontSize = 13.sp)
+                    }
+                }
                 if (installed) {
                     Button(
                         onClick = onPlay,
