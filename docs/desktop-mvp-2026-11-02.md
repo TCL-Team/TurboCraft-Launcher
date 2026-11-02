@@ -45,6 +45,21 @@ wo Compose me dobara likhna hi padta. Isliye:
   `generateBrand` task `Brand.kt` banata hai (window title, UI, data folder, exe/MSI,
   user-agent, game args sab wahan se). Details: `desktop/BRANDING.md`
 
+## v0.3.1 — packaged build crash ka asli karan
+
+Packaged exe me har network call fail hoti thi:
+`Could not initialize class com.tcl.desktop.core.Net` (logs me `java/net/http/HttpClient`).
+
+Karan: `jpackage`/`jlink` runtime image me sirf wahi JDK modules jaate hain jo maangein.
+`compose.desktop` ne `java.net.http` include nahi kiya tha — source se chalane par poora
+JDK hota hai isliye CI ka smoke test pass ho gaya, lekin MSI/exe me HttpClient load hi
+nahi hota tha. Fix: `nativeDistributions { includeAllModules = true }` (poora runtime,
+~40 MB extra) — ab koi module missing nahi ho sakti.
+
+Isi release me UI bhi English kar diya aur Android edition jaisa look diya
+(card title rails, rail nav with expanding labels, welcome card), aur **Play ab
+pehle install karta hai phir launch** — user ko alag se Install dabana nahi padta.
+
 ## Portable zip / exe error (user report)
 
 `app\<name>.cfg: No such file or directory` — zip ke **andar se** exe chalane par
@@ -60,7 +75,7 @@ CI runs (sab green):
 - `41400622255` — core unit tests (rules, placeholders, java mapping, args) + Xvfb smoke run
 - `41401534155` — Fabric support ke saath compile + package + smoke
 
-Released: **`desktop-v0.3.0`** → MSI (~100 MB) + portable zip (~99 MB),
+Released: **`desktop-v0.3.1`** → MSI (~100 MB) + portable zip (~99 MB),
 self-contained JRE ke saath (user ko Java install karna nahi padta).
 
 Runtime par abhi test nahi hua (sandbox me Windows/JDK nahi hai) — pehla real
