@@ -124,20 +124,12 @@ compose.desktop {
             description = "$launcherAppName for Windows"
             vendor = launcherVendor
 
-            // jlink sirf wahi modules deta hai jo hum maangein. Java ka HttpClient
-            // `java.net.http` module me hai — ye missing tha, isliye packaged exe me
-            // "Could not initialize class ... Net" aata tha (source build me chal jaata tha,
-            // kyunki wahan poora JDK hota hai).
-            modules(
-                "java.net.http",
-                "java.naming",
-                "java.management",
-                "java.security.jgss",
-                "java.sql",
-                "jdk.crypto.ec",       // TLS (ECDHE) — HTTPS ke liye zaroori
-                "jdk.crypto.cryptoki",
-                "jdk.unsupported",
-            )
+            // jlink sirf wahi modules deta hai jo maangein. HttpClient `java.net.http`
+            // me hai — ye missing tha, isliye packaged exe me
+            // "Could not initialize class ... Net" aata tha (source build me chalta tha,
+            // kyunki wahan poora JDK hota hai). Ab poora runtime ship karte hain:
+            // ~40 MB extra, lekin koi module kabhi missing nahi hogi.
+            includeAllModules = true
 
             windows {
                 menu = true
