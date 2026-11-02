@@ -137,7 +137,7 @@ class AppState(private val scope: CoroutineScope) {
         progress = InstallProgress(stage = "Fabric loader dhundh raha hoon…")
         scope.launch(Dispatchers.IO) {
             runCatching {
-                FabricInstaller.install(baseVersion) { p -> ui { progress = p } }
+                FabricInstaller.install(baseVersion, onProgress = { p -> ui { progress = p } })
             }.onSuccess { id ->
                 ui {
                     busy = false

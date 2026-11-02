@@ -52,8 +52,8 @@ object FabricInstaller {
     suspend fun install(
         gameVersion: String,
         loaderVersion: String? = null,
-        onProgress: (InstallProgress) -> Unit = {},
         installer: GameInstaller = GameInstaller(),
+        onProgress: (InstallProgress) -> Unit = {},
     ): String = withContext(Dispatchers.IO) {
         AppPaths.ensure()
         require(AppPaths.versionJson(gameVersion).isFile) {
