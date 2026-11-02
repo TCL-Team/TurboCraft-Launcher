@@ -47,6 +47,19 @@ import androidx.compose.ui.unit.sp
 import com.tcl.desktop.Brand
 import com.tcl.desktop.core.AppState
 
+/** TCL logo (resources/icon/launcher.png) — jpackage ke andar bhi milta hai */
+internal object LogoLoader {
+    private const val PATH = "icon/launcher.png"
+
+    fun stream() = LogoLoader::class.java.classLoader?.getResourceAsStream(PATH)
+        ?: ClassLoader.getSystemResourceAsStream(PATH)
+
+    fun bitmap(): androidx.compose.ui.graphics.ImageBitmap? {
+        val input = stream() ?: return null
+        return runCatching { loadImageBitmap(input) }.getOrNull()
+    }
+}
+
 /**
  * Android edition jaisa splash: launcher start hote hi components (Java, versions,
  * loaders) prepare hote hain, phir UI khulti hai.
@@ -60,10 +73,7 @@ fun SplashScreen(state: AppState) {
     val target = if (steps.isEmpty()) 0f else completed.toFloat() / steps.size
     val progress by animateFloatAsState(targetValue = target, animationSpec = tween(400), label = "boot")
 
-    val logo = remember {
-        val stream = SplashScreen::class.java.classLoader?.getResourceAsStream("icon/launcher.png")
-        if (stream == null) null else runCatching { loadImageBitmap(stream) }.getOrNull()
-    }
+    val logo = remember { LogoLoader.bitmap() }
 
     Box(
         modifier = Modifier.fillMaxSize().background(
