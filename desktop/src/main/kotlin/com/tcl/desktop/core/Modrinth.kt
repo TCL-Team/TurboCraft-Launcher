@@ -73,15 +73,19 @@ object Modrinth {
         loader: String? = null,
         limit: Int = 20,
     ): List<ProjectHit> = withContext(Dispatchers.IO) {
-        val facets = mutableListOf("[[${quote("project_type:$projectType")}]]")
-        if (!gameVersion.isNullOrBlank()) facets += "[[${quote("versions:$gameVersion")}]]"
-        if (!loader.isNullOrBlank()) facets += "[[${quote("categories:$loader")}]]"
+        // Modrinth facets = JSON array of arrays. Har group AND hota hai,
+        // group ke andar ke options OR. (Pehle galat JSON banti thi → HTTP 400.)
+        val groups = mutableListOf<String>()
+        groups += "[${quote("project_type:$projectType")}]"
+        if (!gameVersion.isNullOrBlank()) groups += "[${quote("versions:$gameVersion")}]"
+        if (!loader.isNullOrBlank()) groups += "[${quote("categories:$loader")}]"
+        val facets = "[" + groups.joinToString(",") + "]"
 
         val url = buildString {
             append("$BASE/search?query=").append(URLEncoder.encode(query, Charsets.UTF_8))
             append("&limit=").append(limit)
-            append("&index=relevance")
-            if (facets.isNotEmpty()) append("&facets=").append(URLEncoder.encode(facets.joinToString(","), Charsets.UTF_8))
+            append("&index=").append(if (query.isBlank()) "downloads" else "relevance")
+            append("&facets=").append(URLEncoder.encode(facets, Charsets.UTF_8))
         }
         val json = gson().fromJson(Net.getString(url), JsonObject::class.java)
         val hits = json.getAsJsonArray("hits") ?: JsonArray()

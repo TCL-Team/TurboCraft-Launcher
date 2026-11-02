@@ -127,9 +127,9 @@ fun SettingsScreen(state: AppState) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Caption(
-                        "Register a free app at portal.azure.com → App registrations → " +
-                            "Mobile and desktop applications, redirect URI http://localhost, " +
-                            "allow public client flows, then paste the Application (client) ID here."
+                        "Default uses the same public Minecraft Live Connect id as the Android app — " +
+                            "that one only works with the device-code flow (no redirect URI), so leave this " +
+                            "empty unless you registered your own Entra app."
                     )
                 }
             }

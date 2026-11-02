@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -67,38 +69,70 @@ fun AccountsScreen(state: AppState) {
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     BodyText(
                         if (state.deviceCode != null) {
-                            "Your browser is open. Enter this code: ${state.deviceCode}"
+                            "Your browser is open. Enter the code below on the Microsoft page — " +
+                                "the launcher signs you in automatically once you approve."
                         } else {
-                            "Your browser opens, you sign in, and the launcher picks up the token automatically — " +
-                                "no password ever touches the launcher."
+                            "Press sign in: your browser opens microsoft.com/link, you enter the code shown " +
+                                "here, and the launcher picks up the token by itself. Your password never " +
+                                "touches the launcher."
                         }
                     )
+
+                    if (state.deviceCode != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.primaryContainer)
+                                    .padding(horizontal = 22.dp, vertical = 12.dp)
+                            ) {
+                                Text(
+                                    text = state.deviceCode!!,
+                                    fontSize = 26.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 6.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            SecondaryButton(text = "Copy code", onClick = {
+                                runCatching {
+                                    java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                                        java.awt.datatransfer.StringSelection(state.deviceCode), null
+                                    )
+                                }
+                            })
+                            if (state.busy) {
+                                androidx.compose.material3.CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                        }
+                    }
+
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         PrimaryButton(
                             text = if (state.busy) "Waiting…" else "Sign in with Microsoft",
                             enabled = !state.busy,
-                            onClick = { state.startMicrosoftLogin(useDeviceCode = false) }
+                            onClick = { state.startMicrosoftLogin() }
                         ) {
                             Icon(Icons.Outlined.AccountCircle, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                         }
-                        SecondaryButton(
-                            text = "Use a device code instead",
-                            enabled = !state.busy,
-                            onClick = { state.startMicrosoftLogin(useDeviceCode = true) }
-                        )
                         if (state.deviceCode != null) {
-                            SecondaryButton(text = "Copy code", onClick = {
-                                runCatching {
-                                    java.awt.Toolkit.getDefaultToolkit().systemClipboard
-                                        .setContents(java.awt.datatransfer.StringSelection(state.deviceCode), null)
-                                }
-                            })
+                            SecondaryButton(
+                                text = "Open link again",
+                                onClick = { state.openMicrosoftLink() }
+                            )
                         }
                     }
                     Caption(
-                        "Using app id ${state.msClientId}. If Microsoft rejects it, register a free app " +
-                            "in Settings → Microsoft app id (takes 2 minutes)."
+                        "Uses the same Live Connect flow as the Android app (app id ${state.msClientId}). " +
+                            "Waiting for approval happens in the background — you can keep using the launcher."
                     )
                 }
             }

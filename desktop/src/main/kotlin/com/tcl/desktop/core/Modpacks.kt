@@ -58,6 +58,7 @@ object ModpackInstaller {
     suspend fun install(
         projectId: String,
         version: ProjectVersion,
+        iconUrl: String? = null,
         onProgress: (InstallProgress) -> Unit = {},
         onStatus: (String) -> Unit = {},
     ): String = withContext(Dispatchers.IO) {
@@ -195,7 +196,8 @@ object ModpackInstaller {
                 versionName = packVersion,
                 mcVersion = mcVersion,
                 loader = loaderName,
-                loaderVersion = loaderVersion
+                loaderVersion = loaderVersion,
+                iconUrl = iconUrl
             )
         )
 

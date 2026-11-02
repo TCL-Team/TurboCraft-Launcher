@@ -332,6 +332,14 @@ private fun VersionsCard(state: AppState) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            val meta = remember(id) { com.tcl.desktop.core.Packs.read(id) }
+                            RemoteIcon(
+                                url = meta?.iconUrl,
+                                key = id,
+                                fallbackText = com.tcl.desktop.core.Packs.displayName(id),
+                                size = 28.dp,
+                                shape = RoundedCornerShape(8.dp)
+                            )
                             Text(
                                 com.tcl.desktop.core.Packs.displayName(id),
                                 fontSize = 14.sp,

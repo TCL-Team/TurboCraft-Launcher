@@ -45,6 +45,7 @@ class AppState(private val scope: CoroutineScope) {
     var busy by mutableStateOf(false)
     var gameRunning by mutableStateOf(false)
     var deviceCode by mutableStateOf<String?>(null)
+    var msLink by mutableStateOf<String?>(null)
     var remoteLoading by mutableStateOf(false)
         private set
 
@@ -287,7 +288,12 @@ class AppState(private val scope: CoroutineScope) {
             runCatching {
                 val versions = Modrinth.versions(hit.id)
                 val chosen = versions.firstOrNull() ?: error("No versions available for this modpack")
-                ModpackInstaller.install(hit.id, chosen, onProgress = { p -> ui { progress = p } })
+                ModpackInstaller.install(
+                    hit.id,
+                    chosen,
+                    iconUrl = hit.iconUrl,
+                    onProgress = { p -> ui { progress = p } }
+                )
             }.onSuccess { packId ->
                 ui {
                     busy = false
@@ -442,30 +448,32 @@ class AppState(private val scope: CoroutineScope) {
         }
     }
 
-    fun startMicrosoftLogin(useDeviceCode: Boolean = false) {
+    /** Mobile jaisa: device code, browser me code daalo, launcher background me wait karta hai */
+    fun startMicrosoftLogin() {
         if (busy) return
         busy = true
-        setStatus("Starting Microsoft sign-in…")
+        deviceCode = null
+        msLink = null
+        setStatus("Requesting a Microsoft sign-in code…")
         val clientId = msClientId
         scope.launch(Dispatchers.IO) {
             runCatching {
-                if (useDeviceCode) {
-                    val info = MicrosoftAuth.requestDeviceCode(clientId)
-                    ui {
-                        deviceCode = info.userCode
-                        setStatus("Enter code ${info.userCode} at ${info.verificationUri}")
-                    }
-                    runCatching {
-                        java.awt.Desktop.getDesktop().browse(java.net.URI.create(info.verificationUri))
-                    }
-                    MicrosoftAuth.signInWithDeviceCode(info, clientId) { message -> ui { setStatus(message) } }
-                } else {
-                    MicrosoftAuth.signInWithBrowser(clientId, onStatus = { message -> ui { setStatus(message) } })
-                }
+                MicrosoftAuth.signIn(
+                    clientId = clientId,
+                    onCode = { info ->
+                        ui {
+                            deviceCode = info.userCode
+                            msLink = info.verificationUri
+                            setStatus("Enter code ${info.userCode} at ${info.verificationUri}")
+                        }
+                    },
+                    onStatus = { message -> ui { setStatus(message) } }
+                )
             }.onSuccess { account ->
                 ui {
                     busy = false
                     deviceCode = null
+                    msLink = null
                     accounts = (accounts.filterNot { it.uuid == account.uuid } + account)
                     Accounts.save(accounts)
                     selectAccount(account)
@@ -475,10 +483,16 @@ class AppState(private val scope: CoroutineScope) {
                 ui {
                     busy = false
                     deviceCode = null
+                    msLink = null
                 }
                 fail("Sign-in failed", error)
             }
         }
+    }
+
+    fun openMicrosoftLink() {
+        val link = msLink ?: "https://www.microsoft.com/link"
+        runCatching { java.awt.Desktop.getDesktop().browse(java.net.URI.create(link)) }
     }
 
     fun launchGame() {

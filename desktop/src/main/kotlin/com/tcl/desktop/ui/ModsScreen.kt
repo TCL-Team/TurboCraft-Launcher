@@ -238,15 +238,12 @@ private fun ProjectRow(hit: ProjectHit, busy: Boolean, isModpack: Boolean, onIns
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(hit.title.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
+                RemoteIcon(
+                    url = hit.iconUrl,
+                    key = hit.id,
+                    fallbackText = hit.title,
+                    size = 44.dp
+                )
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.padding(end = 12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

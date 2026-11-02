@@ -13,15 +13,10 @@ package com.tcl.desktop.core
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.sun.net.httpserver.HttpServer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.net.InetSocketAddress
-import java.net.URLEncoder
-import java.security.MessageDigest
-import java.util.Base64
 import java.util.UUID
 
 private val GSON = GsonBuilder().setPrettyPrinting().create()
@@ -56,33 +51,36 @@ object Accounts {
         }
     }
 
-    /** Classic offline UUID — offline mode jaisa hi */
     fun offlineUuid(name: String): String =
         UUID.nameUUIDFromBytes("OfflinePlayer:$name".toByteArray()).toString()
 }
 
 /**
- * Microsoft sign-in.
+ * Microsoft sign-in — **mobile edition jaisa hi setup** (Android ka
+ * `MicrosoftAuthenticator.kt` isi flow par chalta hai):
  *
- * Do raste, dono me koi embedded WebView nahi:
- *  1. **Browser + localhost** (recommended): system browser khulta hai, login ke baad
- *     `http://localhost:PORT/` par wapas aata hai, launcher code khud le leta hai (PKCE).
- *  2. **Device code**: browser me code type karna hota hai. Fallback ke liye.
+ *  1. Live Connect device code:  POST login.live.com/oauth20_connect.srf
+ *     client_id = 00000000402b5328, response_type = device_code,
+ *     scope = service::user.auth.xboxlive.com::MBI_SSL
+ *     → user code + verification URL (koi redirect URI nahi chahiye, isliye
+ *       "redirect_uri is not valid" error kabhi nahi aata)
+ *  2. Poll: POST login.live.com/oauth20_token.srf (device_code grant)
+ *  3. XBL (raw RpsTicket, 400 par "d=" prefix retry) → XSTS → Minecraft services
+ *  4. Ownership check → account
  *
- * Client ID: Microsoft har third-party launcher se apna app registration maangta hai
- * (free, 2 min). Settings me paste kar sakte hain; na ho to default use hota hai.
+ * Agar Settings me apna Entra app id daala ho to Entra v2 device code use hota hai.
  */
 object MicrosoftAuth {
-    /**
-     * Purana "Minecraft" public client id — device-code fallback ke liye.
-     * Apna client id settings me daalo to browser flow bhi chalega.
-     */
+    /** Mobile ka public Minecraft client id — sirf Live Connect ke saath valid */
     const val DEFAULT_CLIENT_ID = "00000000402b5328"
-    private const val AUTHORITY = "https://login.microsoftonline.com/consumers/oauth2/v2.0"
-    private const val SCOPE = "XboxLive.signin offline_access"
 
-    /** Xbox Live / Minecraft services ke liye zaroori scopes */
-    private val XBL_SCOPES = listOf("XboxLive.signin", "offline_access")
+    private const val LIVE_AUTH = "https://login.live.com"
+    private const val ENTRA_AUTH = "https://login.microsoftonline.com/consumers/oauth2/v2.0"
+    private const val LIVE_SCOPE = "service::user.auth.xboxlive.com::MBI_SSL"
+    private const val ENTRA_SCOPE = "XboxLive.signin offline_access openid profile email"
+    private const val XBL_AUTH = "https://user.auth.xboxlive.com"
+    private const val XSTS_AUTH = "https://xsts.auth.xboxlive.com"
+    private const val MC_SERVICES = "https://api.minecraftservices.com"
 
     data class DeviceCodeInfo(
         val userCode: String,
@@ -92,178 +90,126 @@ object MicrosoftAuth {
         val deviceCode: String,
     )
 
-    // ── Flow 1: browser + loopback (PKCE) ─────────────────────────────────────
+    private fun isLegacy(clientId: String) =
+        clientId.isBlank() || clientId == DEFAULT_CLIENT_ID
 
-    /**
-     * System browser kholta hai. Jab user login kar leta hai, Microsoft
-     * `http://localhost:<port>/` par redirect karta hai aur hum code le lete hain.
-     */
-    suspend fun signInWithBrowser(
-        clientId: String = DEFAULT_CLIENT_ID,
-        onStatus: (String) -> Unit = {},
-        onUrl: (String) -> Unit = {},
-    ): Account = withContext(Dispatchers.IO) {
-        val server = try {
-            HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
-        } catch (error: Throwable) {
-            throw NetworkException("Couldn't open a local port for sign-in: ${error.message}", error)
-        }
-
-        val port = server.address.port
-        val redirectUri = "http://localhost:$port/"
-        val verifier = randomUrlSafe(64)
-        val challenge = base64Url(sha256(verifier))
-        val state = randomUrlSafe(16)
-
-        val codeFuture = java.util.concurrent.CompletableFuture<String>()
-
-        server.createContext("/") { exchange ->
-            try {
-                val params = exchange.requestURI.rawQuery.orEmpty()
-                    .split("&")
-                    .mapNotNull { part ->
-                        val index = part.indexOf('=')
-                        if (index <= 0) {
-                            null
-                        } else {
-                            part.substring(0, index) to
-                                java.net.URLDecoder.decode(part.substring(index + 1), Charsets.UTF_8)
-                        }
-                    }
-                    .toMap()
-
-                val body = when {
-                    params["error"] != null ->
-                        "Sign-in cancelled or failed: ${params["error"]} ${params["error_description"] ?: ""}"
-                    params["state"] != state -> "State mismatch — try again."
-                    params["code"] != null -> "Signed in. You can close this tab and return to the launcher."
-                    else -> "Waiting for Microsoft…"
-                }
-                val bytes = ("<html><head><meta charset='utf-8'><title>TurboCraft</title></head>" +
-                    "<body style='font-family:sans-serif;background:#101418;color:#E0E2E8;padding:48px'>" +
-                    "<h2>$body</h2></body></html>").toByteArray()
-                exchange.responseHeaders.add("Content-Type", "text/html; charset=utf-8")
-                exchange.sendResponseHeaders(200, bytes.size.toLong())
-                exchange.responseBody.use { it.write(bytes) }
-
-                params["code"]?.let { codeFuture.complete(it) }
-                params["error"]?.let { codeFuture.completeExceptionally(RuntimeException(it)) }
-            } catch (error: Throwable) {
-                codeFuture.completeExceptionally(error)
-            }
-        }
-        server.start()
-
-        val url = buildString {
-            append("$AUTHORITY/authorize")
-            append("?client_id=").append(URLEncoder.encode(clientId))
-            append("&response_type=code")
-            append("&redirect_uri=").append(URLEncoder.encode(redirectUri))
-            append("&response_mode=query")
-            append("&scope=").append(URLEncoder.encode(XBL_SCOPES.joinToString(" ")))
-            append("&prompt=select_account")
-            append("&state=").append(state)
-            append("&code_challenge=").append(challenge)
-            append("&code_challenge_method=S256")
-        }
-
-        onStatus("Opening your browser for Microsoft sign-in…")
-        onUrl(url)
-        runCatching { java.awt.Desktop.getDesktop().browse(java.net.URI.create(url)) }
-
-        val code = try {
-            while (true) {
-                try {
-                    codeFuture.get(1, java.util.concurrent.TimeUnit.SECONDS).let { return@let }
-                    break
-                } catch (_: java.util.concurrent.TimeoutException) {
-                    onStatus("Waiting for you to finish signing in…")
-                }
-            }
-            codeFuture.get()
-        } catch (error: java.util.concurrent.ExecutionException) {
-            throw NetworkException(signInErrorMessage(error.cause?.message), error)
-        } finally {
-            server.stop(0)
-        }
-
-        onStatus("Exchanging token with Microsoft…")
-        val tokenBody = Net.postForm(
-            "$AUTHORITY/token",
-            mapOf(
-                "client_id" to clientId,
-                "grant_type" to "authorization_code",
-                "code" to code,
-                "redirect_uri" to redirectUri,
-                "code_verifier" to verifier,
-            )
-        )
-        val tokenJson = parseOrThrow(tokenBody, "Microsoft did not accept the sign-in")
-        exchangeForMinecraft(
-            msaToken = tokenJson.get("access_token").asString,
-            refreshToken = tokenJson.get("refresh_token")?.asString ?: "",
-            clientId = clientId
-        )
-    }
-
-    // ── Flow 2: device code ───────────────────────────────────────────────────
+    // ── 1. Device code ───────────────────────────────────────────────────────
 
     suspend fun requestDeviceCode(clientId: String = DEFAULT_CLIENT_ID): DeviceCodeInfo =
         withContext(Dispatchers.IO) {
-            val body = Net.postForm(
-                "$AUTHORITY/devicecode",
-                mapOf("client_id" to clientId, "scope" to SCOPE)
-            )
-            val json = parseOrThrow(body, "Device code request failed")
+            val legacy = isLegacy(clientId)
+            val body = if (legacy) {
+                Net.postForm(
+                    "$LIVE_AUTH/oauth20_connect.srf",
+                    mapOf(
+                        "client_id" to DEFAULT_CLIENT_ID,
+                        "response_type" to "device_code",
+                        "scope" to LIVE_SCOPE,
+                    )
+                )
+            } else {
+                Net.postForm(
+                    "$ENTRA_AUTH/devicecode",
+                    mapOf("client_id" to clientId, "scope" to ENTRA_SCOPE)
+                )
+            }
+            val json = JsonParser.parseString(body).asJsonObject
+            json.get("error")?.let {
+                error("Microsoft: ${json.get("error_description")?.asString ?: it.asString}")
+            }
             DeviceCodeInfo(
-                userCode = json.get("user_code").asString,
+                userCode = json.get("user_code")?.asString ?: error("No user code returned"),
                 verificationUri = json.get("verification_uri")?.asString
-                    ?: "https://microsoft.com/link",
+                    ?: json.get("verification_url")?.asString
+                    ?: "https://www.microsoft.com/link",
                 expiresIn = json.get("expires_in")?.asInt ?: 900,
                 interval = json.get("interval")?.asInt ?: 5,
-                deviceCode = json.get("device_code").asString,
+                deviceCode = json.get("device_code")?.asString ?: error("No device code returned"),
             )
         }
 
-    suspend fun signInWithDeviceCode(
-        info: DeviceCodeInfo,
+    // ── 2. Poll + full sign-in ───────────────────────────────────────────────
+
+    suspend fun signIn(
         clientId: String = DEFAULT_CLIENT_ID,
+        onCode: (DeviceCodeInfo) -> Unit = {},
         onStatus: (String) -> Unit = {},
     ): Account = withContext(Dispatchers.IO) {
+        val info = requestDeviceCode(clientId)
+        onCode(info)
+        onStatus("Enter the code in your browser")
+        runCatching {
+            java.awt.Desktop.getDesktop().browse(java.net.URI.create(info.verificationUri))
+        }
+
+        val token = pollForToken(info, clientId, onStatus)
+        onStatus("Signing in with Xbox Live…")
+        toAccount(token.accessToken, token.refreshToken, onStatus)
+    }
+
+    private data class MsaToken(val accessToken: String, val refreshToken: String)
+
+    private fun pollForToken(
+        info: DeviceCodeInfo,
+        clientId: String,
+        onStatus: (String) -> Unit,
+    ): MsaToken {
+        val legacy = isLegacy(clientId)
         val deadline = System.currentTimeMillis() + info.expiresIn * 1000L
         var interval = info.interval.coerceAtLeast(2)
+        var consecutiveFailures = 0
 
         while (System.currentTimeMillis() < deadline) {
-            delay(interval * 1000L)
-            onStatus("Waiting for sign-in… (code ${info.userCode})")
-            val body = Net.postForm(
-                "$AUTHORITY/token",
-                mapOf(
-                    "grant_type" to "urn:ietf:params:oauth:grant-type:device_code",
-                    "client_id" to clientId,
-                    "device_code" to info.deviceCode,
-                )
-            )
-            val json = runCatching { JsonParser.parseString(body).asJsonObject }.getOrNull()
-                ?: continue
-            when (json.get("error")?.asString) {
-                null -> {
-                    val token = json.get("access_token")?.asString ?: continue
-                    return@withContext exchangeForMinecraft(
-                        token,
-                        json.get("refresh_token")?.asString ?: "",
-                        clientId
+            Thread.sleep(interval * 1000L)
+            onStatus("Waiting for you to finish sign-in (code ${info.userCode})…")
+
+            val body = runCatching {
+                if (legacy) {
+                    Net.postForm(
+                        "$LIVE_AUTH/oauth20_token.srf",
+                        mapOf(
+                            "grant_type" to "urn:ietf:params:oauth:grant-type:device_code",
+                            "device_code" to info.deviceCode,
+                            "client_id" to DEFAULT_CLIENT_ID,
+                        )
+                    )
+                } else {
+                    Net.postForm(
+                        "$ENTRA_AUTH/token",
+                        mapOf(
+                            "grant_type" to "urn:ietf:params:oauth:grant-type:device_code",
+                            "device_code" to info.deviceCode,
+                            "client_id" to clientId,
+                        )
                     )
                 }
-                "authorization_pending" -> continue
+            }
+
+            if (body.isFailure) {
+                // network blip — 5 tak retry, mobile jaisa behaviour
+                consecutiveFailures++
+                if (consecutiveFailures >= 5) {
+                    throw NetworkException("Network error during sign-in: ${body.exceptionOrNull()?.message}")
+                }
+                continue
+            }
+
+            val json = runCatching { JsonParser.parseString(body.getOrThrow()).asJsonObject }.getOrNull()
+                ?: continue
+            consecutiveFailures = 0
+
+            val access = json.get("access_token")?.asString
+            if (!access.isNullOrBlank()) {
+                return MsaToken(access, json.get("refresh_token")?.asString ?: "")
+            }
+
+            when (json.get("error")?.asString) {
+                "authorization_pending", null -> Unit
                 "slow_down" -> interval += 3
                 "expired_token" -> error("The sign-in code expired. Please try again.")
-                "authorization_declined" -> error("Sign-in was cancelled.")
-                "unauthorized_client", "invalid_client" -> error(
-                    "Microsoft rejected this app id. Open Settings → Microsoft client id and " +
-                        "paste your own free app id (see instructions there)."
-                )
-                else -> error("Microsoft error: ${json.get("error_description")?.asString ?: json.get("error")?.asString}")
+                "authorization_declined", "access_denied" -> error("Sign-in was cancelled.")
+                "invalid_grant" -> error("Sign-in expired. Please try again.")
+                else -> error("Microsoft: ${json.get("error_description")?.asString ?: json.get("error")?.asString}")
             }
         }
         error("Sign-in timed out. Please try again.")
@@ -272,81 +218,65 @@ object MicrosoftAuth {
     /** Refresh token se naya Minecraft token (launch se pehle) */
     suspend fun refresh(account: Account, clientId: String = DEFAULT_CLIENT_ID): Account =
         withContext(Dispatchers.IO) {
-            if (account.refreshToken.isBlank()) error("Session expired — sign in with Microsoft again")
-            val body = Net.postForm(
-                "$AUTHORITY/token",
-                mapOf(
-                    "client_id" to clientId,
-                    "grant_type" to "refresh_token",
-                    "refresh_token" to account.refreshToken,
-                    "scope" to SCOPE,
+            if (account.refreshToken.isBlank()) error("Session expired — sign in again")
+            val legacy = isLegacy(clientId)
+            val body = if (legacy) {
+                Net.postForm(
+                    "$LIVE_AUTH/oauth20_token.srf",
+                    mapOf(
+                        "client_id" to DEFAULT_CLIENT_ID,
+                        "refresh_token" to account.refreshToken,
+                        "grant_type" to "refresh_token",
+                        "scope" to LIVE_SCOPE,
+                    )
                 )
-            )
-            val json = parseOrThrow(body, "Couldn't refresh the Microsoft session")
-            exchangeForMinecraft(
-                json.get("access_token").asString,
-                json.get("refresh_token")?.asString ?: account.refreshToken,
-                clientId
-            )
+            } else {
+                Net.postForm(
+                    "$ENTRA_AUTH/token",
+                    mapOf(
+                        "client_id" to clientId,
+                        "refresh_token" to account.refreshToken,
+                        "grant_type" to "refresh_token",
+                        "scope" to ENTRA_SCOPE,
+                    )
+                )
+            }
+            val json = JsonParser.parseString(body).asJsonObject
+            json.get("error")?.let {
+                error(
+                    if (it.asString == "invalid_grant") "Session expired — sign in with Microsoft again"
+                    else "Token refresh failed: ${json.get("error_description")?.asString ?: it.asString}"
+                )
+            }
+            val access = json.get("access_token")?.asString ?: error("Token refresh failed")
+            toAccount(access, json.get("refresh_token")?.asString ?: account.refreshToken) { }
         }
 
-    // ── Xbox Live → Minecraft services ───────────────────────────────────────
+    // ── 3. Xbox Live → XSTS → Minecraft (mobile jaisa) ────────────────────────
 
-    private fun exchangeForMinecraft(msaToken: String, refreshToken: String, clientId: String): Account {
-        val xbl = postJsonOrThrow(
-            "https://user.auth.xboxlive.com/user/authenticate",
-            """
-            {"Properties":{"AuthMethod":"RPS","SiteName":"user.auth.xboxlive.com","RpsTicket":"d=$msaToken"},
-             "RelyingParty":"http://auth.xboxlive.com","TokenType":"JWT"}
-            """.trimIndent(),
-            "Xbox Live sign-in failed"
+    private fun toAccount(msaToken: String, refreshToken: String, onStatus: (String) -> Unit): Account {
+        onStatus("Xbox Live…")
+        val (xblToken, uhs) = authenticateXbl(msaToken)
+
+        onStatus("Xbox Live security token…")
+        val xstsToken = authenticateXsts(xblToken)
+
+        onStatus("Minecraft services…")
+        val mc = postJson(
+            "$MC_SERVICES/authentication/login_with_xbox",
+            """{"identityToken":"XBL3.0 x=$uhs;$xstsToken"}"""
         )
-        val xblToken = xbl.get("Token")?.asString
-            ?: throw NetworkException("Xbox Live did not return a token. Check that this account has an Xbox profile.")
-        val userHash = xbl.getAsJsonObject("DisplayClaims").getAsJsonArray("xui")
-            .first().asJsonObject.get("uhs").asString
-
-        val xsts = runCatching {
-            postJsonOrThrow(
-                "https://xsts.auth.xboxlive.com/xsts/authorize",
-                """{"Properties":{"SandboxId":"RETAIL","UserTokens":["$xblToken"]},
-                   "RelyingParty":"rp://api.minecraftservices.com/","TokenType":"JWT"}""",
-                "Xbox Live authorization failed"
-            )
-        }.getOrElse { error -> throw error }
-
-        if (xsts.has("XErr")) {
-            val code = xsts.get("XErr").asLong
-            error(
-                when (code) {
-                    2148916233L -> "This Microsoft account has no Xbox profile. Sign in at xbox.com once, then retry."
-                    2148916235L -> "Xbox Live is not available in your country."
-                    2148916238L -> "This is a child account — a parent must add it to a Microsoft family."
-                    else -> "Xbox Live error $code"
-                }
-            )
-        }
-        val xstsToken = xsts.get("Token").asString
-
-        val mc = postJsonOrThrow(
-            "https://api.minecraftservices.com/authentication/login_with_xbox",
-            """{"identityToken":"XBL3.0 x=$userHash;$xstsToken"}""",
-            "Minecraft login failed"
-        )
-        val mcToken = mc.get("access_token")?.asString ?: throw NetworkException("Minecraft did not return a token")
+        val mcToken = mc.get("access_token")?.asString
+            ?: throw NetworkException("Minecraft did not return a token")
         val expiresIn = mc.get("expires_in")?.asLong ?: 86400L
 
+        onStatus("Checking game ownership…")
         val profile = runCatching {
             JsonParser.parseString(
-                Net.getString(
-                    "https://api.minecraftservices.com/minecraft/profile",
-                    mapOf("Authorization" to "Bearer $mcToken")
-                )
+                Net.getString("$MC_SERVICES/minecraft/profile", mapOf("Authorization" to "Bearer $mcToken"))
             ).asJsonObject
-        }.getOrElse {
-            throw NetworkException("This Microsoft account doesn't own Minecraft: Java Edition.")
-        }
-        if (!profile.has("name")) {
+        }.getOrNull()
+        if (profile == null || !profile.has("name")) {
             throw NetworkException("This Microsoft account doesn't own Minecraft: Java Edition.")
         }
 
@@ -360,44 +290,61 @@ object MicrosoftAuth {
         )
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
-
-    private fun parseOrThrow(body: String, fallback: String): JsonObject {
-        val json = runCatching { JsonParser.parseString(body).asJsonObject }.getOrNull()
-            ?: throw NetworkException(fallback)
-        val error = json.get("error")
-        if (error != null) {
-            val description = json.get("error_description")?.asString ?: error.asString
-            throw NetworkException("$fallback: $description")
+    private fun authenticateXbl(accessToken: String): Pair<String, String> {
+        fun request(rpsTicket: String): Pair<String, String> {
+            val response = postJson(
+                "$XBL_AUTH/user/authenticate",
+                """
+                {"Properties":{"AuthMethod":"RPS","SiteName":"user.auth.xboxlive.com","RpsTicket":"$rpsTicket"},
+                 "RelyingParty":"http://auth.xboxlive.com","TokenType":"JWT"}
+                """.trimIndent()
+            )
+            val token = response.get("Token")?.asString
+                ?: throw NetworkException("Xbox Live did not return a token. Does this account have an Xbox profile?")
+            val uhs = response.getAsJsonObject("DisplayClaims").getAsJsonArray("xui")
+                .first().asJsonObject.get("uhs").asString
+            return token to uhs
         }
-        return json
+
+        // Mobile/Pojav jaisa: raw token pehle, 400 par "d=" prefix
+        return runCatching { request(accessToken) }.getOrElse { first ->
+            runCatching { request("d=$accessToken") }.getOrElse { throw first }
+        }
     }
 
-    private fun postJsonOrThrow(url: String, body: String, fallback: String): JsonObject {
-        val response = Net.postJson(url, body)
-        return runCatching { JsonParser.parseString(response).asJsonObject }.getOrNull()
-            ?: throw NetworkException(fallback)
+    private fun authenticateXsts(xblToken: String): String {
+        val body = """
+            {"Properties":{"SandboxId":"RETAIL","UserTokens":["$xblToken"]},
+             "RelyingParty":"rp://api.minecraftservices.com/","TokenType":"JWT"}
+        """.trimIndent()
+        val raw = Net.postJson("$XSTS_AUTH/xsts/authorize", body)
+        val json = runCatching { JsonParser.parseString(raw).asJsonObject }.getOrNull()
+            ?: throw NetworkException("Xbox Live authorization failed")
+
+        json.get("XErr")?.asLong?.let { code ->
+            throw NetworkException(
+                when (code) {
+                    2148916227L -> "This Xbox account has been banned."
+                    2148916229L -> "This Xbox account is restricted (child/limited profile)."
+                    2148916233L -> "This Microsoft account has no Xbox profile. Sign in at xbox.com once, then retry."
+                    2148916234L -> "Xbox Live did not accept the service terms for this account."
+                    2148916235L -> "Xbox Live is not available in this country."
+                    2148916236L -> "This account needs age verification (proof of age)."
+                    2148916237L -> "This account has reached its play-time limit."
+                    2148916238L -> "This is a child account — a parent must add it to a Microsoft family."
+                    else -> "Xbox Live error $code"
+                }
+            )
+        }
+
+        return json.get("Token")?.asString ?: throw NetworkException("Xbox Live authorization failed")
     }
 
-    private fun signInErrorMessage(detail: String?): String = when {
-        detail.isNullOrBlank() -> "Sign-in was cancelled."
-        detail.contains("access_denied") -> "Sign-in was cancelled."
-        detail.contains("invalid_client") || detail.contains("unauthorized_client") ->
-            "Microsoft rejected this app id. Set your own client id in Settings."
-        else -> "Sign-in failed: $detail"
+    private fun postJson(url: String, body: String): JsonObject {
+        val raw = Net.postJson(url, body)
+        return runCatching { JsonParser.parseString(raw).asJsonObject }.getOrNull()
+            ?: throw NetworkException("Unexpected response from ${url.substringAfter("//").substringBefore("/")}")
     }
-
-    private fun randomUrlSafe(bytes: Int): String {
-        val buffer = ByteArray(bytes)
-        java.security.SecureRandom().nextBytes(buffer)
-        return base64Url(buffer)
-    }
-
-    private fun base64Url(bytes: ByteArray): String =
-        Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
-
-    private fun sha256(value: String): ByteArray =
-        MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
 
     fun copyAccountFile(source: File) {
         if (source.isFile) source.copyTo(AppPaths.accountsFile, overwrite = true)
