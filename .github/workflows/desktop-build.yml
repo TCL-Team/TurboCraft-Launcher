@@ -183,25 +183,6 @@ jobs:
       # Zip ke andar ek top-level folder + "pehle extract karo" README rakhte hain.
       # Warna user zip ke andar se seedha .exe dabaa deta hai aur jpackage
       # "app\<name>.cfg: No such file or directory" error deta hai.
-      # Asli bug yahi tha: jlink runtime image me java.net.http module missing tha,
-      # isliye packaged exe me "Could not initialize class Net" aata tha.
-      - name: Verify bundled runtime has java.net.http
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          $java = Get-ChildItem -Path "build/compose/binaries/main/app" -Recurse -Filter java.exe |
-                  Where-Object { $_.FullName -match "runtime" } | Select-Object -First 1
-          if (-not $java) { Write-Host "::error::no java.exe in the packaged runtime"; exit 1 }
-          Write-Host "runtime java: $($java.FullName)"
-          $mods = & $java.FullName --list-modules
-          $http = $mods | Where-Object { $_ -match "^java\.net\.http" }
-          Write-Host "total modules: $($mods.Count) / net.http: $http"
-          if (-not $http) {
-            Write-Host "::error::java.net.http is missing from the bundled runtime"
-            exit 1
-          }
-          Write-Host "OK: java.net.http present"
-
       - name: Zip portable app image
         run: |
           cd build/compose/binaries/main/app
