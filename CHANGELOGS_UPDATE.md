@@ -1,3 +1,16 @@
+## TurboCraft Launcher V1.3 Update
+
+### Social hub (new)
+
+- The Chat tab is now a full **Social** hub: friends, direct messages, parties and requests in one place.
+- Friends are grouped **Online / Offline** with live presence dots (heartbeat every minute), "last seen" text and a one-tap message shortcut.
+- **Parties**: host a party on any installed instance (version, loader and instance name are attached automatically), share a 6-character invite code, invite friends from the member list, and chat together in the party.
+- Party controls: host can extend a party by an hour, remove members or end it; leaving as host transfers the host role to the earliest member. Parties expire automatically after 12 hours.
+- **Discover** public parties and join them with one tap, or join a private party with its code.
+- Party chat and direct messages support editing/deleting your own messages; party chat is optimistic (your message appears instantly).
+- Requests tab combines incoming friend requests, party invites (accept/decline) and the add-friend box.
+- Profile editing (display name, @handle, bio) and recovery-code management are available from the Social header.
+
 ## TurboCraft Launcher V1.2 Update
 
 ### Microsoft Login
