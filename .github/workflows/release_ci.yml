@@ -10,8 +10,6 @@ permissions:
 
 jobs:
   Build:
-    # Desktop (PC) releases alag workflow se banti hain — unke liye Android APK mat banao
-    if: ${{ !startsWith(github.event.release.tag_name, 'desktop-') }}
     uses: ./.github/workflows/build.yml
     with:
       variant: Release
@@ -20,7 +18,6 @@ jobs:
       STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
       OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
       CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
-      DISCORD_APP_ID: ${{ secrets.DISCORD_APP_ID }}
 
   Upload-to-Release:
     needs: Build

@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 
 package com.movtery.layer_controller
 
+import androidx.annotation.FloatRange
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -78,7 +79,7 @@ fun ControlBoxLayout(
     isUsingJoystick: Boolean = false,
     isCursorGrabbing: Boolean,
     checkOccupiedPointers: (PointerId) -> Boolean,
-    opacity: () -> Float = { 1f },
+    @FloatRange(0.0, 1.0) opacity: Float = 1f,
     markPointerAsMoveOnly: (PointerId) -> Unit = {},
     onOccupiedPointer: (PointerId) -> Unit = {},
     onReleasePointer: (PointerId) -> Unit = {},
@@ -134,7 +135,7 @@ private fun BoxWithConstraintsScope.BaseControlBoxLayout(
     observedLayout: ObservableControlLayout,
     eventHandler: EventHandler,
     checkOccupiedPointers: (PointerId) -> Boolean,
-    opacity: () -> Float,
+    @FloatRange(0.0, 1.0) opacity: Float,
     markPointerAsMoveOnly: (PointerId) -> Unit,
     onOccupiedPointer: (PointerId) -> Unit,
     onReleasePointer: (PointerId) -> Unit,
@@ -244,7 +245,7 @@ private fun BoxWithConstraintsScope.BaseControlBoxLayout(
 @Composable
 private fun ControlsRendererLayer(
     isDark: Boolean,
-    opacity: () -> Float,
+    @FloatRange(0.0, 1.0) opacity: Float,
     layers: List<ObservableControlLayer>,
     styles: List<ObservableButtonStyle>,
     joystickStyles: List<ObservableJoystickStyle>,
@@ -258,7 +259,7 @@ private fun ControlsRendererLayer(
     onReleasePointer: (PointerId) -> Unit
 ) {
     Layout(
-        modifier = Modifier.alpha(alpha = opacity()),
+        modifier = Modifier.alpha(alpha = opacity),
         content = {
             //按图层顺序渲染所有可见的控件
             layers.forEach { layer ->
@@ -283,7 +284,8 @@ private fun ControlsRendererLayer(
                         visible = layerVisibility && checkVisibility(isCursorGrabbing, data.visibilityType),
                         getOtherWidgets = { emptyList() }, //不需要计算吸附
                         snapThresholdValue = 4.dp,
-                        eventHandler = eventHandler
+                        eventHandler = eventHandler,
+                        isPressed = false //文本框不需要按压状态
                     )
                 }
 
@@ -297,7 +299,8 @@ private fun ControlsRendererLayer(
                         visible = layerVisibility && checkVisibility(isCursorGrabbing, data.visibilityType),
                         getOtherWidgets = { emptyList() }, //不需要计算吸附
                         snapThresholdValue = 4.dp,
-                        eventHandler = eventHandler
+                        eventHandler = eventHandler,
+                        isPressed = data.isPressed
                     )
                 }
 

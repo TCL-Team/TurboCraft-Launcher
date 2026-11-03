@@ -103,7 +103,7 @@ import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
 import com.movtery.zalithlauncher.ui.screens.TitledNavKey
 import com.movtery.zalithlauncher.ui.screens.content.AccountManageScreen
-import com.movtery.zalithlauncher.ui.screens.content.CommunityChatScreen
+import com.movtery.zalithlauncher.ui.screens.content.SocialHubScreen
 import com.movtery.zalithlauncher.ui.screens.content.elements.SocialDialog
 import com.movtery.zalithlauncher.ui.screens.content.DownloadScreen
 import com.movtery.zalithlauncher.ui.screens.content.FileSelectorScreen
@@ -515,7 +515,7 @@ private fun <E: TitledNavKey> TopBar(
                 TopBarRailItem(
                     selected = inChatScreen,
                     painter = painterResource(R.drawable.ic_chat_bubble),
-                    text = "Chat",
+                    text = "Social",
                     badgeCount = unreadPeopleCount,
                     onClick = {
                         if (!inChatScreen) toChatScreen()
@@ -525,7 +525,7 @@ private fun <E: TitledNavKey> TopBar(
                 TopBarRailItem(
                     selected = showSocialDialog,
                     painter = painterResource(R.drawable.ic_public),
-                    text = "Social",
+                    text = "Links",
                     onClick = {
                         showSocialDialog = true
                     },
@@ -781,7 +781,7 @@ private fun NavigationUI(
                     )
                 }
                 entry<NormalNavKey.Chat> {
-                    CommunityChatScreen(backStackViewModel = screenBackStackModel)
+                    SocialHubScreen(backStackViewModel = screenBackStackModel)
                 }
                 entry<NormalNavKey.HomePageEditor> {
                     HomePageEditorScreen(

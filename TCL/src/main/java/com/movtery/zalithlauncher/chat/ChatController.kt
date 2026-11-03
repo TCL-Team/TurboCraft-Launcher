@@ -61,10 +61,12 @@ internal class ChatController(
     private var refreshJob: Job? = null
     private var livePollJob: Job? = null
     private var sessionRefreshJob: Job? = null
+    private var presenceJob: Job? = null
 
     fun start() {
         if (started) return
         started = true
+        startPresenceHeartbeat()
         scope.launch {
             _state.update { it.copy(busy = true, error = null, notice = null) }
             val account = launcherAccount
@@ -466,6 +468,17 @@ internal class ChatController(
         }
     }
 
+    private fun startPresenceHeartbeat() {
+        if (presenceJob?.isActive == true) return
+        presenceJob = scope.launch {
+            while (true) {
+                delay(PRESENCE_HEARTBEAT_MS)
+                val session = _state.value.session ?: continue
+                runCatching { repository.touchChatPresence(session) }
+            }
+        }
+    }
+
     private fun startVisiblePolling() {
         if (livePollJob?.isActive == true) return
         livePollJob = scope.launch {
@@ -679,6 +692,7 @@ internal class ChatController(
         const val MAX_MESSAGE_LENGTH = 2000
         const val MAX_VISIBLE_MESSAGES = 100
         const val SESSION_REFRESH_MARGIN_MS = 60_000L
+        const val PRESENCE_HEARTBEAT_MS = 60_000L
         const val LIVE_MESSAGES_POLL_MS = 2_000L
         const val LIVE_DASHBOARD_POLL_MS = 12_000L
         const val MAX_DISPLAY_NAME_LENGTH = 32
