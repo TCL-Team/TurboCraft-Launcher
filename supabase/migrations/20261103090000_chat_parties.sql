@@ -70,16 +70,31 @@ alter table public.chat_party_members enable row level security;
 alter table public.chat_party_invites enable row level security;
 alter table public.chat_party_messages enable row level security;
 
+-- Membership checks run through a SECURITY DEFINER helper so the policies on
+-- chat_party_members can look at the table without recursing into themselves.
+create or replace function public.chat_is_party_member(p_party_id uuid, p_user_id uuid default auth.uid())
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+    select exists (
+        select 1 from public.chat_party_members m
+        where m.party_id = p_party_id and m.user_id = p_user_id
+    );
+$$;
+
+revoke all on function public.chat_is_party_member(uuid, uuid) from public, anon;
+grant execute on function public.chat_is_party_member(uuid, uuid) to authenticated;
+
 drop policy if exists chat_parties_visible on public.chat_parties;
 create policy chat_parties_visible
     on public.chat_parties for select to authenticated
     using (
         is_public
         or host_id = auth.uid()
-        or exists (
-            select 1 from public.chat_party_members m
-            where m.party_id = chat_parties.id and m.user_id = auth.uid()
-        )
+        or public.chat_is_party_member(id)
         or exists (
             select 1 from public.chat_party_invites i
             where i.party_id = chat_parties.id and i.to_id = auth.uid() and i.status = 'pending'
@@ -91,10 +106,7 @@ create policy chat_party_members_visible
     on public.chat_party_members for select to authenticated
     using (
         user_id = auth.uid()
-        or exists (
-            select 1 from public.chat_party_members me
-            where me.party_id = chat_party_members.party_id and me.user_id = auth.uid()
-        )
+        or public.chat_is_party_member(party_id)
         or exists (
             select 1 from public.chat_parties p
             where p.id = chat_party_members.party_id and p.is_public and p.expires_at > now()
@@ -109,23 +121,12 @@ create policy chat_party_invites_participant
 drop policy if exists chat_party_messages_member_read on public.chat_party_messages;
 create policy chat_party_messages_member_read
     on public.chat_party_messages for select to authenticated
-    using (
-        exists (
-            select 1 from public.chat_party_members m
-            where m.party_id = chat_party_messages.party_id and m.user_id = auth.uid()
-        )
-    );
+    using (public.chat_is_party_member(party_id));
 
 drop policy if exists chat_party_messages_member_insert on public.chat_party_messages;
 create policy chat_party_messages_member_insert
     on public.chat_party_messages for insert to authenticated
-    with check (
-        sender_id = auth.uid()
-        and exists (
-            select 1 from public.chat_party_members m
-            where m.party_id = chat_party_messages.party_id and m.user_id = auth.uid()
-        )
-    );
+    with check (sender_id = auth.uid() and public.chat_is_party_member(party_id));
 
 drop policy if exists chat_party_messages_sender_delete on public.chat_party_messages;
 create policy chat_party_messages_sender_delete
@@ -194,7 +195,7 @@ set search_path = public, pg_temp
 as $$
 declare
     current_user_id uuid := auth.uid();
-    party_id uuid;
+    created_party_id uuid;
     clean_title text := btrim(coalesce(p_title, ''));
     capacity integer := least(greatest(coalesce(p_max_members, 4), 2), 16);
 begin
@@ -208,7 +209,7 @@ begin
         raise exception 'Create your chat profile first.';
     end if;
 
-    -- A user can only host one live party at a time; leaving/expiry cleans up the rest.
+    -- A host can only own one live party; quietly drop expired ones first.
     delete from public.chat_parties p
      where p.host_id = current_user_id and p.expires_at <= now();
 
@@ -225,13 +226,13 @@ begin
         p_modpack_source, p_modpack_id, p_modpack_icon_url, p_server_address,
         capacity, coalesce(p_is_public, false), public.chat_party_generate_code()
     )
-    returning id into party_id;
+    returning id into created_party_id;
 
     insert into public.chat_party_members (party_id, user_id, is_host)
-    values (party_id, current_user_id, true)
+    values (created_party_id, current_user_id, true)
     on conflict (party_id, user_id) do update set is_host = true;
 
-    return party_id;
+    return created_party_id;
 end;
 $$;
 
