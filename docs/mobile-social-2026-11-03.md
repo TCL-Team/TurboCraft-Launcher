@@ -1,6 +1,6 @@
 # Social & Parties (mobile launcher)
 
-Date: 2026-11-03 · Scope: `TCL` (Android). Desktop app is deprecated.
+Date: 2026-11-03 · Scope: `TCL` (Android). The PC/desktop launcher was removed from the repo in this change set.
 
 ## What players get
 
@@ -49,6 +49,26 @@ Rules enforced server-side:
 * `chat/ChatController.kt` — now also sends a presence heartbeat while running.
 * `ui/screens/content/SocialHubScreen.kt` — the whole hub UI (header, tabs, party panel, DM thread, party thread, dialogs).
 * `ui/screens/main/MainScreen.kt` — rail entry "Social" → `NormalNavKey.Chat` → `SocialHubScreen`; the old community links dialog stays as "Links".
+
+## Verification
+
+Migration applied to the live TurboCraft project (`qvjanukzamquosjxhxnc`) and exercised with
+impersonated `authenticated` sessions:
+
+* `create_chat_party` → party + host membership + unique 6-char code ✅
+* `join_chat_party_by_code` as a second user → membership, code lookup ✅
+* RLS: outsider cannot read another party's members/messages; public parties are readable ✅
+* party chat insert by a member ✅
+* host leave → host role transferred to the earliest member ✅
+* new host `delete_chat_party` → party removed ✅
+
+**Bugs caught during that run (fixed in this commit):**
+
+* `chat_party_members` select policy referenced itself → `42P17 infinite recursion`.
+  Replaced with a `SECURITY DEFINER` helper `chat_is_party_member(uuid, uuid)`.
+* `create_chat_party` had a plpgsql variable `party_id` shadowing the `party_id` column.
+
+Android compile + release build (`v1.3`, all five ABIs) passed on CI.
 
 ## Known follow-ups
 
