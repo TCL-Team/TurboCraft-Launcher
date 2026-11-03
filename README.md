@@ -27,12 +27,14 @@ Whether you're playing Vanilla, Fabric, Forge or NeoForge, TurboCraft Launcher p
 # Features
 
 - 🎥 Animated Video Background UI
+- 🧭 First-Run Interactive Guide
 - 🚀 Performance Improvements
 - 🎨 Modern Material Design UI
 - ☕ Multiple Java Runtime Support
 - 📦 Fabric / Forge / NeoForge
 - 👤 Offline Accounts
 - 🎭 Cape & Skin Support
+- 🧍 Live 3D Player Model Preview (PetLib)
 - ⚙️ Advanced Rendering Settings
 - 📁 Import / Export Settings
 - 🔥 Highly Customizable
