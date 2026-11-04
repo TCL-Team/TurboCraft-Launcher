@@ -70,6 +70,22 @@ impersonated `authenticated` sessions:
 
 Android compile + release build (`v1.3`, all five ABIs) passed on CI.
 
+## v1.4 hardening (2026-11-04)
+
+The handle screen could dead-end, so profile creation is now server-authoritative:
+
+* `ensure_chat_profile(p_username, p_display_name)` — `SECURITY DEFINER`, idempotent: returns the
+  existing profile (refreshing presence) or creates it, with readable errors for a taken handle
+  ("That handle is already taken. Try another one.") and for an expired session. Applied live and
+  verified by impersonating an `authenticated` session in SQL (create → re-call returns the same
+  handle; `chat_self_check()` reports `has_profile true`).
+* `chat_self_check()` returns a small JSON report (user id, profile state, friend/party counts,
+  server time) that the app shows in a copyable **Connection details** panel.
+* Client: `ChatSessionStore` sessions self-heal on 401/403 or `chat_profiles_id_fkey`; the session
+  user id is decoded from the JWT `sub` (the value RLS actually checks) instead of trusting the
+  response body; dashboard loading is best-effort after profile creation.
+* UI: spinner on the create button, plus **Reconnect** on the setup and offline screens.
+
 ## Known follow-ups
 
 * Typing indicators and read receipts for parties.

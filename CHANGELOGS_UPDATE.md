@@ -1,3 +1,32 @@
+## TurboCraft Launcher V1.4 (pre-release)
+
+### Social fixes
+
+- Fixed the "Claim your social handle" screen getting stuck: profile creation now goes through
+  a server-side `ensure_chat_profile` routine that is idempotent, and the friend list loading can no
+  longer throw you back to that screen.
+- The chat session now takes its user id from the signed token itself, so a mismatched session can no
+  longer make every profile/message write fail.
+- Expired or stale social sessions heal themselves once, and there is a **Reconnect** button on the
+  Social screens.
+- "Create my profile" now shows a spinner while working.
+- New **Connection details** panel under Social (error text, HTTP status, server response, copyable)
+  so a bug report contains the exact cause instead of a screenshot of a blank screen.
+
+### Welcome screen
+
+- The first-run screen no longer shows ZalithLauncher's user agreement and privacy policy.
+  TurboCraft Launcher now ships its own **User Agreement** and **Privacy Policy** (English, with a
+  Hindi summary), and asks you to accept the new version once.
+- Open-source attribution (PojavLauncher, Zalith Launcher 2, GPL v3) is kept inside the agreement, as
+  the licence requires.
+- Rebranded the team / links dialog.
+
+### Releases
+
+- All builds are published as GitHub **pre-releases** so a broken build is never offered to normal
+  users. Every push now refreshes the rolling `preview` pre-release with an arm64 test APK.
+
 ## TurboCraft Launcher V1.3 Update
 
 ### Social hub (new)

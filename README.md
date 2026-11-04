@@ -73,3 +73,16 @@ Special thanks to all developers, contributors and maintainers whose work made t
 TurboCraft Launcher is licensed under GPL-3.0.
 
 See LICENSE for more information.
+
+
+## Testing builds (pre-release)
+
+Every build is published as a GitHub **pre-release** so an unfinished build is never handed to
+normal users:
+
+* `preview` — rolling pre-release rebuilt on every push to `main` / feature branches
+  (arm64 APK, install this one to test new work);
+* `vX.Y` tags — versioned pre-releases with all ABIs.
+
+Report anything that breaks in the issue tracker, and include the copyable
+**Social → Connection details** text if a chat/party problem appears.
