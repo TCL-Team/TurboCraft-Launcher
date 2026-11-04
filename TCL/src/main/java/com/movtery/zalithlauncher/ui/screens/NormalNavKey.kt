@@ -66,9 +66,9 @@ sealed interface NormalNavKey : TitledNavKey {
     @Serializable data object Multiplayer: NormalNavKey {
         @Contextual override val title: AndroidStringText = androidText(R.string.terracotta_terracotta)
     }
-    /** Community chat screen */
+    /** Social hub: friends, direct messages, parties, invites */
     @Serializable data object Chat : NormalNavKey {
-        @Contextual override val title: AndroidStringText = androidText("Chat")
+        @Contextual override val title: AndroidStringText = androidText("Social")
     }
     /** 查看日志屏幕 */
     @Serializable data class LogView(

@@ -84,17 +84,15 @@ You can stop using Social at any time; it never affects single-player launching.
 The launcher talks directly to these services when the related feature is used. Each one receives at
 least your IP address and basic request information, and applies its own privacy policy:
 
-| Service | When | Purpose |
-| --- | --- | --- |
-| Microsoft / Xbox Live / Minecraft services | Signing in, launching | Authentication, ownership check, profile |
-| Mojang / Minecraft download servers (and optional mirrors) | Installing versions, assets, libraries | Game files |
-| Modrinth, CurseForge, FTB and similar platforms | Browsing and downloading mods/modpacks | Content metadata and files |
-| Fabric, Quilt, Forge, NeoForge, LiteLoader metadata servers | Installing loaders | Loader metadata and libraries |
-| Adoptium / Mojang Java runtimes | Installing Java | Runtime downloads |
-| GitHub (this repository and its releases) | Update checks, downloads | Launcher updates |
-| Terracotta / multiplayer relay services | Online multiplayer | Session relay |
-| Discord | Only if you enable Rich Presence | Shows your game activity on Discord |
-| Supabase | Social features | Database, chat, parties |
+- **Microsoft, Xbox Live and Minecraft services** — signing in, checking game ownership, launching.
+- **Mojang / Minecraft download servers** (and optional mirrors) — versions, assets, libraries.
+- **Modrinth, CurseForge, FTB and similar platforms** — mod/modpack metadata and files.
+- **Fabric, Quilt, Forge, NeoForge, LiteLoader metadata servers** — loader metadata and libraries.
+- **Adoptium / Mojang Java runtimes** — Java runtime downloads.
+- **GitHub** (this repository and its releases) — update checks and downloads.
+- **Terracotta and multiplayer relay services** — online multiplayer sessions.
+- **Discord** — only when you turn on Rich Presence; it shows your game activity.
+- **Supabase** — the Social database, chat and party backend.
 
 Some download sources can be changed in Settings to a mirror or to an HTTP address; those operators
 then handle your request under their own terms.
