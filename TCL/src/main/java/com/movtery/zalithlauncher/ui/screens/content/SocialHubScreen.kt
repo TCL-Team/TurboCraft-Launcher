@@ -140,13 +140,12 @@ fun SocialHubScreen(backStackViewModel: ScreenBackStackViewModel) {
     var restoringProfile by rememberSaveable(controllerKey) { mutableStateOf(false) }
 
     LaunchedEffect(chat) { chat.start() }
+    // Keyed separately on purpose: `parties` is recreated whenever the chat session changes
+    // (first connect, token refresh). Sharing one DisposableEffect used to cancel the chat
+    // controller's scope at that moment, which left every button on this screen doing nothing.
+    DisposableEffect(chat) { onDispose { chat.close() } }
     LaunchedEffect(parties) { parties?.start() }
-    DisposableEffect(chat, parties) {
-        onDispose {
-            chat.close()
-            parties?.close()
-        }
-    }
+    DisposableEffect(parties) { onDispose { parties?.close() } }
 
     BaseScreen(
         screenKey = NormalNavKey.Chat,
@@ -343,6 +342,15 @@ private fun SocialProfileSetup(
                     Button(onClick = { chat.dismissRecoveryCode() }, modifier = Modifier.fillMaxWidth()) { Text("Done") }
                 } else {
                     state.error?.let { SocialErrorText(it) }
+                    val handleTaken = state.error?.contains("taken", ignoreCase = true) == true
+                    val suggestion = remember(handleTaken, username) {
+                        if (handleTaken) suggestHandle(username) else null
+                    }
+                    if (suggestion != null) {
+                        TextButton(onClick = { username = suggestion }) {
+                            Text("Use @$suggestion instead")
+                        }
+                    }
                     Button(
                         onClick = { chat.completeProfile(username) },
                         enabled = !state.busy && username.length >= 3,
@@ -1899,3 +1907,11 @@ private fun formatMillis(millis: Long): String = runCatching {
     DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneId.systemDefault())
         .format(java.time.Instant.ofEpochMilli(millis))
 }.getOrDefault("")
+
+/** "wolf" -> "wolf_4821": a 3-20 char handle that is unlikely to collide. */
+private fun suggestHandle(base: String): String {
+    val clean = base.trim().removePrefix("@").lowercase().filter { ch -> ch.isLetterOrDigit() || ch == '_' || ch == '.' }
+        .ifBlank { "player" }
+    val suffix = (10..99).random().toString()
+    return (clean.take(20 - suffix.length - 1) + "_" + suffix).take(20)
+}

@@ -52,7 +52,7 @@ internal class SocialPartiesController(
     private val session: ChatAuthSession,
     private val repository: SupabaseChatRepository = SupabaseChatRepository()
 ) : Closeable {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(PartyUiState())
     val state = _state.asStateFlow()
 
@@ -67,6 +67,7 @@ internal class SocialPartiesController(
 
     fun start() {
         if (started) return
+        ensureScope()
         started = true
         refresh()
         scope.launch {
@@ -92,6 +93,7 @@ internal class SocialPartiesController(
 
     fun refresh() {
         if (!started) return
+        ensureScope()
         if (dashboardJob?.isActive == true) return
         dashboardJob = scope.launch {
             try {
@@ -419,6 +421,14 @@ internal class SocialPartiesController(
                 }
             }
         }
+    }
+
+    private fun ensureScope() {
+        if (scope.isActive) return
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        started = false
+        dashboardJob = null
+        messageJob = null
     }
 
     override fun close() {

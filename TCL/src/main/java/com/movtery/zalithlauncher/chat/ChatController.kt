@@ -53,7 +53,11 @@ internal class ChatController(
     private val applicationContext = context.applicationContext
     private val repository = SupabaseChatRepository()
     private val sessionStore = ChatSessionStore(applicationContext, launcherAccount?.uniqueUUID)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    /**
+     * The controller outlives screen recompositions, so a cancelled scope must never leave the
+     * UI dead: [ensureScope] rebuilds it whenever it was cancelled by an earlier dispose.
+     */
+    private var scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(ChatUiState())
     val state = _state.asStateFlow()
 
@@ -67,6 +71,7 @@ internal class ChatController(
 
     fun start() {
         if (started) return
+        ensureScope()
         started = true
         startPresenceHeartbeat()
         scope.launch {
@@ -159,6 +164,7 @@ internal class ChatController(
      */
     fun reconnect() {
         if (_state.value.busy) return
+        ensureScope()
         scope.launch {
             _state.update { it.copy(busy = true, error = null, errorDetails = null, notice = null) }
             realtime?.close()
@@ -173,6 +179,7 @@ internal class ChatController(
     /** Fills [ChatUiState.errorDetails] with what the server actually said, for support. */
     fun loadDiagnostics() {
         val session = _state.value.session ?: return
+        ensureScope()
         scope.launch {
             val report = runCatching { repository.selfCheck(session) }
                 .getOrElse { error -> "self_check failed: ${error.readableMessage("unknown error")}" }
@@ -497,6 +504,7 @@ internal class ChatController(
     }
 
     private fun performBusyAction(action: suspend () -> Unit) {
+        ensureScope()
         scope.launch {
             _state.update { it.copy(busy = true, error = null, notice = null) }
             try {
@@ -539,6 +547,15 @@ internal class ChatController(
         if (screenVisible && _state.value.panel == ChatPanel.CHATS && selected != null) {
             markConversationRead(session, selected.conversationId)
         }
+    }
+
+    /** Recreates the coroutine scope if a previous [close] (or a stale dispose) cancelled it. */
+    private fun ensureScope() {
+        if (scope.isActive) return
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        started = false
+        presenceJob = null
+        livePollJob = null
     }
 
     private fun startPresenceHeartbeat() {

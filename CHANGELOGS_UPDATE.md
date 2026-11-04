@@ -1,3 +1,21 @@
+## TurboCraft Launcher V1.5 (pre-release)
+
+### Social: profile creation actually works now
+
+- **Root cause found.** The screen created a second controller object when the chat session
+  arrived, and the shared lifecycle block then called `close()` on the *first* controller. That
+  cancelled its coroutine scope, so every later action — including "Create my profile" — silently
+  did nothing: no spinner, no error, no request. Each controller now has its own lifecycle, and a
+  controller rebuilds its scope if it was ever cancelled.
+- If the handle you type is already used by someone else, the app now says so and offers a
+  one-tap alternative (`@wolf` → `@wolf_47`).
+- Reconnect, the create spinner, and the copyable Connection details panel from 1.4 are included.
+
+### Note when testing
+
+Settings → About shows the app version; this build reports **1.5 (versionCode 8)**. If you still
+see the old behaviour, the old APK is installed — uninstall it first, then install the preview APK.
+
 ## TurboCraft Launcher V1.4 (pre-release)
 
 ### Social fixes
