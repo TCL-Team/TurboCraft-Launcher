@@ -117,6 +117,40 @@ internal class SupabaseChatRepository {
             .firstOrNull()?.asJsonObject?.toProfile()
     }
 
+    /**
+     * Creates the caller's chat profile through the `ensure_chat_profile` RPC.
+     * Idempotent: an existing profile is simply refreshed and returned, so a retry after a
+     * half-finished bootstrap can never leave the app stuck on "Claim your social handle".
+     */
+    suspend fun ensureProfile(session: ChatAuthSession, username: String, displayName: String): ChatProfile {
+        val payload = JsonObject().apply {
+            addProperty("p_username", username)
+            addProperty("p_display_name", displayName)
+        }
+        val request = authorizedRequest(
+            "${ChatBackendConfig.PROJECT_URL}/rest/v1/rpc/ensure_chat_profile",
+            session
+        ).post(payload.toString().jsonBody()).build()
+        val body = execute(request)
+        val root = runCatching { JsonParser.parseString(body) }.getOrNull()
+        val profile = when {
+            root == null || root.isJsonNull -> null
+            root.isJsonArray -> root.asJsonArray.firstOrNull()?.takeIf { it.isJsonObject }?.asJsonObject?.toProfile()
+            root.isJsonObject -> root.asJsonObject.toProfile()
+            else -> null
+        }
+        return profile?.takeIf { it.id.isNotBlank() }
+            ?: throw ChatApiException("The server did not return your profile. Try again.")
+    }
+
+    /** Raw diagnostics used by the Social "Connection details" panel. */
+    suspend fun selfCheck(session: ChatAuthSession): String = execute(
+        authorizedRequest(
+            "${ChatBackendConfig.PROJECT_URL}/rest/v1/rpc/chat_self_check",
+            session
+        ).post("{}".jsonBody()).build()
+    )
+
     suspend fun createProfile(session: ChatAuthSession, username: String, displayName: String): ChatProfile {
         val body = JsonObject().apply {
             addProperty("id", session.userId)
@@ -646,7 +680,9 @@ internal class SupabaseChatRepository {
         call.timeout().timeout(25, TimeUnit.SECONDS)
         call.execute().use { response ->
             val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) throw ChatApiException(response.errorDescription(body))
+            if (!response.isSuccessful) {
+                throw ChatApiException(response.errorDescription(body), response.code, body.take(600))
+            }
             body
         }
     }
@@ -661,16 +697,30 @@ internal class SupabaseChatRepository {
     private fun authBase() = "${ChatBackendConfig.PROJECT_URL}/auth/v1"
 
     private fun sessionFrom(root: JsonObject, fallbackUserId: String? = null): ChatAuthSession {
-        val userId = root.objectOrNull("user")?.string("id") ?: fallbackUserId
-            ?: throw ChatApiException("Supabase did not return a chat user ID.")
         val accessToken = root.string("access_token")
         if (accessToken.isBlank()) throw ChatApiException("Supabase did not return an access token.")
+        // The JWT subject is what row-level security actually checks, so prefer it over the
+        // user object in the response: a mismatch there used to make every write fail with a
+        // policy error while the app still thought it had a valid session.
+        val userId = userIdFromJwt(accessToken)
+            ?: root.objectOrNull("user")?.string("id")?.takeIf(String::isNotBlank)
+            ?: fallbackUserId
+            ?: throw ChatApiException("Supabase did not return a chat user ID.")
         return ChatAuthSession(
             userId = userId,
             accessToken = accessToken,
             refreshToken = root.string("refresh_token"),
             expiresAtMillis = System.currentTimeMillis() + root.long("expires_in", 3600) * 1000L
         )
+    }
+
+    /** Reads the `sub` claim of a Supabase access token; null when the token is malformed. */
+    private fun userIdFromJwt(token: String): String? {
+        val payload = token.split('.').getOrNull(1) ?: return null
+        return runCatching {
+            val decoded = java.util.Base64.getUrlDecoder().decode(payload).toString(Charsets.UTF_8)
+            JsonParser.parseString(decoded).asJsonObject.string("sub").takeIf { it.isNotBlank() }
+        }.getOrNull()
     }
 
     private fun parseObject(body: String): JsonObject = try {
@@ -890,4 +940,8 @@ internal class SupabaseChatRepository {
     }
 }
 
-internal class ChatApiException(message: String) : IOException(message)
+internal class ChatApiException(
+    message: String,
+    val statusCode: Int = 0,
+    val responseBody: String = ""
+) : IOException(message)

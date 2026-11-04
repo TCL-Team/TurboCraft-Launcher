@@ -194,8 +194,8 @@ fun SocialHubScreen(backStackViewModel: ScreenBackStackViewModel) {
 
             chatState.session == null || (chatState.error != null && chatState.profile == null) ->
                 SocialOffline(
-                    message = chatState.error ?: "Chat is not connected yet.",
-                    onRetry = { chat.retry() },
+                    state = chatState,
+                    chat = chat,
                     onOpenAccounts = { backStackViewModel.mainScreen.navigateTo(NormalNavKey.AccountManager()) }
                 )
 
@@ -240,17 +240,66 @@ private fun SocialLoading(text: String) {
 }
 
 @Composable
-private fun SocialOffline(message: String, onRetry: () -> Unit, onOpenAccounts: () -> Unit) {
-    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+private fun SocialOffline(
+    state: ChatUiState,
+    chat: ChatController,
+    onOpenAccounts: () -> Unit
+) {
+    Box(Modifier.fillMaxSize().padding(20.dp), contentAlignment = Alignment.Center) {
         SocialCard(Modifier.widthIn(max = 520.dp)) {
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Social is offline", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    state.error ?: "Social is not connected yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(onClick = onRetry) { Text("Retry") }
+                    Button(onClick = { chat.reconnect() }, enabled = !state.busy) {
+                        Text(if (state.busy) "Connecting…" else "Reconnect")
+                    }
                     OutlinedButton(onClick = onOpenAccounts) { Text("Accounts") }
                 }
+                SocialDiagnostics(state, chat)
             }
+        }
+    }
+}
+
+/** Error text plus a collapsible technical block (endpoint/status/body) for bug reports. */
+@Composable
+private fun SocialDiagnostics(state: ChatUiState, chat: ChatController) {
+    val context = LocalContext.current
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val details = state.errorDetails
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TextButton(onClick = {
+                expanded = !expanded
+                if (!expanded) chat.loadDiagnostics()
+            }) {
+                Text(if (expanded) "Hide connection details" else "Connection details")
+            }
+            if (details != null) {
+                TextButton(onClick = { context.copyToClipboard(details) }) {
+                    Text("Copy")
+                }
+            }
+        }
+        if (expanded) {
+            Text(
+                details ?: "Fetching diagnostics…",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                    .padding(10.dp)
+            )
         }
     }
 }
@@ -298,8 +347,27 @@ private fun SocialProfileSetup(
                         onClick = { chat.completeProfile(username) },
                         enabled = !state.busy && username.length >= 3,
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Create my profile") }
-                    TextButton(onClick = onRecover) { Text("I already have a handle — recover it") }
+                    ) {
+                        if (state.busy) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Creating…")
+                        } else {
+                            Text("Create my profile")
+                        }
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        TextButton(onClick = onRecover) { Text("I already have a handle") }
+                        TextButton(onClick = { chat.reconnect() }, enabled = !state.busy) { Text("Reconnect") }
+                    }
+                    if (state.error != null) SocialDiagnostics(state, chat)
                     Text(
                         "Signed in as ${account.username}",
                         style = MaterialTheme.typography.bodySmall,

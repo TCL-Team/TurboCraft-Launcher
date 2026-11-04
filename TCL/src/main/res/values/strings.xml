@@ -232,11 +232,11 @@
     <!-- Error message for HTTP 504 responses; %s is the status code -->
     <string name="error_gateway_timeout">(%s) The server did not receive a timely response</string>
     <!-- Subtitle shown below the animated welcome title -->
-    <string name="welcome_screen_subtitle">Come and experience something new.</string>
+    <string name="welcome_screen_subtitle">Your worlds, your friends, one tap away.</string>
     <!-- First welcome introduction paragraph; %1$s is the launcher name -->
     <string name="welcome_screen_intro_primary">Welcome to %1$s, a third-party Minecraft: Java Edition launcher designed for Android devices.</string>
     <!-- Second introduction paragraph describing the PojavLauncher core -->
-    <string name="welcome_screen_intro_core">Powered by PojavLauncher, it provides a modern game launch and management experience.</string>
+    <string name="welcome_screen_intro_core">Launch, mod and play together — accounts, versions, mods and friends are all handled inside the launcher.</string>
     <!-- Heading of the agreement links on the welcome screen -->
     <string name="welcome_screen_agreement_title">User Agreements</string>
     <!-- Checkbox label for explicitly accepting the displayed agreements -->
@@ -3816,22 +3816,22 @@
 
 
     <!-- ZalithLauncher team and social links -->
-    <string name="team_dialog_title">Our Team</string>
+    <string name="team_dialog_title">TurboCraft Team</string>
     <string name="team_member_movtery">MovTery</string>
     <string name="team_member_community">Open-source contributors</string>
     <string name="team_category_project_author">Project Author</string>
     <string name="team_category_contributors">Community</string>
-    <string name="social_dialog_title">ZalithLauncher links</string>
+    <string name="social_dialog_title">TurboCraft Launcher links</string>
     <string name="social_project_name">GitHub project</string>
     <string name="social_project_description">Source code, issues, and project releases.</string>
     <string name="social_contributors_name">Contributors</string>
-    <string name="social_contributors_description">People who help build ZalithLauncher.</string>
+    <string name="social_contributors_description">People who help build TurboCraft Launcher.</string>
     <string name="social_translations_name">Translations</string>
-    <string name="social_translations_description">Help translate ZalithLauncher.</string>
-    <string name="social_support_name">Support ZalithLauncher</string>
+    <string name="social_translations_description">Help translate TurboCraft Launcher.</string>
+    <string name="social_support_name">Support TurboCraft Launcher</string>
     <string name="social_support_description">Support ongoing launcher development.</string>
     <string name="social_discord_name">Discord</string>
-    <string name="social_discord_description">Join our community server</string>
+    <string name="social_discord_description">Join the TurboCraft community server</string>
     <string name="social_youtube_name">YouTube</string>
     <string name="social_youtube_description">Subscribe to our channel</string>
     <string name="about_discord_title">Discord</string>

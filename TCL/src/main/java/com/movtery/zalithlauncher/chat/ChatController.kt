@@ -39,6 +39,8 @@ internal data class ChatUiState(
     val mutatingMessageId: String? = null,
     val error: String? = null,
     val notice: String? = null,
+    /** Short technical details (endpoint, HTTP status, response snippet) for the support sheet. */
+    val errorDetails: String? = null,
     /** Shown once after creating/replacing a recovery code; never persisted on the device. */
     val recoveryCode: String? = null
 )
@@ -68,7 +70,7 @@ internal class ChatController(
         started = true
         startPresenceHeartbeat()
         scope.launch {
-            _state.update { it.copy(busy = true, error = null, notice = null) }
+            _state.update { it.copy(busy = true, error = null, errorDetails = null, notice = null) }
             val account = launcherAccount
             if (account == null) {
                 _state.update { it.copy(busy = false) }
@@ -79,51 +81,102 @@ internal class ChatController(
             var activeProfile = _state.value.profile
             try {
                 val identity = ChatLauncherIdentity.from(account)
-                val saved = sessionStore.load()
-                val session = if (saved == null) {
-                    repository.createLauncherSession(identity)
-                } else {
-                    try {
-                        repository.ensureFreshSession(saved)
-                    } catch (refreshError: Exception) {
-                        if (saved.launcherAccountId == identity.localAccountId) {
-                            repository.createLauncherSession(identity)
-                        } else {
-                            throw refreshError
-                        }
-                    }
-                }
+                val session = connectSession(identity, forceFresh = false)
                 activeSession = session
                 sessionStore.save(session)
                 runCatching { repository.touchChatPresence(session) }
-                val profile = repository.getOwnProfile(session) ?: activeProfile
+
+                val profile = try {
+                    repository.getOwnProfile(session)
+                } catch (profileError: ChatApiException) {
+                    // A session can outlive the auth user it belongs to (DB reset, account
+                    // switch, revoked token). Start over instead of dead-ending the screen.
+                    if (!profileError.isRecoverableAuthError()) throw profileError
+                    val fresh = connectSession(identity, forceFresh = true)
+                    activeSession = fresh
+                    sessionStore.save(fresh)
+                    repository.getOwnProfile(fresh)
+                } ?: activeProfile
+
                 activeProfile = profile
                 if (profile == null) {
                     _state.update {
                         it.copy(
                             busy = false,
-                            session = session,
+                            session = activeSession,
                             needsProfile = true,
                             suggestedUsername = identity.suggestedUsername,
-                            error = null
+                            error = null,
+                            errorDetails = null
                         )
                     }
-                    scheduleSessionRefresh(session)
+                    scheduleSessionRefresh(activeSession)
                 } else {
-                    _state.update { it.copy(suggestedUsername = identity.suggestedUsername) }
-                    loadDashboard(session, profile, preferredFriendId = null)
+                    _state.update {
+                        it.copy(session = activeSession, suggestedUsername = identity.suggestedUsername)
+                    }
+                    loadDashboard(activeSession, profile, preferredFriendId = null)
                 }
             } catch (error: Exception) {
+                val details = error.buildDiagnostics()
                 _state.update { current ->
                     current.copy(
                         busy = false,
                         session = activeSession ?: current.session,
                         profile = activeProfile ?: current.profile,
                         needsProfile = if (activeProfile != null) false else current.needsProfile,
-                        error = error.message ?: "Could not connect this launcher account to chat. Try again."
+                        error = error.readableMessage("Could not connect this launcher account to Social. Try Reconnect."),
+                        errorDetails = details
                     )
                 }
             }
+        }
+    }
+
+    /** Creates a chat session for this launcher account, optionally ignoring the cached one. */
+    private suspend fun connectSession(identity: ChatLauncherIdentity, forceFresh: Boolean): ChatAuthSession {
+        if (forceFresh) sessionStore.clear()
+        val saved = if (forceFresh) null else sessionStore.load()
+        return if (saved == null) {
+            repository.createLauncherSession(identity)
+        } else {
+            try {
+                repository.ensureFreshSession(saved)
+            } catch (refreshError: Exception) {
+                if (saved.launcherAccountId == identity.localAccountId) {
+                    sessionStore.clear()
+                    repository.createLauncherSession(identity)
+                } else {
+                    throw refreshError
+                }
+            }
+        }
+    }
+
+    /**
+     * Drops the cached chat session and reconnects from scratch. Used by the "Reconnect"
+     * action when a stale session is the reason the screen is stuck.
+     */
+    fun reconnect() {
+        if (_state.value.busy) return
+        scope.launch {
+            _state.update { it.copy(busy = true, error = null, errorDetails = null, notice = null) }
+            realtime?.close()
+            realtime = null
+            sessionStore.clear()
+            _state.update { it.copy(session = null, profile = null, needsProfile = false, messages = emptyList()) }
+            started = false
+            start()
+        }
+    }
+
+    /** Fills [ChatUiState.errorDetails] with what the server actually said, for support. */
+    fun loadDiagnostics() {
+        val session = _state.value.session ?: return
+        scope.launch {
+            val report = runCatching { repository.selfCheck(session) }
+                .getOrElse { error -> "self_check failed: ${error.readableMessage("unknown error")}" }
+            _state.update { it.copy(errorDetails = report) }
         }
     }
 
@@ -161,22 +214,42 @@ internal class ChatController(
         performBusyAction {
             val session = currentSession()
             val displayName = launcherAccount?.username?.takeIf(String::isNotBlank) ?: normalizedUsername
-            val profile = repository.createProfile(session, normalizedUsername, displayName)
-            loadDashboard(session, profile, preferredFriendId = null)
+            val profile = try {
+                repository.ensureProfile(session, normalizedUsername, displayName)
+            } catch (rpcError: ChatApiException) {
+                // Older backends without the bootstrap RPC: fall back to a plain insert.
+                if (rpcError.statusCode == 404) {
+                    repository.createProfile(session, normalizedUsername, displayName)
+                } else {
+                    throw rpcError
+                }
+            }
+
+            // The profile now exists; the dashboard is best effort so a friend-list hiccup
+            // can never send the user back to the empty "claim your handle" screen.
+            _state.update { it.copy(profile = profile, needsProfile = false, error = null) }
+            try {
+                loadDashboard(session, profile, preferredFriendId = null)
+            } catch (dashboardError: Exception) {
+                _state.update {
+                    it.copy(error = dashboardError.readableMessage("Your profile is ready, but friends could not load yet."))
+                }
+            }
+
             val recoveryCode = generateRecoveryCode()
             try {
                 repository.setRecoveryCode(session, recoveryCode)
                 _state.update {
                     it.copy(
                         recoveryCode = recoveryCode,
-                        notice = "Save this recovery code somewhere safe. It is needed to restore your chat ID after reinstall."
+                        notice = "Save this recovery code somewhere safe. It is needed to restore your Social profile after reinstall."
                     )
                 }
             } catch (error: Exception) {
                 _state.update {
                     it.copy(
-                        error = error.message ?: "Your profile is ready, but a recovery code could not be saved. Create one from Edit Profile.",
-                        notice = null
+                        notice = null,
+                        errorDetails = error.buildDiagnostics()
                     )
                 }
             }
@@ -658,11 +731,37 @@ internal class ChatController(
         _state.update {
             it.copy(
                 busy = false,
-                error = error.message?.takeIf(String::isNotBlank) ?: "Chat request failed. Please try again.",
+                error = error.readableMessage("Social request failed. Please try again."),
+                errorDetails = error.buildDiagnostics(),
                 notice = null
             )
         }
     }
+
+    private fun Throwable.readableMessage(fallback: String): String =
+        message?.takeIf(String::isNotBlank) ?: fallback
+
+    /** Technical one-liner shown in the support sheet; never includes tokens. */
+    private fun Throwable.buildDiagnostics(): String {
+        val api = this as? ChatApiException
+        val status = api?.statusCode?.takeIf { it > 0 }?.let { "HTTP $it" } ?: javaClass.simpleName
+        val body = api?.responseBody?.takeIf(String::isNotBlank)
+        return buildString {
+            append(status)
+            append(" · ")
+            append(message?.take(200).orEmpty())
+            if (body != null) {
+                append("\n")
+                append(body)
+            }
+        }
+    }
+
+    private fun ChatApiException.isRecoverableAuthError(): Boolean =
+        statusCode == 401 || statusCode == 403 ||
+            message?.contains("session", ignoreCase = true) == true ||
+            message?.contains("sign in", ignoreCase = true) == true ||
+            responseBody.contains("chat_profiles_id_fkey")
 
     private fun normalizeUsername(username: String): String = username.trim().removePrefix("@").lowercase()
 
