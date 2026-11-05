@@ -388,7 +388,8 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     }
 
     public static boolean isSDLTextInputActive(){
-        return SdlImeController.isTextInputActive();
+        // 含启动器代开的通道与 native 真实状态：游戏侧激活回调缺失时仍不能丢字符
+        return SdlImeController.isInputAccepted();
     }
 
     public static void enableSDLEditKeyboard(){
@@ -1455,6 +1456,21 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
      */
     public static boolean showTextInput(int input_type, int x, int y, int w, int h) {
         return SdlImeController.requestShow(SdlImeController.Source.GAME, input_type, x, y, w, h);
+    }
+
+    /**
+     * 启动器自绘输入栏接管输入法时，显式代开 native 文本输入通道
+     * @return 通道当前是否可接收输入
+     */
+    public static boolean acquireLauncherTextInput() {
+        return SdlImeController.acquireLauncherInput();
+    }
+
+    /**
+     * 启动器自绘输入栏退出输入，还原代开的 native 文本输入通道
+     */
+    public static void releaseLauncherTextInput() {
+        SdlImeController.releaseLauncherInput();
     }
 
     /**

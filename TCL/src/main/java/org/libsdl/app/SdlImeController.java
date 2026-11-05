@@ -48,6 +48,9 @@ final class SdlImeController {
     // 游戏侧通道关闭时由启动器显式唤起输入法代开的 native 文本输入通道
     // 参考 Fold Craft Launcher（https://github.com/FCL-Team/FoldCraftLauncher/blob/cacd666292d9646ceb622c39b82123d8671e5b41/FCL/src/main/java/org/libsdl/app/SdlImeController.java）
     private static boolean mForcedByLauncher;
+    // 启动器自绘的输入栏（VMActivity 的 HidableInputLayout）正在接管输入
+    // 此时游戏侧唤起输入法的请求不应抢占输入法焦点，否则两边 EditText 互相抢焦点，谁都收不到字符
+    private static boolean mLauncherInputMode;
 
     private SdlImeController() {
     }
@@ -58,7 +61,50 @@ final class SdlImeController {
 
     /** 文本输入通道是否可接收输入（含启动器代开的通道） */
     static boolean isInputAccepted() {
-        return mTextInputActive || mForcedByLauncher;
+        if (mTextInputActive || mForcedByLauncher) {
+            return true;
+        }
+        // 游戏侧激活标记依赖 SDL 回调 showTextInput 镜像回 Java 层，
+        // 该回调受 SDL_ENABLE_SCREEN_KEYBOARD hint 支配而可能缺失，以 native 真实状态兜底
+        return SdlBridge.getSdlEnabled() && SdlBridge.isNativeTextInputActive();
+    }
+
+    /** 启动器输入栏是否正在接管输入法 */
+    static boolean isLauncherInputMode() {
+        return mLauncherInputMode;
+    }
+
+    /**
+     * 启动器输入栏接管输入：显式代开 native 文本输入通道
+     * 游戏未主动激活文本通道时（如模组自绘输入界面），提交的文本会被 native 层丢弃
+     * @return 通道当前是否可接收输入
+     */
+    static boolean acquireLauncherInput() {
+        mLauncherInputMode = true;
+        Log.i(TAG, "IME: launcher input mode acquired");
+        if (isInputAccepted()) {
+            return true;
+        }
+        if (!SdlBridge.getSdlEnabled() || !SdlBridge.setNativeTextInputActive(true)) {
+            Log.w(TAG, "IME: launcher input mode acquired but native text input unavailable");
+            return false;
+        }
+        mForcedByLauncher = true;
+        Log.i(TAG, "IME: native text input force-activated by launcher input mode");
+        return true;
+    }
+
+    /** 启动器输入栏退出输入：还原代开的 native 文本输入通道 */
+    static void releaseLauncherInput() {
+        if (!mLauncherInputMode && !mForcedByLauncher) {
+            return;
+        }
+        mLauncherInputMode = false;
+        Log.i(TAG, "IME: launcher input mode released");
+        if (mForcedByLauncher) {
+            SdlBridge.setNativeTextInputActive(false);
+            mForcedByLauncher = false;
+        }
     }
 
     static boolean isEditAvailable() {
@@ -84,6 +130,7 @@ final class SdlImeController {
         mTextInputActive = false;
         mKeyboardShown = false;
         mForcedByLauncher = false;
+        mLauncherInputMode = false;
     }
 
     static void requestShow(Source source) {
@@ -141,6 +188,13 @@ final class SdlImeController {
     private static void doShow(Source source, int inputType, int x, int y, int w, int h) {
         if (SDLActivity.mLayout == null) {
             Log.w(TAG, "IME: no layout available, show by " + source + " ignored");
+            return;
+        }
+
+        if (source == Source.GAME && mLauncherInputMode) {
+            // 启动器输入栏正在接管输入法：不落 SDL 隐藏编辑视图，
+            // 否则两个 EditText 抢焦点，字符会被投递到没有游戏焦点的那个
+            Log.i(TAG, "IME: game show request ignored, launcher input mode owns the IME");
             return;
         }
 
@@ -216,6 +270,12 @@ final class SdlImeController {
     }
 
     private static void doHide(Source source) {
+        if (source == Source.GAME && mLauncherInputMode) {
+            // 启动器输入栏接管中：游戏侧关闭文本输入只代表字体框失焦，
+            // 不能连带把启动器正在使用的输入法按回去
+            Log.i(TAG, "IME: game hide request ignored, launcher input mode owns the IME");
+            return;
+        }
         if (mForcedByLauncher && source != Source.GAME) {
             // 还原启动器代开的 native 通道（游戏自行关闭时已无需重复操作）
             SdlBridge.setNativeTextInputActive(false);

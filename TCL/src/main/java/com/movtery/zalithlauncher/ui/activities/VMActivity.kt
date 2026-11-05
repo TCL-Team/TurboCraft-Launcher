@@ -122,6 +122,7 @@ import com.movtery.zalithlauncher.game.version.installed.PlayTimeRepository
 import com.movtery.zalithlauncher.game.recorder.GameSurfaceRegistry
 import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.sdl.SdlBridge
+import com.movtery.zalithlauncher.game.sdl.SdlTextSender
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.setting.enums.ResolutionRule
@@ -324,7 +325,34 @@ class VMViewModel : ViewModel() {
     /**
      * 当前输入法开启状态
      */
-    var textInputMode by mutableStateOf(TextInputMode.DISABLE)
+    private var _textInputMode by mutableStateOf(TextInputMode.DISABLE)
+    var textInputMode: TextInputMode
+        get() = _textInputMode
+        set(value) {
+            val previous = _textInputMode
+            _textInputMode = value
+            if (previous == value) return
+            onTextInputModeChanged(value)
+        }
+
+    /**
+     * 游戏输入（含文本）是否需要经 SDL 通道提交
+     */
+    private val sdlInputRouting: Boolean
+        get() = SdlBridge.isTextInputRoutedToSdl()
+
+    /**
+     * 输入栏开关时同步 SDL 文本输入通道
+     * SDL 渲染路径（MC 26.3+）的游戏不再走 GLFW 字符回调，
+     * 启动器输入栏接管前必须代开 native 文本通道，否则键入的字符会被静默丢弃
+     */
+    private fun onTextInputModeChanged(mode: TextInputMode) {
+        if (mode == TextInputMode.ENABLE) {
+            if (sdlInputRouting) SdlTextSender.acquireTextInput()
+        } else {
+            SdlTextSender.releaseTextInput()
+        }
+    }
 
     val inputMagnifierState = InputMagnifierState()
 
@@ -338,7 +366,19 @@ class VMViewModel : ViewModel() {
      */
     private fun String.sendText() {
         forEach { char ->
-            sender.sendChar(char)
+            sendChar(char)
+        }
+    }
+
+    /**
+     * 发送单个字符
+     * SDL 渲染路径只接受 SDL 文本输入事件，经 GLFW 桥提交的字符不会进入游戏
+     */
+    fun sendChar(character: Char) {
+        if (sdlInputRouting) {
+            SdlTextSender.sendChar(character)
+        } else {
+            sender.sendChar(character)
         }
     }
 
@@ -347,11 +387,19 @@ class VMViewModel : ViewModel() {
     }
 
     fun sendBackspace() {
-        sender.sendBackspace()
+        if (sdlInputRouting) {
+            SdlTextSender.sendBackspace()
+        } else {
+            sender.sendBackspace()
+        }
     }
 
     fun sendEnder() {
-        sender.sendEnter()
+        if (sdlInputRouting) {
+            SdlTextSender.sendEnter()
+        } else {
+            sender.sendEnter()
+        }
     }
 
     /**
@@ -374,7 +422,7 @@ class VMViewModel : ViewModel() {
                 val isSoftKeyboard = (keyEvent.flags and KeyEvent.FLAG_SOFT_KEYBOARD) != 0
                 val isTextInput = SDLActivity.isTextInputEvent(keyEvent)
                 when {
-                    shouldConsumeSdlTextInput(keyEvent) -> sender.sendChar(keyEvent.unicodeChar.toChar())
+                    shouldConsumeSdlTextInput(keyEvent) -> sendChar(keyEvent.unicodeChar.toChar())
                     !isSoftKeyboard && !isTextInput -> sender.sendOther(keyEvent)
                 }
             }
@@ -748,6 +796,8 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
     }
 
     override fun onDestroy() {
+        // 退出前还原启动器代开的 SDL 文本输入通道
+        SdlTextSender.releaseTextInput()
         GameRecorder.stopAndSave(applicationContext)
         GameSurfaceRegistry.unregister()
         getSystemService(DisplayManager::class.java)?.unregisterDisplayListener(displayListener)

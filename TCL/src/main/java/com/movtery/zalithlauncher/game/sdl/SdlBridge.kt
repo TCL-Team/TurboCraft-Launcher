@@ -171,6 +171,16 @@ object SdlBridge {
     external fun isSdlRenderActive(): Boolean
 
     /**
+     * 游戏输入（含文本）当前是否必须经 SDL 通道提交
+     * 仅手柄子系统初始化 SDL 时游戏输入仍走 GLFW 桥，不能当作 SDL 渲染路径
+     */
+    @JvmStatic
+    fun isTextInputRoutedToSdl(): Boolean {
+        if (!sdlEnabled) return false
+        return runCatching { isSdlRenderActive() }.getOrDefault(false)
+    }
+
+    /**
      * 激活/关闭 native 侧 SDL 文本输入通道
      * 游戏侧通道被模组（自绘输入界面）关闭时，启动器显式唤起输入法需代为激活，
      * 否则输入法提交的文本会在 native 层被丢弃

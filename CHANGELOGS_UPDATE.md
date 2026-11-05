@@ -1,3 +1,26 @@
+## TurboCraft Launcher V1.6 (pre-release)
+
+### In-game typing works again (server address, chat, signs, anvil…)
+
+- **Why nothing appeared.** On the SDL render path (MC 26.3+) Minecraft no longer receives
+  characters through the old GLFW callback, it only reads `SDL_EVENT_TEXT_INPUT`. The launcher's
+  own on-screen keyboard was still sending every typed character down the GLFW path, and the SDL
+  path was gated on a Java-side flag the game often never sets — so the keyboard opened, keys
+  registered, and the text field stayed empty.
+- Typing now goes through the SDL text channel when the game is running on the SDL window. Before
+  the input bar takes over, the launcher explicitly opens the native text-input channel, so the
+  characters cannot be dropped, and it restores it when you close the keyboard.
+- Backspace and Enter follow the same route, so editing works too.
+- Two hidden input views fighting over the IME (the launcher's and SDL's) is now prevented: while
+  the launcher keyboard is open it owns the input method, and the game's own show/hide requests no
+  longer steal it or slam it shut.
+- The invisible 30-space padding inside the input field no longer leaks into the game text when an
+  IME rewrites the field.
+
+### Note when testing
+
+Settings → About shows the app version; this build reports **1.6 (versionCode 9)**.
+
 ## TurboCraft Launcher V1.5 (pre-release)
 
 ### Social: profile creation actually works now
