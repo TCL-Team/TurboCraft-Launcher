@@ -82,7 +82,19 @@ normal users:
 
 * `preview` — rolling pre-release rebuilt on every push to `main` / feature branches
   (arm64 APK, install this one to test new work);
-* `vX.Y` tags — versioned pre-releases with all ABIs.
+* `vX.Y` tags — versioned pre-releases with all ABIs. In each one:
+
+  | File | Use it for |
+  | --- | --- |
+  | `TurboCraft-Launcher-<version>-universal.apk` | any device, picks the right architecture itself |
+  | `TurboCraft-Launcher-<version>-arm64-v8a.apk` | almost every modern phone |
+  | `TurboCraft-Launcher-<version>-armeabi-v7a.apk` | old 32-bit ARM devices |
+  | `TurboCraft-Launcher-<version>-x86.apk` / `-x86_64.apk` | emulators and x86 tablets / Chromebooks |
+  | `SHA256SUMS.txt` | verify a download |
+
+  Publishing all of them is automated: **Actions → Release APKs → Run workflow**, with the tag
+  (for example `v1.6`) and whether it is a pre-release. The version comes from
+  `TCL/gradle.properties`, so bump `launcher_version_name` / `launcher_version_code` first.
 
 Report anything that breaks in the issue tracker, and include the copyable
 **Social → Connection details** text if a chat/party problem appears.
