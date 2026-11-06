@@ -8,6 +8,10 @@ name: Release APKs (every architecture)
 # and keep the English notes for that version in docs/release-notes-v<version>.md.
 on:
   workflow_dispatch:
+  # Publishing a version = pushing its tag (v1.6, v1.7, …).
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
