@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,6 +33,14 @@ object SdlTextSender {
     }
 
     @JvmStatic
+    fun sendBackspace() {
+        if (!SdlBridge.sdlEnabled) return
+        // 游戏在一个文本框中处理 SDL 的退格按键事件，无需走文本通道
+        SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_DEL)
+        SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_DEL)
+    }
+
+    @JvmStatic
     fun sendEnter() {
         if (!SdlBridge.sdlEnabled) return
         SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_ENTER)
@@ -46,6 +54,25 @@ object SdlTextSender {
         if (keyCode == KeyEvent.KEYCODE_UNKNOWN) return
         SDLActivity.onNativeKeyDown(keyCode)
         SDLActivity.onNativeKeyUp(keyCode)
+    }
+
+    /**
+     * 启动器自绘输入栏开始接管输入时调用：显式代开 native 文本输入通道，
+     * 保证后续 sendChar 提交的文本不会在 native 层被丢弃
+     */
+    @JvmStatic
+    fun acquireTextInput(): Boolean {
+        if (!SdlBridge.sdlEnabled) return false
+        return runCatching { SDLActivity.acquireLauncherTextInput() }.getOrDefault(false)
+    }
+
+    /**
+     * 启动器自绘输入栏退出输入时调用：还原代开的 native 文本输入通道
+     */
+    @JvmStatic
+    fun releaseTextInput() {
+        if (!SdlBridge.sdlEnabled) return
+        runCatching { SDLActivity.releaseLauncherTextInput() }
     }
 
     /**

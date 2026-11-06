@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   Build:
+    # Preview builds have their own workflow (preview-apk.yml); don't rebuild all ABIs for them.
+    if: ${{ !startsWith(github.event.release.tag_name, 'preview') && !startsWith(github.event.release.tag_name, 'desktop-') }}
     uses: ./.github/workflows/build.yml
     with:
       variant: Release
@@ -18,6 +20,7 @@ jobs:
       STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
       OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
       CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+      DISCORD_APP_ID: ${{ secrets.DISCORD_APP_ID }}
 
   Upload-to-Release:
     needs: Build
@@ -61,4 +64,4 @@ jobs:
           files: |
             ./apks/*.apk
             ./mappings/*.zip
-          fail_on_unmatched_files: true
+          fail_on_unmatched_files: false

@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -58,8 +58,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -80,7 +80,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.ui.NavDisplay
 import com.movtery.zalithlauncher.BuildKeys
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.chat.ChatForegroundController
@@ -98,11 +97,13 @@ import com.movtery.zalithlauncher.ui.components.CardTitleLayout
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.TextRailItem
 import com.movtery.zalithlauncher.ui.screens.BackStackNavKey
+import com.movtery.zalithlauncher.ui.screens.NavStateHost
+import com.movtery.zalithlauncher.ui.screens.NestedNavDisplay
 import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
 import com.movtery.zalithlauncher.ui.screens.TitledNavKey
 import com.movtery.zalithlauncher.ui.screens.content.AccountManageScreen
-import com.movtery.zalithlauncher.ui.screens.content.CommunityChatScreen
+import com.movtery.zalithlauncher.ui.screens.content.SocialHubScreen
 import com.movtery.zalithlauncher.ui.screens.content.elements.SocialDialog
 import com.movtery.zalithlauncher.ui.screens.content.DownloadScreen
 import com.movtery.zalithlauncher.ui.screens.content.FileSelectorScreen
@@ -118,6 +119,7 @@ import com.movtery.zalithlauncher.ui.screens.content.MultiplayerScreen
 import com.movtery.zalithlauncher.ui.screens.content.SettingsScreen
 import com.movtery.zalithlauncher.ui.screens.content.VersionExportScreen
 import com.movtery.zalithlauncher.ui.screens.content.VersionSettingsScreen
+import com.movtery.zalithlauncher.ui.guide.sendStartGuideOnce
 import com.movtery.zalithlauncher.ui.screens.content.VersionsManageScreen
 import com.movtery.zalithlauncher.ui.screens.content.WebViewScreen
 import com.movtery.zalithlauncher.ui.screens.content.assetinfo.AssetInfoScreen
@@ -148,15 +150,13 @@ fun MainScreen(
     modpackImportViewModel: ModpackImportViewModel,
     submitError: (ErrorViewModel.ThrowableMessage) -> Unit
 ) {
-    val tasks by TaskSystem.tasksFlow.collectAsStateWithLifecycle()
-
     //监控当前是否有任务正在进行
-    LaunchedEffect(tasks) {
-        if (tasks.isEmpty()) {
-            eventViewModel.sendKeepScreen(false)
-        } else {
-            //有任务正在进行，避免熄屏
-            eventViewModel.sendKeepScreen(true)
+    var taskRunning by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        TaskSystem.tasksFlow.collect { tasks ->
+            val noTasks = tasks.isEmpty()
+            eventViewModel.sendKeepScreen(!noTasks)
+            taskRunning = noTasks
         }
     }
 
@@ -213,7 +213,7 @@ fun MainScreen(
                     .height(40.dp),
                 mainScreenKey = mainScreenKey,
                 inLauncherScreen = inLauncherScreen,
-                taskRunning = tasks.isEmpty(),
+                taskRunning = taskRunning,
                 isTasksExpanded = isTaskMenuExpanded,
                 contentColor = onBackgroundColor(),
                 onScreenBack = {
@@ -264,17 +264,18 @@ fun MainScreen(
                     .fillMaxWidth()
                     .weight(1f)
             ) {
-                NavigationUI(
-                    modifier = Modifier.fillMaxSize(),
-                    screenBackStackModel = screenBackStackModel,
-                    toMainScreen = toMainScreen,
-                    eventViewModel = eventViewModel,
-                    modpackImportViewModel = modpackImportViewModel,
-                    submitError = submitError
-                )
+                NavStateHost(rootKey = screenBackStackModel.mainScreen) {
+                    NavigationUI(
+                        modifier = Modifier.fillMaxSize(),
+                        screenBackStackModel = screenBackStackModel,
+                        toMainScreen = toMainScreen,
+                        eventViewModel = eventViewModel,
+                        modpackImportViewModel = modpackImportViewModel,
+                        submitError = submitError
+                    )
+                }
 
                 TaskMenu(
-                    tasks = tasks,
                     isExpanded = isTaskMenuExpanded,
                     modifier = Modifier
                         .fillMaxHeight()
@@ -514,7 +515,7 @@ private fun <E: TitledNavKey> TopBar(
                 TopBarRailItem(
                     selected = inChatScreen,
                     painter = painterResource(R.drawable.ic_chat_bubble),
-                    text = "Chat",
+                    text = "Social",
                     badgeCount = unreadPeopleCount,
                     onClick = {
                         if (!inChatScreen) toChatScreen()
@@ -524,7 +525,7 @@ private fun <E: TitledNavKey> TopBar(
                 TopBarRailItem(
                     selected = showSocialDialog,
                     painter = painterResource(R.drawable.ic_public),
-                    text = "Social",
+                    text = "Links",
                     onClick = {
                         showSocialDialog = true
                     },
@@ -641,16 +642,16 @@ private fun NavigationUI(
             }
         }
 
-        val provider = remember(
-            screenBackStackModel,
-            toMainScreen,
-            eventViewModel,
-            modpackImportViewModel,
-            submitError,
-            navigateToVersions,
-            navigateToExport
-        ) {
-            entryProvider {
+        NestedNavDisplay(
+            ownerKey = screenBackStackModel.mainScreen,
+            backStack = backStack,
+            modifier = modifier,
+            onBack = {
+                onBack(backStack)
+            },
+            transitionSpec = rememberTransitionSpec(),
+            popTransitionSpec = rememberTransitionSpec(),
+            entryProvider = entryProvider {
                 entry<NormalNavKey.LauncherMain> {
                     LauncherScreen(
                         backStackViewModel = screenBackStackModel,
@@ -674,6 +675,9 @@ private fun NavigationUI(
                         },
                         onNavigateToLog = { logPath ->
                             backStack.navigateTo(NormalNavKey.LogView(logPath))
+                        },
+                        startGuideOnce = { keys ->
+                            eventViewModel.sendStartGuideOnce(keys)
                         }
                     )
                 }
@@ -777,7 +781,7 @@ private fun NavigationUI(
                     )
                 }
                 entry<NormalNavKey.Chat> {
-                    CommunityChatScreen(backStackViewModel = screenBackStackModel)
+                    SocialHubScreen(backStackViewModel = screenBackStackModel)
                 }
                 entry<NormalNavKey.HomePageEditor> {
                     HomePageEditorScreen(
@@ -811,20 +815,9 @@ private fun NavigationUI(
                         backStackViewModel = screenBackStackModel,
                     )
                 }
-
             }
-        }
-
-        NavDisplay(
-            backStack = backStack,
-            modifier = modifier,
-            onBack = {
-                onBack(backStack)
-            },
-            transitionSpec = rememberTransitionSpec(),
-            popTransitionSpec = rememberTransitionSpec(),
-            entryProvider = provider
         )
+
     } else {
         Box(modifier)
     }
@@ -832,11 +825,11 @@ private fun NavigationUI(
 
 @Composable
 private fun TaskMenu(
-    tasks: List<Task>,
     isExpanded: Boolean,
     modifier: Modifier = Modifier,
     changeExpandedState: () -> Unit = {}
 ) {
+    val tasks by TaskSystem.tasksFlow.collectAsStateWithLifecycle()
     val show = isExpanded && tasks.isNotEmpty()
 
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
@@ -898,11 +891,7 @@ private fun TaskMenu(
                         .weight(1f),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    items(
-                        items = tasks,
-                        key = { it.id },
-                        contentType = { "task" }
-                    ) { task ->
+                    items(tasks, key = { it.id }) { task ->
                         val taskProgress by task.progress.collectAsStateWithLifecycle()
                         val taskMessage by task.message.collectAsStateWithLifecycle()
                         val rateBytesPerSec by task.rateBytesPerSec.collectAsStateWithLifecycle()

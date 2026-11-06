@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -169,6 +169,16 @@ object SdlBridge {
      */
     @JvmStatic
     external fun isSdlRenderActive(): Boolean
+
+    /**
+     * 游戏输入（含文本）当前是否必须经 SDL 通道提交
+     * 仅手柄子系统初始化 SDL 时游戏输入仍走 GLFW 桥，不能当作 SDL 渲染路径
+     */
+    @JvmStatic
+    fun isTextInputRoutedToSdl(): Boolean {
+        if (!sdlEnabled) return false
+        return runCatching { isSdlRenderActive() }.getOrDefault(false)
+    }
 
     /**
      * 激活/关闭 native 侧 SDL 文本输入通道

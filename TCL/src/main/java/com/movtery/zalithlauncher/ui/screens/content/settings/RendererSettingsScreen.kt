@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,14 +23,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -59,20 +56,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.movtery.zalithlauncher.R
-import kotlinx.coroutines.Dispatchers
-import kotlin.math.roundToInt
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import com.movtery.zalithlauncher.game.plugin.Plugin
 import com.movtery.zalithlauncher.game.plugin.driver.Driver
 import com.movtery.zalithlauncher.game.plugin.driver.DriverPluginManager
-import com.movtery.zalithlauncher.game.plugin.renderer_v2.RendererV2Data
+import com.movtery.zalithlauncher.game.renderer.ConfigurableRenderer
 import com.movtery.zalithlauncher.game.renderer.RendererInterface
 import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.renderer.renderers.KopperZinkRenderer
@@ -88,6 +79,8 @@ import com.movtery.zalithlauncher.setting.unit.floatRange
 import com.movtery.zalithlauncher.ui.base.BaseScreen
 import com.movtery.zalithlauncher.ui.components.AnimatedColumn
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
+import com.movtery.zalithlauncher.ui.components.TitleAndSummary
+import com.movtery.zalithlauncher.ui.components.animated
 import com.movtery.zalithlauncher.ui.components.verticalScrollWithBar
 import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
@@ -103,6 +96,20 @@ import com.movtery.zalithlauncher.utils.device.checkVulkanSupport
 import com.movtery.zalithlauncher.utils.isAdrenoGPU
 import com.movtery.zalithlauncher.viewmodel.EventViewModel
 import com.movtery.zalithlauncher.viewmodel.sendDLPlugin
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import com.movtery.zalithlauncher.setting.enums.ResolutionRule
+import com.movtery.zalithlauncher.ui.components.IntInputField
+import com.movtery.zalithlauncher.utils.customResolutionRange
+import com.movtery.zalithlauncher.utils.ensureCustomResolutionInitialized
+import com.movtery.zalithlauncher.utils.getRealScreenSize
+import com.movtery.zalithlauncher.utils.animation.getAnimateTween
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import kotlin.math.roundToInt
 
 @Composable
 fun RendererSettingsScreen(
@@ -154,12 +161,12 @@ fun RendererSettingsScreen(
                 .verticalScrollWithBar(state = rememberScrollState())
                 .padding(all = 12.dp),
             isVisible = isVisible
-        ) { scope ->
-            AnimatedItem(scope) { yOffset ->
+        ) {
+            AnimatedItem { ctx ->
                 SettingsCardColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset { IntOffset(x = 0, y = yOffset.roundToPx()) }
+                        .animated(ctx)
                 ) {
                     RunBenchmarkPill(
                         modifier = Modifier
@@ -168,13 +175,15 @@ fun RendererSettingsScreen(
                         onClick = { showBenchmark = true }
                     )
                     val currentRendererId = AllSettings.renderer.state
-                    val v2PluginEnvUnits = remember(currentRendererId) {
+                    val currentRenderer = remember(currentRendererId) {
                         Renderers.getRenderers()
-                            .filterIsInstance<RendererV2Data>()
                             .find { it.getUniqueIdentifier() == currentRendererId }
-                            ?.env?.getConfigurableUnits()?.takeIf { it.isNotEmpty() }
                     }
-                    var showV2ConfigDialog by remember { mutableStateOf(false) }
+                    val configurableRenderer = remember(currentRenderer) {
+                        (currentRenderer as? ConfigurableRenderer)
+                            ?.takeIf { it.configSpec.entries.isNotEmpty() }
+                    }
+                    var showConfigDialog by remember { mutableStateOf(false) }
 
                     ListSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -189,10 +198,9 @@ fun RendererSettingsScreen(
                             RendererSummaryLayout(it)
                         },
                         trailingIcon = {
-                            //选中新一代渲染器插件且存在可配置项时，提供配置入口
-                            if (v2PluginEnvUnits != null) {
+                            if (configurableRenderer != null) {
                                 IconButton(
-                                    onClick = { showV2ConfigDialog = true }
+                                    onClick = { showConfigDialog = true }
                                 ) {
                                     Icon(
                                         painter = painterResource(R.drawable.ic_settings_filled),
@@ -221,13 +229,34 @@ fun RendererSettingsScreen(
                         }
                     )
 
-                    //新一代渲染器插件的环境变量配置对话框
-                    if (showV2ConfigDialog && v2PluginEnvUnits != null) {
-                        RendererV2ConfigDialog(
-                            units = v2PluginEnvUnits,
-                            onDismissRequest = { showV2ConfigDialog = false }
+                    if (showConfigDialog && configurableRenderer != null) {
+                        RendererConfigDialog(
+                            renderer = configurableRenderer,
+                            onDismissRequest = { showConfigDialog = false }
                         )
                     }
+
+                    SwitchSettingsCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        position = CardPosition.Middle,
+                        unit = AllSettings.sfpewPluginLayer,
+                        enabled = currentRenderer is Plugin,
+                        title = stringResource(R.string.settings_renderer_sfpew_plugin_layer_title),
+                        summary = stringResource(R.string.settings_renderer_sfpew_plugin_layer_summary)
+                    )
+
+                    SwitchSettingsCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        position = CardPosition.Middle,
+                        unit = AllSettings.sfpewRelaxedContext,
+                        enabled = currentRenderer?.let { renderer ->
+                            renderer.supportsSfpewByDefault() ||
+                            // 如果是插件，需要看是否给插件启用了这个玩意
+                            (renderer is Plugin && AllSettings.sfpewPluginLayer.state)
+                        } == true,
+                        title = stringResource(R.string.renderer_config_sfpew_relaxed_context_title),
+                        summary = stringResource(R.string.renderer_config_sfpew_relaxed_context_desc)
+                    )
 
                     ListSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -318,17 +347,76 @@ fun RendererSettingsScreen(
                             }
                         }
                     )
+                }
+            }
 
-                    IntSliderSettingsCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        position = CardPosition.Middle,
-                        unit = AllSettings.resolutionRatio,
-                        title = stringResource(R.string.settings_renderer_resolution_scale_title),
-                        summary = stringResource(R.string.settings_renderer_resolution_scale_summary),
-                        valueRange = AllSettings.resolutionRatio.floatRange,
-                        suffix = "%",
-                        fineTuningControl = true
-                    )
+            AnimatedItem { ctx ->
+                SettingsCardColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animated(ctx)
+                ) {
+                    val context = LocalContext.current
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // 分辨率规则
+                        val resolutionRule = AllSettings.resolutionRule.state
+                        ListSettingsCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            position = CardPosition.Top,
+                            unit = AllSettings.resolutionRule,
+                            items = ResolutionRule.entries,
+                            title = stringResource(R.string.settings_renderer_resolution_rule_title),
+                            summary = stringResource(R.string.settings_renderer_resolution_rule_summary),
+                            getItemText = { stringResource(it.nameRes) },
+                            onValueChange = { rule ->
+                                // 自定义分辨率尚未初始化时，以屏幕真实宽高填充
+                                if (rule == ResolutionRule.CUSTOM) {
+                                    ensureCustomResolutionInitialized(context)
+                                }
+                            }
+                        )
+
+                        // 百分比分辨率
+                        AnimatedVisibility(
+                            visible = resolutionRule == ResolutionRule.PERCENTAGE,
+                            enter = fadeIn(animationSpec = getAnimateTween()) +
+                                    expandVertically(animationSpec = getAnimateTween()),
+                            exit = fadeOut(animationSpec = getAnimateTween()) +
+                                    shrinkVertically(animationSpec = getAnimateTween())
+                        ) {
+                            IntSliderSettingsCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                position = CardPosition.Middle,
+                                unit = AllSettings.resolutionRatio,
+                                title = stringResource(R.string.settings_renderer_resolution_scale_title),
+                                summary = stringResource(R.string.settings_renderer_resolution_scale_summary),
+                                valueRange = AllSettings.resolutionRatio.floatRange,
+                                suffix = "%",
+                                fineTuningControl = true
+                            )
+                        }
+
+                        // 自定义分辨率
+                        AnimatedVisibility(
+                            visible = resolutionRule == ResolutionRule.CUSTOM,
+                            enter = fadeIn(animationSpec = getAnimateTween()) +
+                                    expandVertically(animationSpec = getAnimateTween()),
+                            exit = fadeOut(animationSpec = getAnimateTween()) +
+                                    shrinkVertically(animationSpec = getAnimateTween())
+                        ) {
+                            CustomResolutionSettingsCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                position = CardPosition.Middle
+                            )
+                        }
+                    }
 
                     SwitchSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -340,11 +428,11 @@ fun RendererSettingsScreen(
                 }
             }
 
-            AnimatedItem(scope) { yOffset ->
+            AnimatedItem { ctx ->
                 SettingsCardColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset { IntOffset(x = 0, y = yOffset.roundToPx()) }
+                        .animated(ctx)
                 ) {
                     SwitchSettingsCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -502,7 +590,6 @@ fun RendererSettingsScreen(
 }
 
 @Composable
-@OptIn(ExperimentalLayoutApi::class)
 fun RendererSummaryLayout(renderer: RendererInterface) {
     FlowRow(
         modifier = Modifier.alpha(0.7f),
@@ -516,13 +603,20 @@ fun RendererSummaryLayout(renderer: RendererInterface) {
             val minVer = getMinMCVersion()
             val maxVer = getMaxMCVersion()
 
-            if (minVer != null || maxVer != null) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(text = stringResource(R.string.renderer_version_support), style = MaterialTheme.typography.labelSmall)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(text = stringResource(R.string.renderer_version_support), style = MaterialTheme.typography.labelSmall)
 
+                if (minVer == null && maxVer == null) {
+                    Text(
+                        text = stringResource(
+                            if (renderer is Plugin) R.string.generic_unknown else R.string.renderer_version_all
+                        ),
+                        style = MaterialTheme.typography.labelSmall
+                    )
+                } else {
                     minVer?.let {
                         Text(text = ">= $it", style = MaterialTheme.typography.labelSmall)
                     }
@@ -586,6 +680,51 @@ private fun RunBenchmarkPill(
                 style = MaterialTheme.typography.titleSmall,
                 color = colorScheme.onPrimary
             )
+        }
+    }
+}
+
+@Composable
+private fun CustomResolutionSettingsCard(
+    modifier: Modifier = Modifier,
+    position: CardPosition = CardPosition.Middle
+) {
+    val context = LocalContext.current
+    val screenSize = remember(context) { getRealScreenSize(context) }
+
+    SettingsCard(
+        modifier = modifier,
+        position = position
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(all = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            TitleAndSummary(
+                title = stringResource(R.string.settings_renderer_resolution_scale_title),
+                summary = stringResource(R.string.settings_renderer_resolution_custom_summary)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IntInputField(
+                    modifier = Modifier.weight(1f),
+                    value = AllSettings.customResolutionWidth.state,
+                    permitted = customResolutionRange(screenSize.width),
+                    label = stringResource(R.string.settings_renderer_resolution_custom_width),
+                    onValueChange = { AllSettings.customResolutionWidth.save(it) }
+                )
+                IntInputField(
+                    modifier = Modifier.weight(1f),
+                    value = AllSettings.customResolutionHeight.state,
+                    permitted = customResolutionRange(screenSize.height),
+                    label = stringResource(R.string.settings_renderer_resolution_custom_height),
+                    onValueChange = { AllSettings.customResolutionHeight.save(it) }
+                )
+            }
         }
     }
 }

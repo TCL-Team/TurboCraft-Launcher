@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -50,7 +50,6 @@ import com.movtery.zalithlauncher.utils.logging.Logger
 import com.movtery.zalithlauncher.utils.network.toLocal
 import com.movtery.zalithlauncher.viewmodel.ErrorViewModel
 import io.ktor.client.plugins.HttpRequestTimeoutException
-import io.ktor.client.plugins.ResponseException as KtorResponseException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -64,6 +63,7 @@ import java.util.Locale
 import java.util.Objects
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
+import io.ktor.client.plugins.ResponseException as KtorResponseException
 
 private const val TAG = "AccountUtils"
 
@@ -108,7 +108,9 @@ fun isMicrosoftLogging() = TaskSystem.containsTask(MICROSOFT_LOGGING_TASK)
 
 fun microsoftLogin(
     context: Context,
+    useSystemBrowser: Boolean,
     toWeb: (url: String) -> Unit,
+    toSystemBrowser: (url: String) -> Unit,
     backToMain: () -> Unit,
     checkIfInWebScreen: () -> Boolean,
     updateOperation: (MicrosoftLoginOperation) -> Unit,
@@ -130,23 +132,34 @@ fun microsoftLogin(
                 androidText(R.string.account_microsoft_coped_device_code, deviceCode.userCode),
                 Toast.LENGTH_SHORT
             )
-            toWeb(deviceCode.verificationUrl)
+            if (useSystemBrowser) {
+                toSystemBrowser(deviceCode.verificationUrl)
+            } else {
+                toWeb(deviceCode.verificationUrl)
+            }
             task.updateProgress(-1f)
             task.updateMessage(androidText(R.string.account_microsoft_get_token, deviceCode.userCode))
             val tokenResponse = getTokenResponse(deviceCode, coroutineContext) { time ->
-                (!checkIfInWebScreen()).also { exit ->
-                    if (exit && time > 0) {
-                        //如果已退出网页，则视为用户想要退出登录
-                        //弹出提示
-                        Logger.debug(TAG, "User left the web page during device code polling")
-                        showToast(
-                            androidText(R.string.account_microsoft_exit_by_user),
-                            Toast.LENGTH_LONG
-                        )
+                if (useSystemBrowser) {
+                    //验证在系统浏览器中进行
+                    false
+                } else {
+                    (!checkIfInWebScreen()).also { exit ->
+                        if (exit && time > 0) {
+                            //如果已退出网页，则视为用户想要退出登录
+                            //弹出提示
+                            Logger.debug(TAG, "User left the web page during device code polling")
+                            showToast(
+                                androidText(R.string.account_microsoft_exit_by_user),
+                                Toast.LENGTH_LONG
+                            )
+                        }
                     }
                 }
             }
-            backToMain()
+            if (!useSystemBrowser) {
+                backToMain()
+            }
             val account = microsoftAuth(
                 AuthType.Access,
                 tokenResponse.refreshToken,

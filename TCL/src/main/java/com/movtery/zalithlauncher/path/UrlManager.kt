@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ package com.movtery.zalithlauncher.path
 import com.movtery.zalithlauncher.BuildConfig
 import com.movtery.zalithlauncher.BuildKeys
 import com.movtery.zalithlauncher.utils.network.ResilientDns
+import com.movtery.zalithlauncher.utils.network.TLSSecurity
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
@@ -40,7 +41,7 @@ import okhttp3.RequestBody
 import java.util.concurrent.TimeUnit
 
 val URL_USER_AGENT: String = "${BuildKeys.LAUNCHER_SHORT_NAME}/Android_${BuildConfig.VERSION_NAME}"
-val TIME_OUT = TimeUnit.SECONDS.toMillis(30L)
+val TIME_OUT = TimeUnit.SECONDS.toMillis(10L)
 
 const val HOST_CURSEFORGE_API = "api.curseforge.com"
 const val CURSEFORGE_CDN_SUFFIX = "forgecdn.net"
@@ -55,9 +56,9 @@ val URL_ORIGINAL_PROJECT: String = "https://discord.gg/bwkpJZB6NS"
 const val URL_ORIGINAL_PROJECT_INFO: String = "https://api.github.com/repos/TCL-Team/TurboCraft-Launcher/contents/v2"
 const val URL_PROJECT_RELEASES_LATEST: String = "https://api.github.com/repos/TCL-Team/TurboCraft-Launcher/releases/latest"
 const val URL_TCL: String = "https://github.com/TCL-Team"
-const val URL_PLAYER_NOTICE: String = "https://raw.githubusercontent.com/ZalithLauncher/Zalith-Info/main/launcher_notice.json"
-const val URL_COMMUNITY: String = "https://github.com/Star1xr/ZalithLauncher2Plus/graphs/contributors"
-const val URL_WEBLATE: String = "https://hosted.weblate.org/projects/zalithlauncher2"
+const val URL_PLAYER_NOTICE: String = "https://raw.githubusercontent.com/TCL-Team/TurboCraft-Launcher/main/notice.json"
+const val URL_COMMUNITY: String = "https://github.com/TCL-Team/TurboCraft-Launcher/graphs/contributors"
+const val URL_WEBLATE: String = "https://github.com/TCL-Team/TurboCraft-Launcher"
 const val URL_SUPPORT: String = "https://discord.gg/bwkpJZB6NS"
 const val URL_YOUTUBE: String = "https://youtube.com/@TurboCraft_Launcher"
 const val URL_EASYTIER: String = "https://easytier.cn/"
@@ -119,6 +120,17 @@ val GLOBAL_JSON = Json {
     coerceInputValues = true
 }
 
+/**
+ * Coil 图片加载使用的 Ktor 客户端
+ */
+val IMAGE_LOADER_CLIENT: HttpClient by lazy {
+    HttpClient(OkHttp) {
+        engine {
+            preconfigured = createOkHttpClientBuilder().build()
+        }
+    }
+}
+
 val GLOBAL_CLIENT = HttpClient(OkHttp) {
     install(HttpTimeout) {
         requestTimeoutMillis = TIME_OUT
@@ -162,6 +174,7 @@ fun createRequestBuilder(url: String, body: RequestBody?): Request.Builder {
 fun createOkHttpClientBuilder(action: (OkHttpClient.Builder) -> Unit = { }): OkHttpClient.Builder {
     return OkHttpClient.Builder()
         .dns(ResilientDns) //系统 DNS 解析失败时，自动回退到 DoH 解析
+        .sslSocketFactory(TLSSecurity.sslSocketFactory, TLSSecurity.trustManager)
         .protocols(listOf(Protocol.HTTP_1_1))
         .callTimeout(TIME_OUT, TimeUnit.MILLISECONDS)
         .addInterceptor(CURSEFORGE_INTERCEPTOR)
@@ -188,6 +201,7 @@ private fun buildDownloadClient(
 ): OkHttpClient {
     return OkHttpClient.Builder()
         .dns(ResilientDns) //系统 DNS 解析失败时，自动回退到 DoH 解析
+        .sslSocketFactory(TLSSecurity.sslSocketFactory, TLSSecurity.trustManager)
         .apply { allowedProtocols?.let { protocols(it) } } //不指定时默认协商 h2：单条多路复用连接承载海量小请求
         .connectionPool(ConnectionPool(64, 5, TimeUnit.MINUTES))
         .connectTimeout(15, TimeUnit.SECONDS)

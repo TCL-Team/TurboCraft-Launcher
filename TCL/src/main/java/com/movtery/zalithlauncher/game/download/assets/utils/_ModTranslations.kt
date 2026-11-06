@@ -92,3 +92,8 @@ suspend fun String.searchMcMods(
     if (!this.containsChinese()) return null
     return classes.getTranslations().searchMod(this)
 }
+/**
+ * 兼容旧 API：根据 CurseForge 项目 slug 获取 mcmod 翻译信息
+ */
+fun ModTranslations.getInfoByCurseForgeId(id: String?): ModTranslations.McMod? =
+    getModBySlugId(id)

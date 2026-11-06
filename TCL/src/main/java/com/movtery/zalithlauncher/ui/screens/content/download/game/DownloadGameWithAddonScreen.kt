@@ -93,6 +93,7 @@ import com.movtery.zalithlauncher.utils.animation.getAnimateTween
 import com.movtery.zalithlauncher.utils.animation.swapAnimateDpAsState
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import com.movtery.zalithlauncher.ui.components.offsetDp
 
 private class AddonsViewModel(
     private val gameVersion: String,
@@ -319,10 +320,11 @@ fun DownloadGameWithAddonScreen(
                     .padding(horizontal = 12.dp)
                     .verticalScrollWithBar(state = rememberScrollState()),
                 isVisible = isVisible
-            ) { scope ->
+            ) {
                 Spacer(Modifier)
 
-                AnimatedItem(scope) { yOffset ->
+                AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                     OptiFineList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
@@ -331,7 +333,8 @@ fun DownloadGameWithAddonScreen(
                     ) { viewModel.reloadOptiFine() }
                 }
 
-                AnimatedItem(scope) { yOffset ->
+                AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                     ForgeList(
                         modifier = Modifier.offset { IntOffset(x = 0, y = yOffset.roundToPx()) },
                         currentAddon = viewModel.currentAddon,
@@ -341,7 +344,8 @@ fun DownloadGameWithAddonScreen(
                 }
 
                 if (loaderSupports.isNeoForgeSupports) {
-                    AnimatedItem(scope) { yOffset ->
+                    AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                         NeoForgeList(
                             modifier = Modifier.offset {
                                 IntOffset(
@@ -357,7 +361,8 @@ fun DownloadGameWithAddonScreen(
                 }
 
                 if (loaderSupports.isCleanroomSupports) {
-                    AnimatedItem(scope) { yOffset ->
+                    AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                         CleanroomList(
                             modifier = Modifier.offset {
                                 IntOffset(
@@ -373,7 +378,8 @@ fun DownloadGameWithAddonScreen(
                 }
 
                 if (loaderSupports.isFabricSupports) {
-                    AnimatedItem(scope) { yOffset ->
+                    AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -415,7 +421,8 @@ fun DownloadGameWithAddonScreen(
                         }
                     }
 
-                    AnimatedItem(scope) { yOffset ->
+                    AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                         FabricAPIList(
                             modifier = Modifier.offset {
                                 IntOffset(
@@ -431,7 +438,8 @@ fun DownloadGameWithAddonScreen(
                 }
 
                 if (loaderSupports.isLegacyFabricSupports) {
-                    AnimatedItem(scope) { yOffset ->
+                    AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -473,7 +481,8 @@ fun DownloadGameWithAddonScreen(
                         }
                     }
 
-                    AnimatedItem(scope) { yOffset ->
+                    AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                         LegacyFabricAPIList(
                             modifier = Modifier.offset {
                                 IntOffset(
@@ -489,7 +498,8 @@ fun DownloadGameWithAddonScreen(
                 }
 
                 if (loaderSupports.isQuiltSupports) {
-                    AnimatedItem(scope) { yOffset ->
+                    AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -531,7 +541,8 @@ fun DownloadGameWithAddonScreen(
                         }
                     }
 
-                    AnimatedItem(scope) { yOffset ->
+                    AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                         QuiltAPIList(
                             modifier = Modifier.offset {
                                 IntOffset(
@@ -547,7 +558,8 @@ fun DownloadGameWithAddonScreen(
                 }
 
                 if (loaderSupports.isBabricSupports) {
-                    AnimatedItem(scope) { yOffset ->
+                    AnimatedItem { ctx ->
+                                    val yOffset = ctx.offsetDp
                         BabricList(
                             modifier = Modifier.offset {
                                 IntOffset(

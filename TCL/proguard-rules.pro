@@ -74,3 +74,11 @@
 # their factory interfaces do not extend Dependent, so retain those classes separately.
 -keep class * implements com.vladsch.flexmark.html.renderer.NodeRendererFactory { *; }
 -keep class * implements com.vladsch.flexmark.html2md.converter.HtmlNodeRendererFactory { *; }
+
+# Discord Rich Presence: JNI symbols are resolved by their exact Java names, and the SDK
+# reflects on its own classes from native code.
+-keep class com.movtery.zalithlauncher.discord.** { *; }
+-keep class com.discord.socialsdk.** { *; }
+-keepclasseswithmembernames class * {
+    native <methods>;
+}

@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,6 +38,34 @@ object TaskSystem {
 
     private val allJobs = ConcurrentHashMap<String, Job>()
     private val allListeners = ConcurrentHashMap<String, () -> Unit>()
+
+    /**
+     * 由外部任务流（[TaskFlowExecutor]）挂载的任务的取消回调。
+     * 这类任务的生命周期由任务流自己管理，这里只负责在任务栏里展示进度。
+     */
+    private val externalCancellers = ConcurrentHashMap<String, () -> Unit>()
+
+    /**
+     * 把一个外部任务流正在执行的任务挂到任务栏上展示。
+     * 只做登记，不会在这里创建协程。
+     * @param onCancel 用户在任务栏点击取消时的回调，转发给对应任务流
+     */
+    fun attachTask(task: Task, onCancel: (() -> Unit)? = null) {
+        if (onCancel != null) {
+            externalCancellers[task.id] = onCancel
+        }
+        if (!containsTask(task)) {
+            addTask(task)
+        }
+    }
+
+    /**
+     * 外部任务流结束（或切换到下一个任务）时摘掉任务栏里的任务
+     */
+    fun detachTask(id: String) {
+        externalCancellers.remove(id)
+        _tasksFlow.value.find { it.id == id }?.let { removeTask(it) }
+    }
 
     /**
      * 提交并立即运行任务
@@ -124,6 +152,11 @@ object TaskSystem {
      * 取消任务
      */
     fun cancelTask(id: String) {
+        //外部任务流挂载的任务：把取消请求转发给对应的任务流
+        externalCancellers.remove(id)?.let { canceller ->
+            canceller()
+            return
+        }
         allJobs[id]?.cancel()
         _tasksFlow.value.find { it.id == id }?.let { onTaskCanceled(it) }
     }
@@ -146,6 +179,7 @@ object TaskSystem {
         _tasksFlow.update { emptyList() }
         allJobs.clear()
         allListeners.clear()
+        externalCancellers.clear()
         TaskKeepAlive.reset()
     }
 

@@ -64,6 +64,7 @@ import com.movtery.zalithlauncher.utils.platform.getMaxMemoryForSettings
 import com.movtery.zalithlauncher.utils.string.isEmptyOrBlank
 import com.movtery.zalithlauncher.utils.string.isNotEmptyOrBlank
 import com.movtery.zalithlauncher.utils.string.toSingleLine
+import com.movtery.zalithlauncher.ui.components.offsetDp
 
 private const val OPTIONAL_AUTHOR = "requireAuthor"
 private const val OPTION_DESCRIPTION = "requireDescription"
@@ -133,9 +134,10 @@ fun ExportInfoScreen(
             isVisible = isVisible,
             contentPadding = PaddingValues(all = 16.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) { scope ->
+        ) {
             //整合包名称/版本编辑
-            animatedItem(scope) { yOffset ->
+            animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -187,7 +189,8 @@ fun ExportInfoScreen(
             }
 
             if (info.packType.options.requireAuthor) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     TextInputSettingsCard(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -210,7 +213,8 @@ fun ExportInfoScreen(
             }
 
             if (info.packType.options.requireSummary) {
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     TextInputSettingsCard(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -234,7 +238,8 @@ fun ExportInfoScreen(
 
             if (info.packType.options.requireGameArgs) {
                 //游戏参数
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     TextInputSettingsCard(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -254,7 +259,8 @@ fun ExportInfoScreen(
 
             if (info.packType.options.requireJavaArgs) {
                 //Java虚拟机参数
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     TextInputSettingsCard(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -274,7 +280,8 @@ fun ExportInfoScreen(
 
             if (info.packType.options.requireWebsiteUrl) {
                 //整合包官方网站
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     TextInputSettingsCard(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -294,7 +301,8 @@ fun ExportInfoScreen(
 
             if (info.packType.options.requireMinMemory) {
                 //最小内存
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     var memory by remember(info) { mutableIntStateOf(info.minMemory) }
 
                     IntSliderSettingsCard(
@@ -318,7 +326,8 @@ fun ExportInfoScreen(
 
             if (info.packType.options.requireMaxMemory) {
                 //最大内存
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     var memory by remember(info) { mutableIntStateOf(info.maxMemory) }
 
                     IntSliderSettingsCard(
@@ -342,7 +351,8 @@ fun ExportInfoScreen(
 
             if (info.packType.options.requirePackModrinth) {
                 //是否打包 Modrinth 的远程资源
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     SwitchSettingsCard(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -362,7 +372,8 @@ fun ExportInfoScreen(
 
             if (info.packType.options.requirePackCurseForge) {
                 //是否打包 CurseForge 的远程资源
-                animatedItem(scope) { yOffset ->
+                animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                     val enabled = remember(info) {
                         info.packType == PackType.CurseForge ||
                                 (info.packType == PackType.Modrinth && info.packModrinth)
@@ -391,7 +402,8 @@ fun ExportInfoScreen(
             }
 
             //导出按钮
-            animatedItem(scope) { yOffset ->
+            animatedItem { ctx ->
+                                        val yOffset = ctx.offsetDp
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()

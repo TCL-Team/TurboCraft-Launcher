@@ -22,6 +22,10 @@ val launcherUrl = project.findProperty("url_home") as? String ?: error("The \"ur
 val launcherVersionCode = (project.findProperty("launcher_version_code") as? String)?.toIntOrNull() ?: error("The \"launcher_version_code\" property is not set as an integer in gradle.properties.")
 val launcherVersionName = project.findProperty("launcher_version_name") as? String ?: error("The \"launcher_version_name\" property is not set in gradle.properties.")
 
+// Discord Rich Presence application id. Supplied by CI from the DISCORD_APP_ID repository
+// secret (or a local .discord_app_id.txt during development); never hardcoded in the repo.
+// An empty value simply disables the feature.
+val discordAppId = getKeyFromLocal("DISCORD_APP_ID", ".discord_app_id.txt", null)
 val defaultOAuthClientID = project.findProperty("oauth_client_id") as? String
 val defaultStorePassword = project.findProperty("default_store_password") as? String ?: error("The \"default_store_password\" property is not set in gradle.properties.")
 val defaultKeyPassword = project.findProperty("default_key_password") as? String ?: error("The \"default_key_password\" property is not set in gradle.properties.")
@@ -71,6 +75,7 @@ android {
         versionCode = launcherVersionCode
         versionName = launcherVersionName
         manifestPlaceholders["launcher_name"] = launcherAPPName
+        buildConfigField("String", "DISCORD_APP_ID", "\"${discordAppId.trim().replace("\"", "")}\"")
     }
 
     buildTypes {
@@ -89,6 +94,10 @@ android {
             versionNameSuffix = "-debug"
             signingConfig = signingConfigs.getByName("debugBuild")
         }
+    }
+
+    lint {
+        checkReleaseBuilds = false
     }
 
     splits {
@@ -116,7 +125,7 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
-            pickFirsts += listOf("**/libbytehook.so")
+            pickFirsts += listOf("**/libbytehook.so", "**/libmobileglues.so", "**/libSimpleFPEWrapper.so")
         }
     }
 
@@ -182,6 +191,17 @@ androidComponents {
                                 nativesDir.listFiles()?.forEach { dir ->
                                     if (dir.isDirectory && dir.name != abi) {
                                         logger.lifecycle("Removing non-target-arch natives: $dir")
+                                        dir.deleteRecursively()
+                                    }
+                                }
+                            }
+                        }
+                        File(assetsDir, "runtimes/jna").listFiles()?.forEach { versionDir ->
+                            val nativesDir = File(versionDir, "natives")
+                            if (nativesDir.isDirectory) {
+                                nativesDir.listFiles()?.forEach { dir ->
+                                    if (dir.isDirectory && dir.name != abi) {
+                                        logger.lifecycle("Removing non-target-arch JNA natives: $dir")
                                         dir.deleteRecursively()
                                     }
                                 }
@@ -265,9 +285,12 @@ dependencies {
     implementation(project(":Terracotta"))
     implementation(project(":InputMap"))
     implementation(project(":Guide"))
+    implementation(project(":PetLib"))
+    implementation(project(":DiscordRPC"))
     //Utils
     implementation(libs.bytehook)
     implementation(libs.gson)
+    implementation(libs.jetbrains.annotations)
     implementation(libs.commons.io)
     implementation(libs.commons.codec)
     implementation(libs.commons.compress)

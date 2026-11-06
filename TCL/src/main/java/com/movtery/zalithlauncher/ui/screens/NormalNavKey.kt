@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ package com.movtery.zalithlauncher.ui.screens
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.game.download.assets.platform.Platform
 import com.movtery.zalithlauncher.game.download.assets.platform.PlatformClasses
+import com.movtery.zalithlauncher.game.versioninfo.MinecraftVersion
 import com.movtery.zalithlauncher.ui.AndroidStringText
 import com.movtery.zalithlauncher.ui.androidText
 import com.movtery.zalithlauncher.ui.screens.content.FirstLoginMenu
@@ -34,8 +35,6 @@ sealed interface NormalNavKey : TitledNavKey {
     @Contextual override val title: AndroidStringText?
         get() = null
 
-    /** 解压依赖内容屏幕（启动屏幕） */
-    @Serializable data object UnpackDeps: NormalNavKey
     /** 启动器主页屏幕 */
     @Serializable data object LauncherMain : NormalNavKey
     /** 账号管理屏幕 */
@@ -67,9 +66,9 @@ sealed interface NormalNavKey : TitledNavKey {
     @Serializable data object Multiplayer: NormalNavKey {
         @Contextual override val title: AndroidStringText = androidText(R.string.terracotta_terracotta)
     }
-    /** Community chat screen */
+    /** Social hub: friends, direct messages, parties, invites */
     @Serializable data object Chat : NormalNavKey {
-        @Contextual override val title: AndroidStringText = androidText("Chat")
+        @Contextual override val title: AndroidStringText = androidText("Social")
     }
     /** 查看日志屏幕 */
     @Serializable data class LogView(
@@ -177,7 +176,10 @@ sealed interface NormalNavKey : TitledNavKey {
         /** 选择游戏版本屏幕 */
         @Serializable data object SelectGameVersion : Versions
         /** 选择附加内容屏幕 */
-        @Serializable data class Addons(val gameVersion: String) : Versions
+        @Serializable data class Addons(
+            val gameVersion: String,
+            val type: MinecraftVersion.Type = MinecraftVersion.Type.Release
+        ) : Versions
     }
 
     /** 搜索整合包屏幕 */

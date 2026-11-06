@@ -27,6 +27,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -64,6 +65,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -100,7 +102,10 @@ import com.movtery.zalithlauncher.ui.components.BackgroundCard
 import com.movtery.zalithlauncher.ui.components.MarqueeText
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
 import com.movtery.zalithlauncher.ui.components.SimpleEditDialog
-import com.movtery.zalithlauncher.ui.components.PlayerSkin
+import com.movtery.zalithlauncher.ui.components.PetModelView
+import com.movtery.zalithlauncher.game.account.wardrobe.toArmModel
+import com.movtery.petlib.PetAnimation
+import com.movtery.petlib.PetTapReaction
 import com.movtery.zalithlauncher.ui.components.ScalingActionButton
 import com.movtery.zalithlauncher.ui.components.ScalingLabel
 import com.movtery.zalithlauncher.ui.components.SimpleListDialog
@@ -139,6 +144,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.movtery.zalithlauncher.ui.screens.content.elements.MicrosoftLoginMethodDialog
+import com.movtery.zalithlauncher.ui.screens.content.elements.MicrosoftReloginDialog
+import com.movtery.zalithlauncher.ui.screens.content.elements.OtherAccountReloginDialog
+import com.movtery.zalithlauncher.game.account.isMicrosoftAccount
 
 /**
  * 封装账号界面 UI 交互的回调函数
@@ -277,17 +286,24 @@ private fun AccountManageContent(
     val context = LocalContext.current
 
 
-    val accountSkin = remember(currentAccount, refreshWardrobe) {
-        currentAccount?.getSkinFile()?.takeIf { it.exists() }
+    val petArm = currentAccount?.skinModelType?.toArmModel()
+    val skinStamp = currentAccount?.getSkinFile()?.lastModified()
+    val capeStamp = currentAccount?.getSelectedCapeFile()?.lastModified()
+    val petSkin by produceState<ByteArray?>(
+        null, currentAccount, refreshWardrobe, skinStamp, petArm
+    ) {
+        value = withContext(Dispatchers.IO) {
+            currentAccount?.getSkinFile()?.takeIf { it.exists() }
+                ?.inputStream()?.use { it.readBytes() }
+        }
     }
-    val accountCape = remember(currentAccount, refreshWardrobe) {
-        currentAccount?.getSelectedCapeFile()
-    }
-    val playerSkin = remember { PlayerSkin(context) }
-    var pageFinished by remember { mutableStateOf(false) }
-
-    DisposableEffect(Unit) {
-        onDispose { playerSkin.destroy() }
+    val petCape by produceState<ByteArray?>(
+        null, currentAccount, refreshWardrobe, capeStamp
+    ) {
+        value = withContext(Dispatchers.IO) {
+            currentAccount?.getSelectedCapeFile()?.takeIf { it.exists() }
+                ?.inputStream()?.use { it.readBytes() }
+        }
     }
 
     Row(
@@ -310,43 +326,25 @@ private fun AccountManageContent(
                 shape = MaterialTheme.shapes.extraLarge
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // 3D skin preview
+                    // 3D 玩家模型预览（PetLib）
+                    // 用 44:36 的宽高比约束宽度，模型按高度等比缩放，整个人物都能看到
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
                         contentAlignment = Alignment.Center
                     ) {
-                        AndroidView(
-                            modifier = Modifier.fillMaxSize(),
-                            factory = { ctx ->
-                                playerSkin.loadWebView(
-                                    context = ctx,
-                                    onPageFinished = {
-                                        pageFinished = true
-                                        playerSkin.startAnimationCycle()
-                                        playerSkin.setAzimuthAndPitch(-35, 10)
-                                    }
-                                )
-                            },
-                            update = {
-                                if (pageFinished) {
-                                    runCatching {
-                                        accountSkin?.inputStream().use { inputStream ->
-                                            playerSkin.loadSkin(inputStream, currentAccount?.skinModelType)
-                                        }
-                                    }
-                                    runCatching {
-                                        accountCape?.inputStream().use { inputStream ->
-                                            playerSkin.loadCape(inputStream)
-                                        }
-                                    }
-                                }
-                            }
+                        PetModelView(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .aspectRatio(44f / 36f, matchHeightConstraintsFirst = true),
+                            skin = petSkin,
+                            cape = petCape,
+                            arm = petArm,
+                            yaw = Math.toRadians(35.0).toFloat(),
+                            animation = PetAnimation.Idle,
+                            tapReaction = PetTapReaction.Interact
                         )
-                        if (!pageFinished) {
-                            LoadingIndicator()
-                        }
                     }
 
                     HorizontalDivider(modifier = Modifier.alpha(0.2f))
@@ -777,13 +775,53 @@ private fun MicrosoftLoginOperation(
                     )
                     actions.onIntent(
                         AccountManageIntent.PerformMicrosoftLogin(
+                            useSystemBrowser = false,
                             toWeb = actions.navigateToWeb,
+                            toSystemBrowser = actions.openLink,
                             backToMain = actions.backToMainScreen,
                             checkIfInWebScreen = actions.checkIfInWebScreen
                         )
                     )
                 },
                 openLink = actions.openLink
+            )
+        }
+
+        is MicrosoftLoginOperation.SelectBrowser -> {
+            MicrosoftLoginMethodDialog(
+                onDismissRequest = {
+                    actions.onIntent(
+                        AccountManageIntent.UpdateMicrosoftLoginOp(MicrosoftLoginOperation.None)
+                    )
+                },
+                onSystemBrowser = {
+                    actions.onIntent(
+                        AccountManageIntent.UpdateMicrosoftLoginOp(MicrosoftLoginOperation.None)
+                    )
+                    actions.onIntent(
+                        AccountManageIntent.PerformMicrosoftLogin(
+                            useSystemBrowser = true,
+                            toWeb = actions.navigateToWeb,
+                            toSystemBrowser = actions.openLink,
+                            backToMain = actions.backToMainScreen,
+                            checkIfInWebScreen = actions.checkIfInWebScreen
+                        )
+                    )
+                },
+                onInternalBrowser = {
+                    actions.onIntent(
+                        AccountManageIntent.UpdateMicrosoftLoginOp(MicrosoftLoginOperation.None)
+                    )
+                    actions.onIntent(
+                        AccountManageIntent.PerformMicrosoftLogin(
+                            useSystemBrowser = false,
+                            toWeb = actions.navigateToWeb,
+                            toSystemBrowser = actions.openLink,
+                            backToMain = actions.backToMainScreen,
+                            checkIfInWebScreen = actions.checkIfInWebScreen
+                        )
+                    )
+                }
             )
         }
     }
@@ -1124,7 +1162,48 @@ private fun AccountOperation(
             }
         }
 
+        is AccountOperation.OnRelogin -> {
+            if (operation.account.isMicrosoftAccount()) {
+                MicrosoftReloginDialog(
+                    onDismissRequest = {
+                        actions.onIntent(AccountManageIntent.UpdateAccountOp(AccountOperation.None))
+                    },
+                    onConfirm = {
+                        actions.onIntent(AccountManageIntent.UpdateAccountOp(AccountOperation.None))
+                        actions.onIntent(
+                            AccountManageIntent.UpdateMicrosoftLoginOp(
+                                MicrosoftLoginOperation.SelectBrowser
+                            )
+                        )
+                    }
+                )
+            } else {
+                OtherAccountReloginDialog(
+                    account = operation.account,
+                    logging = operation.logging,
+                    error = operation.error,
+                    onDismissRequest = {
+                        actions.onIntent(AccountManageIntent.UpdateAccountOp(AccountOperation.None))
+                    },
+                    onConfirm = { password ->
+                        actions.onIntent(
+                            AccountManageIntent.UpdateAccountOp(
+                                AccountOperation.OnRelogin(operation.account, logging = true)
+                            )
+                        )
+                        actions.onIntent(
+                            AccountManageIntent.ReloginOtherAccount(
+                                account = operation.account,
+                                password = password
+                            )
+                        )
+                    }
+                )
+            }
+        }
+
         is AccountOperation.None -> {}
+
     }
 }
 

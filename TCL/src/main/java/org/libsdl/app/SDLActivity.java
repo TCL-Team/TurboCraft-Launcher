@@ -51,7 +51,9 @@ import androidx.appcompat.app.AlertDialog;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.movtery.zalithlauncher.bridge.ZLNativeInvoker;
 import com.movtery.zalithlauncher.game.sdl.SdlBridge;
+import com.movtery.zalithlauncher.ui.theme.NativeThemeUtilsKt;
 import com.movtery.zalithlauncher.utils.logging.Logger;
 
 import java.io.FileNotFoundException;
@@ -386,7 +388,8 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     }
 
     public static boolean isSDLTextInputActive(){
-        return SdlImeController.isTextInputActive();
+        // 含启动器代开的通道与 native 真实状态：游戏侧激活回调缺失时仍不能丢字符
+        return SdlImeController.isInputAccepted();
     }
 
     public static void enableSDLEditKeyboard(){
@@ -1456,7 +1459,22 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     }
 
     /**
-     * VMActivity 的 TextureView/SurfaceView 的 IME 可见性上报入口
+     * 启动器自绘输入栏接管输入法时，显式代开 native 文本输入通道
+     * @return 通道当前是否可接收输入
+     */
+    public static boolean acquireLauncherTextInput() {
+        return SdlImeController.acquireLauncherInput();
+    }
+
+    /**
+     * 启动器自绘输入栏退出输入，还原代开的 native 文本输入通道
+     */
+    public static void releaseLauncherTextInput() {
+        SdlImeController.releaseLauncherInput();
+    }
+
+    /**
+     * VMActivity 的 TextureView 的 IME 可见性上报入口
      */
     public static void notifyImeVisibilityChanged(boolean visible) {
         SdlImeController.notifyVisibilityChanged(visible);
@@ -1679,7 +1697,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
                     }
                 }
 
-                AlertDialog dialog = builder.create();
+                AlertDialog dialog = NativeThemeUtilsKt.createThemed(builder);
                 dialog.setOnDismissListener(unused -> latch.countDown());
                 for (int i = 3; i < buttonIds.length; ++i) {
                     final int id = buttonIds[i];
@@ -1930,15 +1948,7 @@ public class SDLActivity extends Activity implements View.OnSystemUiVisibilityCh
     public static boolean openURL(String url)
     {
         try {
-            Intent i = new Intent(Intent.ACTION_VIEW);
-            i.setData(Uri.parse(url));
-
-            int flags = Intent.FLAG_ACTIVITY_NO_HISTORY
-                      | Intent.FLAG_ACTIVITY_MULTIPLE_TASK
-                      | Intent.FLAG_ACTIVITY_NEW_DOCUMENT;
-            i.addFlags(flags);
-
-            mSingleton.startActivity(i);
+            ZLNativeInvoker.openLink(url);
         } catch (Exception ex) {
             return false;
         }

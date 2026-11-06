@@ -82,10 +82,6 @@
     <string name="theme_color_picker_title">顏色選擇器</string>
     <string name="theme_color_picker_edit_hex">編輯 Hex</string>
     <string name="theme_color_picker_edit_hex_invalid">無效 Hex</string>
-    <!--  動畫  -->
-    <string name="animate_type_bounce">彈跳</string>
-    <string name="animate_type_jelly_bounce">回彈</string>
-    <string name="animate_type_slice_in">切入</string>
     <!--  崩潰  -->
     <string name="crash_launcher_title">%s 發生嚴重問題而崩潰</string>
     <string name="crash_launcher_message">應用程式意外崩潰，以下錯誤訊息將協助開發者改進程式。</string>
@@ -127,6 +123,15 @@
     <string name="error_service_unavailable">(%s) 伺服器暫時無法處理請求</string>
     <string name="error_gateway_timeout">(%s) 伺服器未能及時收到回應</string>
     <!--  啟動頁面  -->
+    <string name="welcome_screen_subtitle">一起來感受新鮮事物.</string>
+    <string name="welcome_screen_intro_primary">歡迎使用 %1$s，這是一款專為 Android 裝置打造的第三方 Minecraft: Java Edition 啟動器。</string>
+    <string name="welcome_screen_intro_core">採用 PojavLauncher 作為啟動核心，同時為您提供現代化的遊戲啟動與管理體驗！</string>
+    <string name="welcome_screen_agreement_title">使用者協議與隱私政策</string>
+    <string name="welcome_screen_agreement_confirmation">我已閱讀並同意上述文件。</string>
+    <string name="agreement_content_unavailable">協議內容不可用。</string>
+    <string name="agreement_update_title">協議已更新</string>
+    <string name="agreement_update_message">使用者協議或隱私政策已更新，請重新閱讀並同意這兩份文件後再繼續使用。</string>
+    <string name="welcome_screen_start">開始使用</string>
     <string name="splash_screen_unpack_desc">啟動器需要安裝這些內容，才能確保 Minecraft 能夠正常啟動。這些內容已包含在應用程式中，需要解壓縮後才能正常使用，點擊下方按鈕，開始解壓縮並更新這些內容。</string>
     <string name="splash_screen_installing">啟動器正在解壓縮這些內容，解壓縮完成後將自動進入主介面，請耐心等候。</string>
     <string name="splash_screen_agree">同意並安裝</string>
@@ -377,6 +382,8 @@
     <string name="game_menu_option_switch_log">日誌輸出</string>
     <string name="game_menu_option_input_method">切換輸入法</string>
     <string name="game_menu_option_auto_show_ime">自動喚起輸入法（SDL）</string>
+    <string name="game_menu_option_ime_magnifier_auto_show">輸入時預設彈出放大鏡</string>
+    <string name="game_magnifier_show">顯示遊戲放大鏡</string>
     <string name="game_menu_option_switch_fps">幀率顯示</string>
     <string name="game_menu_option_fps_display_mode">幀率顯示模式</string>
     <string name="game_menu_option_fps_display_mode_number">數字</string>
@@ -494,6 +501,9 @@
     <string name="account_supporting_microsoft_tip_hint_t8">提示：若目前網路狀況不佳，可能會導致網頁載入緩慢或無法開啟。請嘗試使用網路代理後重試。</string>
     <string name="account_delete_title">刪除帳號</string>
     <string name="account_delete_message">您確定要將帳號 %s 從啟動器內刪除嗎？</string>
+    <string name="account_microsoft_login_method_summary">新增 Microsoft 帳號需要在瀏覽器中完成登入驗證，請選擇開啟驗證頁面的方式：</string>
+    <string name="account_microsoft_login_method_system_browser">系統瀏覽器（推薦）</string>
+    <string name="account_microsoft_login_method_internal_browser">啟動器內建瀏覽器</string>
     <string name="account_microsoft_fetch_device_code">獲取裝置代碼</string>
     <string name="account_microsoft_coped_device_code">已獲取並自動複製裝置代碼：%s，稍後請在網頁中完成驗證。</string>
     <string name="account_microsoft_get_token">輪詢中，嘗試獲取權杖；裝置代碼：%s</string>
@@ -664,6 +674,8 @@
     <string name="versions_config_isolation_title">版本隔離</string>
     <string name="versions_config_isolation_summary">隔離目前版本，使各版本之間的資料互不干擾</string>
     <string name="versions_config_renderer">渲染器</string>
+    <string name="versions_config_renderer_reset_global">重設為全域</string>
+    <string name="versions_config_renderer_reset_global_message">啟動器將放棄目前版本對於 %s 的設定，重設為使用全域的設定，此操作無法復原</string>
     <string name="versions_config_vulkan_driver">Vulkan 驅動程式</string>
     <string name="versions_config_control">控制佈局</string>
     <string name="versions_config_java_runtime_summary">指定目前版本所使用的 Java 環境</string>
@@ -684,8 +696,6 @@
     <string name="versions_export_type_modrinth">Modrinth 模組包</string>
     <string name="versions_export_type_summary_common">可被常見的第三方啟動器匯入</string>
     <string name="versions_export_type_curseforge">CurseForge 模組包</string>
-    <string name="versions_export_type_multimc">MultiMC 模組包</string>
-    <string name="versions_export_type_multimc_summary">可被 %s、MultiMC 等啟動器匯入</string>
     <string name="versions_export_alias_options">遊戲設定</string>
     <string name="versions_export_alias_resource_packs">資源包目錄</string>
     <string name="versions_export_alias_mods">模組目錄</string>
@@ -704,7 +714,6 @@
     <string name="versions_export_pack_java_args">Java 虛擬機參數</string>
     <string name="versions_export_pack_website">模組包官方網站</string>
     <string name="versions_export_pack_min_memory">最小分配記憶體</string>
-    <string name="versions_export_pack_max_memory">最大分配記憶體</string>
     <string name="versions_export_pack_pack_remote">從 %s 下載關鍵資源</string>
     <string name="versions_export_pack_also_pack_curseforge">一併打包 CurseForge 的遠端資源</string>
     <string name="versions_export_pack_select_files">選擇檔案</string>
@@ -784,6 +793,9 @@
     <string name="saves_manage_no_saves">目前版本尚無存檔</string>
     <string name="saves_manage_import_unpacking">正在解壓存檔：%s</string>
     <string name="saves_manage_import_failed">匯入存檔時遇到問題</string>
+    <string name="saves_manage_compress_share">壓縮存檔並分享</string>
+    <string name="saves_manage_compressing">正在壓縮存檔：%s</string>
+    <string name="saves_manage_export_failed">壓縮存檔時遇到問題</string>
     <!--  遊戲  -->
     <string name="minecraft_download_stat_download_task">統計下載任務</string>
     <string name="minecraft_download_stat_verify_task">統計驗證任務</string>
@@ -806,8 +818,46 @@
     <string name="settings_renderer_global_renderer_title">全域渲染器</string>
     <string name="settings_renderer_global_renderer_summary">全域預設的渲染器，透過動態函式庫轉換層，確保遊戲能在行動裝置上執行</string>
     <string name="settings_renderer_global_vulkan_driver_title">Vulkan 驅動程式</string>
-    <string name="settings_renderer_env_title">環境變數：%s</string>
     <string name="settings_renderer_config_title">渲染器設定</string>
+    <string name="settings_renderer_config_reset_message">要將 %s 的所有設定還原為預設值嗎？</string>
+    <string name="renderer_config_mg_count_launch_title">啟動工作階段統計</string>
+    <string name="renderer_config_mg_count_launch_desc">僅統計經啟動器啟動的遊戲工作階段，基準測試與工具不計入</string>
+    <string name="renderer_config_mg_angle_title">ANGLE 後端</string>
+    <string name="renderer_config_mg_angle_desc">選擇 MobileGlues 使用 ANGLE（GLES on Vulkan）後端的方式</string>
+    <string name="renderer_config_mg_angle_disable_when_possible">可能時停用</string>
+    <string name="renderer_config_mg_angle_enable_when_possible">可能時啟用</string>
+    <string name="renderer_config_mg_angle_force_disable">強制停用</string>
+    <string name="renderer_config_mg_angle_force_enable">強制啟用</string>
+    <string name="renderer_config_mg_noerror_title">GL 錯誤處理</string>
+    <string name="renderer_config_mg_noerror_desc">選擇 MobileGlues 為改善相容性與速度而忽略的 GL 錯誤</string>
+    <string name="renderer_config_mg_noerror_auto">自動</string>
+    <string name="renderer_config_mg_noerror_off">不忽略錯誤</string>
+    <string name="renderer_config_mg_noerror_shader">忽略著色器與程式錯誤</string>
+    <string name="renderer_config_mg_noerror_framebuffer">同時忽略幀緩衝區錯誤</string>
+    <string name="renderer_config_mg_depthfix_title">ANGLE 深度清除修復</string>
+    <string name="renderer_config_mg_depthfix_desc">ANGLE 後端下深度清除異常的修復；若世界渲染穿透可嘗試開啟</string>
+    <string name="renderer_config_mg_glversion_title">回報的 OpenGL 版本</string>
+    <string name="renderer_config_mg_glversion_desc">選擇向遊戲回報的 OpenGL 版本</string>
+    <string name="renderer_config_mg_glversion_automatic">自動</string>
+    <string name="renderer_config_mg_glslcache_title">著色器快取上限</string>
+    <string name="renderer_config_mg_glslcache_desc">著色器轉換快取上限（MiB），清空輸入框可停用快取</string>
+    <string name="renderer_config_mg_ext_timer_title">Timer Query 擴充</string>
+    <string name="renderer_config_mg_ext_timer_desc">公開 timer_query 擴充，部分效能分析類模組需要</string>
+    <string name="renderer_config_mg_ext_compute_title">運算著色器擴充</string>
+    <string name="renderer_config_mg_ext_compute_desc">公開運算著色器擴充，少數模組需要</string>
+    <string name="renderer_config_mg_ext_dsa_title">直接狀態存取擴充</string>
+    <string name="renderer_config_mg_ext_dsa_desc">公開 GL_EXT_direct_state_access 擴充</string>
+    <string name="renderer_config_mg_fsr1_title">FSR1 預設</string>
+    <string name="renderer_config_mg_fsr1_desc">選擇 FSR1 預設，以畫質換取效能</string>
+    <string name="renderer_config_mg_fsr1_ultra_quality">極高品質</string>
+    <string name="renderer_config_mg_fsr1_quality">品質優先</string>
+    <string name="renderer_config_mg_fsr1_balanced">均衡</string>
+    <string name="renderer_config_mg_fsr1_performance">效能優先</string>
+    <string name="settings_renderer_sfpew_plugin_layer_title">SFPEW 相容層（渲染器外掛程式）</string>
+    <string name="settings_renderer_sfpew_plugin_layer_summary">為沒有固定管線能力的外部渲染器外掛程式疊加 SimpleFPEWrapper OpenGL 相容層，用於採用舊式 OpenGL 1.x/2.1 渲染的程式</string>
+    <string name="renderer_version_all">全部版本</string>
+    <string name="renderer_config_sfpew_relaxed_context_title">寬鬆上下文</string>
+    <string name="renderer_config_sfpew_relaxed_context_desc">假定遊戲每個執行緒終生只使用一個 GL 上下文，跳過每次呼叫的上下文檢查，請確認遊戲的執行緒上下文使用方式，若出現渲染錯誤請關閉此項</string>
     <string name="settings_renderer_from_plugins">來自 %s 外掛程式</string>
     <string name="settings_renderer_resolution_scale_title">遊戲視窗解析度</string>
     <string name="settings_renderer_resolution_scale_summary">數值越低效能越高，數值越高畫質越清晰，請依實際需求調整</string>
@@ -830,8 +880,6 @@
     <string name="settings_renderer_zink_driver_adreno">啟動器偵測到您的裝置為 Adreno GPU，開啟此選項可能會導致 Zink 渲染器無法正常運作，您確定要開啟此選項嗎？</string>
     <string name="settings_renderer_vsync_in_zink_title">啟用 Zink 垂直同步</string>
     <string name="settings_renderer_vsync_in_zink_summary">透過系統介面為 Zink 渲染器啟用垂直同步</string>
-    <string name="settings_renderer_surface_title">使用 SurfaceView 渲染</string>
-    <string name="settings_renderer_surface_summary">使用獨立於介面之外的圖層進行渲染</string>
     <string name="settings_game_version_isolation_title">全域版本隔離</string>
     <string name="settings_game_version_isolation_summary">預設隔離所有版本，使版本之間的資料互不干擾</string>
     <string name="settings_game_skip_game_integrity_check_title">不檢查遊戲完整性</string>
@@ -878,6 +926,10 @@
     <string name="settings_control_mouse_control_mode_summary">選擇虛擬滑鼠的操作方式：滑動螢幕移動游標，或點擊螢幕指定位置</string>
     <string name="settings_control_mouse_control_mode_slide">滑動控制</string>
     <string name="settings_control_mouse_control_mode_click">點擊控制</string>
+    <string name="settings_control_mouse_block_touch_title">阻止觸控虛擬滑鼠輸入</string>
+    <string name="settings_control_mouse_block_touch_summary">選擇是否阻止半屏虛擬滑鼠觸控，以避免誤觸操作</string>
+    <string name="settings_control_mouse_block_touch_left">阻止左半屏</string>
+    <string name="settings_control_mouse_block_touch_right">阻止右半屏</string>
     <string name="settings_control_mouse_enable_click_title">觸控板式操作</string>
     <string name="settings_control_mouse_enable_click_summary">點擊螢幕視為滑鼠左鍵，長按視為長按左鍵操作；此設定不會影響實體滑鼠控制或點擊控制</string>
     <string name="settings_control_mouse_pointer_arrow_title">虛擬滑鼠指標（預設）</string>
@@ -982,10 +1034,10 @@
     <string name="settings_launcher_language">語言</string>
     <string name="settings_launcher_full_screen_title">頁面全螢幕化</string>
     <string name="settings_launcher_full_screen_summary">使啟動器的頁面全螢幕化，忽略瀏海螢幕、挖孔螢幕等螢幕的安全區域</string>
-    <string name="settings_launcher_animate_speed_title">動畫倍速</string>
-    <string name="settings_launcher_animate_speed_summary">調整啟動器動畫播放時長的倍速</string>
-    <string name="settings_launcher_swap_animate_type_title">頁面切換動畫</string>
-    <string name="settings_launcher_swap_animate_type_summary">根據您的需求，選擇最適合自己的頁面切換動畫</string>
+    <string name="settings_launcher_animate_speed_title">動畫速度</string>
+    <string name="settings_launcher_animate_speed_summary">調整啟動器動畫的速度倍率</string>
+    <string name="settings_launcher_swap_anim_enabled_title">啟用頁面切換動畫</string>
+    <string name="settings_launcher_swap_anim_enabled_summary">切換頁面時，是否播放過渡動畫</string>
     <!--  關於  -->
     <string name="about_launcher_title">關於啟動器</string>
     <string name="about_launcher_version">啟動器版本：%1$s · 建置編號 %2$d</string>
@@ -993,8 +1045,15 @@
     <string name="about_launcher_author_movtery_text">%s 的作者</string>
     <string name="about_launcher_project_link">專案連結</string>
     <string name="about_sponsor">贊助支持</string>
+    <string name="about_sponsors_title">啟動器贊助者</string>
+    <string name="about_sponsors_summary">感謝所有支持 %s 的贊助者們</string>
+    <string name="sponsors_dialog_title">當月贊助者</string>
+    <string name="sponsors_empty">暫無資料</string>
+    <string name="sponsors_last_month_title">上個月的贊助者</string>
+    <string name="sponsors_last_month_summary">以下為上個月贊助支持 %s 的贊助者，感謝大家的支持！</string>
     <string name="about_acknowledgements_title">鳴謝</string>
     <string name="about_acknowledgements_pojav_text">%s 使用了 PojavLauncher 的啟動後端</string>
+    <string name="about_acknowledgements_modrinth_text">%s 移植了 Modrinth 的玩家模型動畫預設</string>
     <string name="about_acknowledgements_pcl_text">%s 參考了 PCL2 的部分程式碼實作</string>
     <string name="about_acknowledgements_fcl_text">%s 引用了 FCL 的部分程式碼，並參考其部分實作</string>
     <string name="about_acknowledgements_hmcl_text">%s 引用了 HMCL 的部分程式碼，並參考其部分實作</string>
@@ -1078,8 +1137,6 @@
     <string name="home_server_card_version_current">當前選擇版本</string>
     <string name="home_server_card_version_specific">特定遊戲版本</string>
     <string name="home_server_card_refresh_failed">重新整理伺服器資訊失敗</string>
-    <string name="settings_launcher_animate_extent_title">動畫強度</string>
-    <string name="settings_launcher_animate_extent_summary">調整啟動器的動畫強度</string>
     <string name="settings_launcher_log_retention_days_title">日誌保留天數</string>
     <string name="settings_launcher_log_retention_days_summary">設置啟動器的日誌保留天數，超過此天數的日誌將被自動刪除</string>
     <string name="settings_launcher_log_share_title">分享啟動器日誌</string>
@@ -1294,6 +1351,20 @@
     <string name="control_editor_edit_joystick_style_list_empty">目前控制佈局還沒有搖桿樣式</string>
     <string name="control_editor_edit_joystick_style_list_name">搖桿樣式名稱</string>
     <string name="control_editor_edit_joystick_style_list_delete">確定要刪除搖桿樣式 %s？</string>
+    <string name="control_editor_style_cabinet">樣式收藏櫃</string>
+    <string name="control_editor_style_cabinet_empty">收藏櫃是空的，可在控制項樣式列表或搖桿樣式列表中將樣式加入收藏櫃</string>
+    <string name="control_editor_style_cabinet_favorite">加入收藏櫃</string>
+    <string name="control_editor_style_cabinet_favorited">已收藏該樣式</string>
+    <string name="control_editor_style_cabinet_add_to_layout">加入目前控制佈局</string>
+    <string name="control_editor_style_cabinet_added_to_layout">已加入目前控制佈局</string>
+    <string name="control_editor_style_cabinet_add_conflict_title">樣式已存在</string>
+    <string name="control_editor_style_cabinet_add_conflict_message">目前控制佈局中已存在相同 ID 的樣式</string>
+    <string name="control_editor_style_cabinet_add_conflict_independent">獨立加入</string>
+    <string name="control_editor_style_cabinet_conflict_title">樣式已收藏</string>
+    <string name="control_editor_style_cabinet_conflict_message">收藏櫃中已存在相同 ID 的樣式</string>
+    <string name="control_editor_style_cabinet_conflict_overwrite">覆蓋現有</string>
+    <string name="control_editor_style_cabinet_conflict_independent">獨立收藏</string>
+    <string name="control_editor_style_cabinet_delete">確定要刪除收藏的樣式 %s 嗎？</string>
     <string name="control_editor_exit_message">您確定要直接退出嗎？這將導致您的任何變更都無法被儲存。若需要儲存，請檢查編輯器選單。</string>
     <string name="control_editor_exit_confirm">直接退出</string>
     <string name="vibrate_kind_one_shot">持續</string>
@@ -1327,6 +1398,7 @@
     <string name="fm_count_files">檔案：%d</string>
     <string name="fm_count_folders">資料夾：%d</string>
     <string name="fm_count_selected">已選取 %d 項</string>
+    <string name="fm_browse_external">在其他管理器應用內瀏覽</string>
     <string name="fm_cut">剪下</string>
     <string name="fm_delete">是否刪除所選的 %d 項內容？</string>
     <string name="fm_empty_dir">空目錄</string>
@@ -1454,7 +1526,6 @@
     <string name="fm_trash_size">大小：%s</string>
     <string name="fm_trash_sort_deleted">刪除時間</string>
     <string name="fm_trash_title">資源回收筒</string>
-
     <string name="guide_main_welcome_title">歡迎使用 %s！</string>
     <string name="guide_main_welcome_text">我們來簡單看看主畫面的功能吧～</string>
     <string name="guide_main_account">點擊此處可進入帳號管理頁面，你可以新增或管理 Minecraft 帳號</string>
@@ -1475,8 +1546,14 @@
     <string name="guide_editor_add_widgets_text">選取控制項圖層之後，你可以為其加入任意類型的控制項</string>
     <string name="guide_editor_styles_title">想調整控制項的外觀？</string>
     <string name="guide_editor_styles_text">你可以為控制項建立一些外觀，以便快速複用與切換不同的外觀</string>
+    <string name="guide_editor_style_cabinet_title">你也可以將喜歡的樣式加入通用的收藏櫃中！</string>
+    <string name="guide_editor_style_cabinet_text">樣式收藏櫃是全域性的，編輯任意控制佈局時，都可以看到這裡面的樣式哦～</string>
+    <string name="guide_editor_style_cabinet_note">在這裡，你可以將收藏的樣式加入到目前的控制佈局內使用～</string>
     <string name="guide_editor_preview">可以透過預覽功能來測試你的控制佈局</string>
     <string name="guide_editor_save">編輯完成後，記得儲存控制佈局！</string>
     <string name="guide_tip_blank">點擊空白處以進入下一步</string>
     <string name="guide_tip_finish">點擊空白處以完成引導</string>
+    <string name="control_editor_menu_new_widget_joystick">新增搖桿</string>
+    <string name="festivals_halloween">萬聖節快樂！</string>
+    <string name="festivals_valentines">情人節快樂！</string>
 </resources>

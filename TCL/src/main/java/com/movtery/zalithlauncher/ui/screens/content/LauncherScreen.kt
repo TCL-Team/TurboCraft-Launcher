@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -58,6 +58,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -88,20 +89,29 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import com.movtery.zalithlauncher.BuildConfig
 import com.movtery.zalithlauncher.BuildKeys
+import com.movtery.guide.GuideSide
+import com.movtery.guide.guideNode
+import com.movtery.petlib.PetAnimation
+import com.movtery.petlib.PetTapReaction
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.game.account.AccountsManager
 import com.movtery.zalithlauncher.game.version.installed.PlayTimeRepository
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionsManager
 import com.movtery.zalithlauncher.ui.base.BaseScreen
+import com.movtery.zalithlauncher.ui.components.AnimatedDirection
 import com.movtery.zalithlauncher.ui.components.BackgroundCard
 import com.movtery.zalithlauncher.ui.components.MarkdownView
 import com.movtery.zalithlauncher.ui.components.MarqueeText
+import com.movtery.zalithlauncher.ui.components.PetModelView
 import com.movtery.zalithlauncher.ui.components.ScalingActionButton
-import com.movtery.zalithlauncher.ui.components.defaultMarkdownConfig
+import com.movtery.zalithlauncher.ui.components.animated
+import com.movtery.zalithlauncher.ui.components.rememberAnimatedContext
+import com.movtery.zalithlauncher.ui.guide.GuideKeys
 import com.iffly.compose.markdown.config.MarkdownRenderConfig
 import com.iffly.compose.markdown.style.ListTheme
 import com.iffly.compose.markdown.style.MarkdownTheme
@@ -126,6 +136,16 @@ import com.movtery.zalithlauncher.utils.animation.swapAnimateDpAsState
 import com.movtery.zalithlauncher.viewmodel.HomePageState
 import com.movtery.zalithlauncher.viewmodel.LocalHomePageViewModel
 import com.movtery.zalithlauncher.viewmodel.ScreenBackStackViewModel
+import kotlin.math.roundToInt
+import com.movtery.zalithlauncher.ui.components.defaultMarkdownConfig
+
+private const val ContentWeight = 7f
+private const val ActionMenuWeight = 3f
+
+/**
+ * 操作菜单停泊槽位与屏幕边缘的间距
+ */
+private val ActionMenuOuterPadding = 12.dp
 
 @Composable
 fun LauncherScreen(
@@ -137,7 +157,14 @@ fun LauncherScreen(
     onNavigateToStats: () -> Unit = {},
     onNavigateToPlayTimeStats: () -> Unit = {},
     onNavigateToLog: (String) -> Unit = {},
+    startGuideOnce: (GuideKeys.Keys) -> Unit = {},
 ) {
+    LaunchedEffect(Unit) {
+        //等待主界面完成首次布局后再展示新手引导，确保引导锚点已经测量完毕
+        delay(600)
+        startGuideOnce(GuideKeys.Main)
+    }
+
     BaseScreen(
         screenKey = NormalNavKey.LauncherMain,
         currentKey = backStackViewModel.mainScreen.currentKey
@@ -166,6 +193,10 @@ fun LauncherScreen(
         ) {
             SideBar(
                 modifier = Modifier
+                    .guideNode(
+                        key = GuideKeys.Main.Step.SideBar,
+                        preferSide = GuideSide.Below
+                    )
                     .padding(start = 12.dp, top = 12.dp, bottom = 12.dp),
                 isVisible = isVisible,
                 onFpsClick = {
@@ -297,6 +328,10 @@ private fun ContentMenu(
         ) {
             StatsSideColumn(
                 modifier = Modifier
+                    .guideNode(
+                        key = GuideKeys.Main.Step.Stats,
+                        preferSide = GuideSide.End
+                    )
                     .weight(1f)
                     .fillMaxHeight(),
                 side = StatsSide.Left,
@@ -365,59 +400,6 @@ private fun ContentMenu(
 
 private const val CHANGELOGS_URL = "https://raw.githubusercontent.com/TCL-Team/TurboCraft-Launcher/refs/heads/main/CHANGELOGS_UPDATE.md"
 private const val CHANGELOGS_UPDATE_TR = "https://raw.githubusercontent.com/TCL-Team/TurboCraft-Launcher/refs/heads/main/CHANGELOGS_UPDATE_TR.md"
-
-@Composable
-private fun StatsGrid(
-    modifier: Modifier = Modifier,
-    versionNames: List<String>,
-    onNavigateToStats: () -> Unit,
-    onNavigateToPlayTimeStats: () -> Unit = {},
-    onNavigateToLog: (String) -> Unit,
-) {
-
-    Column(
-        modifier = modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = stringResource(R.string.stats_today_header),
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier
-                .padding(horizontal = 4.dp)
-                .alpha(0.5f)
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            WeeklyPlayTimeChart(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                versionNames = versionNames
-            )
-            ChangelogCard(
-                modifier = Modifier.weight(1f).fillMaxHeight()
-            )
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            DailyPlayTimeCard(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                versionNames = versionNames,
-                onClick = onNavigateToPlayTimeStats
-            )
-            LastLogCard(
-                modifier = Modifier.weight(1f).fillMaxHeight(),
-                onNavigateToLog = onNavigateToLog
-            )
-        }
-    }
-}
 
 private enum class StatsSide {
     Left,
@@ -728,6 +710,7 @@ private fun RightMenuContent(
     val version by VersionsManager.currentVersion.collectAsStateWithLifecycle()
     val isRefreshing by VersionsManager.isRefreshing.collectAsStateWithLifecycle()
 
+
     ConstraintLayout(
         modifier = modifier
     ) {
@@ -735,6 +718,10 @@ private fun RightMenuContent(
 
         AccountAvatar(
             modifier = Modifier
+                .guideNode(
+                    key = GuideKeys.Main.Step.Account,
+                    preferSide = GuideSide.Below
+                )
                 .constrainAs(accountAvatar) {
                     top.linkTo(parent.top)
                     bottom.linkTo(launchButton.top, margin = 32.dp)
@@ -769,6 +756,10 @@ private fun RightMenuContent(
                         isRefreshing = isRefreshing,
                         version = version,
                         modifier = Modifier
+                            .guideNode(
+                                key = GuideKeys.Main.Step.VersionList,
+                                preferSide = GuideSide.Above
+                            )
                             .padding(8.dp)
                             .fillMaxWidth(),
                         swapToVersionManage = toVersionManageScreen,
@@ -842,6 +833,10 @@ private fun RightMenuContent(
 
         launchButton(
             Modifier
+                .guideNode(
+                    key = GuideKeys.Main.Step.Launch,
+                    preferSide = GuideSide.Above
+                )
                 .fillMaxWidth()
                 .constrainAs(launchButton) {
                     bottom.linkTo(parent.bottom, margin = 8.dp)

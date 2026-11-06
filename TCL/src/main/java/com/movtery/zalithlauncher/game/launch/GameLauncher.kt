@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,9 +41,14 @@ import com.movtery.zalithlauncher.game.multirt.RuntimesManager
 import com.movtery.zalithlauncher.game.plugin.Plugin
 import com.movtery.zalithlauncher.game.plugin.driver.DriverPluginManager
 import com.movtery.zalithlauncher.game.plugin.renderer.RendererPluginManager
+import com.movtery.zalithlauncher.game.renderer.ConfigurableRenderer
 import com.movtery.zalithlauncher.game.renderer.Renderers
-import com.movtery.zalithlauncher.game.renderer.renderers.GL4ESRenderer
-import com.movtery.zalithlauncher.game.renderer.renderers.NGGL4ESRenderer
+import com.movtery.zalithlauncher.game.renderer.config.GlobalRendererConfigStore
+import com.movtery.zalithlauncher.game.renderer.config.VersionRendererConfigStore
+import com.movtery.zalithlauncher.game.renderer.config.removeStaleEntries
+import com.movtery.zalithlauncher.game.renderer.config.resolveRendererConfig
+import com.movtery.zalithlauncher.game.renderer.getSfpewLibraryPath
+import com.movtery.zalithlauncher.game.renderer.isSfpewEnabledFor
 import com.movtery.zalithlauncher.game.support.touch_controller.ControllerProxy
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionInfoParser
@@ -56,8 +61,9 @@ import com.movtery.zalithlauncher.utils.device.Architecture
 import com.movtery.zalithlauncher.utils.file.child
 import com.movtery.zalithlauncher.utils.file.ensureDirectorySilently
 import com.movtery.zalithlauncher.utils.logging.Logger
-import com.movtery.zalithlauncher.utils.string.isBiggerTo
 import com.movtery.zalithlauncher.utils.string.isEqualTo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.parcelize.Parcelize
 import org.lwjgl.glfw.CallbackBridge
 import java.io.File
@@ -82,6 +88,7 @@ class GameLauncher(
 ) : Launcher(onExit, openPath) {
     private lateinit var gameManifest: GameManifest
     private var jnaDir: File? = null
+    private var configuredRendererEnv: Map<String, String>? = null
     private val offlineServer = OfflineYggdrasilServer(0)
 
     private val version = config.version
@@ -101,6 +108,20 @@ class GameLauncher(
     override suspend fun launch(screenSize: IntSize): Int {
         if (!Renderers.isCurrentRendererValid()) {
             Renderers.setCurrentRenderer(version.getRenderer())
+        }
+        configuredRendererEnv = withContext(Dispatchers.IO) {
+            val renderer = Renderers.getCurrentRenderer()
+            if (renderer is ConfigurableRenderer) {
+                val rendererId = renderer.getUniqueIdentifier()
+                GlobalRendererConfigStore.migrateLegacy(rendererId, renderer.legacyConfigKeys)
+                GlobalRendererConfigStore.removeStaleEntries(rendererId, renderer.configSpec)
+                val versionStore = if (version.getVersionConfig().renderer == rendererId) {
+                    VersionRendererConfigStore(version.getVersionPath(), Renderers.getLegacyRendererIds())
+                        .apply { removeStaleEntries(rendererId, renderer.configSpec) }
+                } else null
+                val config = resolveRendererConfig(rendererId, renderer.configSpec, versionStore)
+                renderer.getConfiguredEnv(config)
+            } else null
         }
 
         val manifest = GSON.fromJson(File(version.getVersionPath(), "${version.getVersionName()}.json").readText(), GameManifest::class.java)
@@ -130,12 +151,6 @@ class GameLauncher(
         }?.takeIf { it.exists() }
 
         CallbackBridge.nativeSetUseInputStackQueue(gameManifest.arguments != null)
-        //Cleanroom 的 LWJGLXX 桥需要字符事件补全暂存的按键事件，见 CallbackBridge.setControlKeyCharPairing
-        CallbackBridge.setControlKeyCharPairing(
-            version.getVersionInfo()?.loaderInfos?.any { info ->
-                info.loader == ModLoader.CLEANROOM
-            } == true
-        )
 
         val customArgs = version.getJvmArgs().takeIf { it.isNotBlank() } ?: AllSettings.jvmArgs.getValue()
         val javaRuntime = getRuntime()
@@ -191,7 +206,7 @@ class GameLauncher(
             }
         }
         if (Renderers.isCurrentRendererValid()) {
-            setRendererEnv(envMap)
+            setRendererEnv(envMap, version, configuredRendererEnv)
         }
         envMap["ZALITH_VERSION_CODE"] = BuildConfig.VERSION_CODE.toString()
 
@@ -226,7 +241,7 @@ class GameLauncher(
     override fun progressFinalUserArgs(args: MutableList<String>, ramAllocation: Int) {
         super.progressFinalUserArgs(args, version.getRamAllocation(activity))
         if (Renderers.isCurrentRendererValid()) {
-            args.add("-Dorg.lwjgl.opengl.libname=${getRendererLibrary()}")
+            args.add("-Dorg.lwjgl.opengl.libname=${getGameRendererLibrary(version)}")
         }
     }
 
@@ -241,6 +256,11 @@ class GameLauncher(
         val gameDirPath = version.getGameDir()
 
         disableSplash(gameDirPath)
+
+        if (version.getVersionInfo()?.hasLoader(ModLoader.NEOFORGE) == true) {
+            // 关闭NeoForge 12早期加载屏动画
+            disableFmlEarlyWindow(gameDirPath)
+        }
 
         //初始化运行环境
         this.runtime = runtime
@@ -330,13 +350,6 @@ class GameLauncher(
             //开启了自动选择，根据游戏需求的版本做选择
             val targetJavaVersion = when (loaderInfo?.loader) {
                 ModLoader.BABRIC -> 17 //Babric 推荐使用 17
-                ModLoader.CLEANROOM -> {
-                    if (loaderInfo.version.isBiggerTo("0.4.4-alpha")) {
-                        25 //0.5.0-alpha 及以上要求使用 25
-                    } else {
-                        21 //0.4.4-alpha 及以下要求使用 21
-                    }
-                }
                 else -> gameManifest.javaVersion?.majorVersion ?: 8
             }
             if (pickedRuntime.javaVersion == 0 || pickedRuntime.javaVersion < targetJavaVersion) {
@@ -379,6 +392,52 @@ class GameLauncher(
             }
         }
     }
+
+    /**
+     * 关闭 FML 的早期加载屏
+     *
+     * NeoForge 12（MC 26.3+）移除了 -Dfml.earlyprogresswindow 属性通道，仅读取 config/fml.toml
+     * 早期加载屏的渲染会在启动扫描期反复分配 gralloc 缓冲，与启动器 UI 互相阻塞导致界面冻结直至无响应，
+     * 写入 earlyWindowControl = false 关闭
+     */
+    private fun disableFmlEarlyWindow(dir: File) {
+        File(dir, "config").let { configDir ->
+            if (configDir.ensureDirectorySilently()) {
+                val fmlToml = configDir.child("fml.toml")
+                val disabledLine = "earlyWindowControl = false"
+                runCatching {
+                    if (!fmlToml.isFile) {
+                        fmlToml.writeText("$disabledLine\n")
+                        return@runCatching
+                    }
+
+                    val lines = fmlToml.readLines()
+                    val keyLine = lines.find { it.trim().startsWith("earlyWindowControl") }
+                    if (keyLine == null) {
+                        fmlToml.writeText(
+                            lines.joinToString(separator = "\n", prefix = "$disabledLine\n", postfix = "\n")
+                        )
+                    } else {
+                        // 值可能带引号或行尾注释，取值前先截断
+                        val value = keyLine.substringAfter('=').substringBefore('#').trim().trim('"', '\'')
+                        if (value.equals("true", ignoreCase = true)) {
+                            // 仅改写该行的值，行内其余内容保留
+                            val fixedLine = keyLine.replaceFirst(Regex("true", RegexOption.IGNORE_CASE), "false")
+                            fmlToml.writeText(
+                                lines.joinToString(separator = "\n", postfix = "\n") { line ->
+                                    if (line == keyLine) fixedLine else line
+                                }
+                            )
+                        }
+                    }
+                }.onFailure {
+                    Logger.warning(TAG, "Could not disable FML early loading screen!", it)
+                }
+            } else {
+                Logger.warning(TAG, "Failed to create the configuration directory")
+            }
+        }
+    }
 }
 
 private fun checkAndUsedJSPH(envMap: MutableMap<String, String>, runtime: Runtime) {
@@ -391,7 +450,11 @@ private fun checkAndUsedJSPH(envMap: MutableMap<String, String>, runtime: Runtim
     }
 }
 
-private fun setRendererEnv(envMap: MutableMap<String, String>) {
+private fun setRendererEnv(
+    envMap: MutableMap<String, String>,
+    version: Version,
+    configuredRendererEnv: Map<String, String>?,
+) {
     val renderer = Renderers.getCurrentRenderer()
     val rendererId = renderer.getRendererId()
 
@@ -406,25 +469,50 @@ private fun setRendererEnv(envMap: MutableMap<String, String>) {
         envMap["LIBGL_NORMALIZE"] = "1"
     }
 
-    envMap += renderer.getRendererEnv().value
+    if (renderer is ConfigurableRenderer) {
+        envMap += checkNotNull(configuredRendererEnv) { "Renderer configuration has not been prepared" }
+    } else {
+        envMap += renderer.getRendererEnv().value
+    }
 
     renderer.getRendererEGL()?.let { eglName ->
         envMap["POJAVEXEC_EGL"] = eglName
 
-        // 指定 SDL EGL
-        val nativeLibPath = if (renderer is Plugin) {
-            renderer.getNativeLibPath()
+        val eglPath = if (eglName.startsWith("/")) {
+            // 路径不存在时不设置，交给 SDL 按自身默认解析
+            eglName
         } else {
-            PathManager.DIR_NATIVE_LIB
+            // eglName 已是绝对路径时直接使用，仅裸名拼接库目录
+            val nativeLibPath = if (renderer is Plugin) {
+                renderer.getNativeLibPath()
+            } else {
+                PathManager.DIR_NATIVE_LIB
+            }
+            "$nativeLibPath/$eglName"
         }
-        envMap["SDL_EGL_LIBRARY"] = "$nativeLibPath/$eglName"
+        if (eglPath.isNotEmpty() && File(eglPath).isFile()) {
+            envMap["SDL_EGL_LIBRARY"] = eglPath
+        }
     }
 
     envMap["POJAV_RENDERER"] = rendererId
 
+    if (isSfpewEnabledFor(renderer, version)) {
+        envMap["SFPEW_LAYER"] = "1"
+        envMap["SFPEW_EGL"] = envMap["SDL_EGL_LIBRARY"]
+            ?: envMap["POJAVEXEC_EGL"]
+            ?: "libEGL.so"
+        if (version.isSfpewRelaxedContextEnabled()) {
+            envMap["SFPEW_RELAXED_CONTEXT"] = "1"
+        }
+        val sfpewLibraryPath = getSfpewLibraryPath()
+        envMap["SDL_OPENGL_LIBRARY"] = sfpewLibraryPath
+        envMap["SDL_EGL_LIBRARY"] = sfpewLibraryPath
+    }
+
     if (RendererPluginManager.selectedRendererPlugin != null) return
 
-    if (renderer != GL4ESRenderer && renderer != NGGL4ESRenderer) {
+    if (!renderer.mesaBased) {
         envMap["MESA_LOADER_DRIVER_OVERRIDE"] = "zink"
         envMap["MESA_GLSL_CACHE_DIR"] = PathManager.DIR_CACHE.absolutePath
         envMap["MESA_GL_VERSION_OVERRIDE"] = "4.6"
@@ -455,6 +543,16 @@ private fun setRendererEnv(envMap: MutableMap<String, String>) {
 private fun getRendererLibrary(): String? {
     return if (!Renderers.isCurrentRendererValid()) null
     else Renderers.getCurrentRenderer().getRendererLibrary()
+}
+
+private fun getGameRendererLibrary(version: Version): String? {
+    if (!Renderers.isCurrentRendererValid()) return null
+    val renderer = Renderers.getCurrentRenderer()
+    return if (isSfpewEnabledFor(renderer, version)) {
+        getSfpewLibraryPath()
+    } else {
+        renderer.getRendererLibrary()
+    }
 }
 
 /**

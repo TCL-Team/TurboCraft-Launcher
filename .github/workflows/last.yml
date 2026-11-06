@@ -1,7 +1,17 @@
-name: Release
+name: Release APKs (every architecture)
 
+# Publishes one versioned release that carries every APK the build matrix produces:
+#   universal (all ABIs), arm64-v8a, armeabi-v7a, x86, x86_64
+#
+# Run from the Actions tab (any branch/ref). The tag and the file names come from
+# TCL/gradle.properties, so bump launcher_version_name / launcher_version_code first,
+# and keep the English notes for that version in docs/release-notes-v<version>.md.
 on:
   workflow_dispatch:
+  # Publishing a version = pushing its tag (v1.6, v1.7, …).
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -13,22 +23,72 @@ jobs:
       variant: Release
     secrets: inherit
 
-  Release:
+  Publish:
     needs: Build
     runs-on: ubuntu-latest
     steps:
-      - name: Download Artifacts
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download APKs
         uses: actions/download-artifact@v8
         with:
-          path: ./release-artifacts
-          merge-multiple: true
+          path: ./artifacts
+          pattern: release-apk-*
 
-      - name: Upload to Release
+      - name: Collect, rename and checksum
+        run: |
+          set -e
+          VERSION=$(grep -E '^launcher_version_name=' TCL/gradle.properties | cut -d= -f2 | tr -d '[:space:]')
+          CODE=$(grep -E '^launcher_version_code=' TCL/gradle.properties | cut -d= -f2 | tr -d '[:space:]')
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "TAG=v$VERSION" >> "$GITHUB_ENV"
+          mkdir -p ./apks
+
+          declare -A SUFFIX=(
+            [all]="universal"
+            [arm64]="arm64-v8a"
+            [arm]="armeabi-v7a"
+            [x86]="x86"
+            [x86_64]="x86_64"
+          )
+          for arch in "${!SUFFIX[@]}"; do
+            src=$(find "./artifacts/release-apk-$arch" -name '*.apk' -type f 2>/dev/null | head -1)
+            if [ -z "$src" ]; then
+              echo "::error title=missing-apk::no APK was produced for $arch"
+              exit 1
+            fi
+            dest="./apks/TurboCraft-Launcher-$VERSION-${SUFFIX[$arch]}.apk"
+            cp "$src" "$dest"
+            printf '%s <- %s\n' "$(basename "$dest")" "$src"
+          done
+
+          ( cd ./apks && sha256sum ./*.apk > SHA256SUMS.txt && cat SHA256SUMS.txt )
+          ls -lh ./apks
+          test "$(ls ./apks/*.apk | wc -l)" -eq 5
+          echo "versionCode $CODE, 5 APKs ready"
+
+      - name: Release notes
+        run: |
+          set -e
+          NOTES="docs/release-notes-v${VERSION}.md"
+          if [ ! -f "$NOTES" ]; then
+            echo "::error title=missing-notes::$NOTES does not exist; add the English release notes for this version"
+            exit 1
+          fi
+          cp "$NOTES" ./release-notes.md
+          head -5 ./release-notes.md
+
+      - name: Publish release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: "build-${{ github.run_number }}"
-          name: "Release Build #${{ github.run_number }}"
+          tag_name: ${{ env.TAG }}
+          name: "TurboCraft Launcher ${{ env.TAG }}"
+          body_path: ./release-notes.md
           prerelease: true
-          generate_release_notes: true
-          files: ./release-artifacts/*.apk
-          
+          files: |
+            ./apks/*.apk
+            ./apks/SHA256SUMS.txt
+          fail_on_unmatched_files: true
+          # Re-running for a version that already exists refreshes its assets instead of failing.
+          make_latest: false

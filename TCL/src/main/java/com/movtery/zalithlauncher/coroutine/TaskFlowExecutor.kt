@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,7 +43,14 @@ private const val TAG = "TaskFlowExecutor"
  * 动态任务流执行器，按照阶段顺序执行任务流
  */
 class TaskFlowExecutor(
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    /**
+     * 是否把正在执行的任务同步到任务栏（侧边 Task Menu）。
+     *
+     * 只有本身没有进度界面的任务流（例如启动游戏）才需要打开；
+     * 安装/导入这类流程自己会弹对话框展示任务列表，再同步一份会看到两个一模一样的框。
+     */
+    private val publishToTaskBar: Boolean = false
 ) {
     /**
      * 任务流阶段，包含一个阶段的所有任务
@@ -66,6 +73,31 @@ class TaskFlowExecutor(
     private var currentTaskJob: Job? = null
     /** 当前任务流阶段索引 */
     private var currentPhaseIndex: Int = -1
+
+    /** 当前已挂到任务栏（[TaskSystem]）上的任务 id，切换阶段或结束时摘掉 */
+    private val publishedTaskIds: MutableList<String> = mutableListOf()
+
+    /**
+     * 把正在执行的任务挂到任务栏，让用户能在启动器侧边看到进度并取消。
+     * 一次只挂一个任务：阶段里还没开始的任务挂上去只会显示成空行。
+     */
+    private fun publishTask(titledTask: TitledTask) {
+        clearPublishedTasks()
+        if (!publishToTaskBar) return
+        val task = titledTask.task
+        //任务开始前先用标题占位，避免侧边栏出现没有文字的空行
+        task.updateMessage(titledTask.title)
+        publishedTaskIds += task.id
+        TaskSystem.attachTask(task) { cancel() }
+    }
+
+    /**
+     * 从任务栏摘掉本任务流挂上的任务
+     */
+    private fun clearPublishedTasks() {
+        publishedTaskIds.forEach { TaskSystem.detachTask(it) }
+        publishedTaskIds.clear()
+    }
 
     /**
      * 获取下一个阶段
@@ -99,6 +131,7 @@ class TaskFlowExecutor(
     ) = withContext(Dispatchers.IO) {
         currentPhaseIndex = -1
 
+        try {
         while (true) {
             try {
                 ensureActive()
@@ -109,6 +142,8 @@ class TaskFlowExecutor(
                 //执行阶段内的所有任务
                 for (task in phase.tasks) {
                     ensureActive()
+                    //同步到任务栏，侧边可以看到进度、也可以取消
+                    publishTask(task)
                     task.task.updateStage(TaskStage.RUNNING)
 
                     //为每个任务创建独立的Job，以便可以立即取消
@@ -141,6 +176,7 @@ class TaskFlowExecutor(
                         //确保taskJob被取消和清理，无论任务成功还是失败
                         taskJob.cancel()
                         currentTaskJob = null
+                        clearPublishedTasks()
                     }
                 }
 
@@ -159,6 +195,9 @@ class TaskFlowExecutor(
         }
 
         onComplete()
+        } finally {
+            clearPublishedTasks()
+        }
     }
 
     /**
@@ -212,6 +251,7 @@ class TaskFlowExecutor(
         job = null
 
         _tasksFlow.update { emptyList() }
+        clearPublishedTasks()
         currentPhaseIndex = -1
     }
 }

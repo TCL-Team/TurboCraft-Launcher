@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@ import com.movtery.zalithlauncher.ui.screens.content.download.assets.elements.As
 import com.movtery.zalithlauncher.utils.string.LevCalculator
 import com.movtery.zalithlauncher.utils.string.containsChinese
 import kotlin.math.max
+import com.movtery.zalithlauncher.game.download.assets.utils.getInfoByCurseForgeId
 
 private const val CONTAIN_CHINESE_WEIGHT = 10
 
@@ -53,18 +54,18 @@ fun <T> List<T>.searchRankWithChineseBias(
     classes: PlatformClasses,
     getSlug: (T) -> String?
 ): List<T> {
+    val translations = classes.getTranslations()
     val (chineseResults, englishResults) = partition { mod ->
-        classes.getTranslations()
-            .getModBySlugId(getSlug(mod))
+        translations
+            ?.getInfoByCurseForgeId(getSlug(mod))
             ?.name
             ?.takeIf { it.isNotBlank() && it.containsChinese() } != null
     }
 
     val levCalculator = LevCalculator()
     val sortedChineseResults = chineseResults.map { mod ->
-        val translation = classes.getTranslations()
-            .getModBySlugId(getSlug(mod))!!
-        val modName = translation.name
+        val translation = translations?.getInfoByCurseForgeId(getSlug(mod))
+        val modName = translation?.name ?: ""
 
         val relevanceScore = when {
             searchFilter.isEmpty() || modName.isEmpty() ->

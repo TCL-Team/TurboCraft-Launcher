@@ -21,6 +21,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.io.Closeable
 import java.io.IOException
+import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
@@ -115,6 +116,40 @@ internal class SupabaseChatRepository {
         return parseArray(execute(authorizedRequest(url.toString(), session).build()))
             .firstOrNull()?.asJsonObject?.toProfile()
     }
+
+    /**
+     * Creates the caller's chat profile through the `ensure_chat_profile` RPC.
+     * Idempotent: an existing profile is simply refreshed and returned, so a retry after a
+     * half-finished bootstrap can never leave the app stuck on "Claim your social handle".
+     */
+    suspend fun ensureProfile(session: ChatAuthSession, username: String, displayName: String): ChatProfile {
+        val payload = JsonObject().apply {
+            addProperty("p_username", username)
+            addProperty("p_display_name", displayName)
+        }
+        val request = authorizedRequest(
+            "${ChatBackendConfig.PROJECT_URL}/rest/v1/rpc/ensure_chat_profile",
+            session
+        ).post(payload.toString().jsonBody()).build()
+        val body = execute(request)
+        val root = runCatching { JsonParser.parseString(body) }.getOrNull()
+        val profile = when {
+            root == null || root.isJsonNull -> null
+            root.isJsonArray -> root.asJsonArray.firstOrNull()?.takeIf { it.isJsonObject }?.asJsonObject?.toProfile()
+            root.isJsonObject -> root.asJsonObject.toProfile()
+            else -> null
+        }
+        return profile?.takeIf { it.id.isNotBlank() }
+            ?: throw ChatApiException("The server did not return your profile. Try again.")
+    }
+
+    /** Raw diagnostics used by the Social "Connection details" panel. */
+    suspend fun selfCheck(session: ChatAuthSession): String = execute(
+        authorizedRequest(
+            "${ChatBackendConfig.PROJECT_URL}/rest/v1/rpc/chat_self_check",
+            session
+        ).post("{}".jsonBody()).build()
+    )
 
     suspend fun createProfile(session: ChatAuthSession, username: String, displayName: String): ChatProfile {
         val body = JsonObject().apply {
@@ -357,6 +392,263 @@ internal class SupabaseChatRepository {
         execute(request)
     }
 
+    // ------------------------------------------------------------------ parties
+
+    suspend fun loadPartyDashboard(session: ChatAuthSession): PartyDashboard {
+        val uid = session.userId
+        val membershipUrl = restUrl("chat_party_members")
+            .addQueryParameter("select", "party_id")
+            .addQueryParameter("user_id", "eq.$uid")
+            .build()
+        val partyIds = parseArray(execute(authorizedRequest(membershipUrl.toString(), session).build()))
+            .mapNotNull { it.asJsonObject.string("party_id").takeIf(String::isNotBlank) }
+            .distinct()
+
+        val parties = loadParties(session, partyIds)
+        val publicParties = loadPublicParties(session).filter { party -> parties.none { it.id == party.id } }
+        val invites = loadPartyInvites(session, incoming = true)
+        val sentInvites = loadPartyInvites(session, incoming = false)
+        return PartyDashboard(parties, publicParties, invites, sentInvites)
+    }
+
+    private suspend fun loadParties(session: ChatAuthSession, partyIds: List<String>): List<SocialParty> {
+        if (partyIds.isEmpty()) return emptyList()
+        val url = restUrl("chat_parties")
+            .addQueryParameter("select", PARTY_SELECT)
+            .addQueryParameter("id", "in.(${partyIds.joinToString(",")})")
+            .addQueryParameter("order", "created_at.desc")
+            .build()
+        return parseArray(execute(authorizedRequest(url.toString(), session).build()))
+            .mapNotNull { it.asJsonObject.toParty() }
+            .filterNot { it.isExpired() }
+    }
+
+    private suspend fun loadPublicParties(session: ChatAuthSession): List<SocialParty> {
+        val url = restUrl("chat_parties")
+            .addQueryParameter("select", PARTY_SELECT)
+            .addQueryParameter("is_public", "eq.true")
+            .addQueryParameter("expires_at", "gt.${Instant.now()}")
+            .addQueryParameter("order", "created_at.desc")
+            .addQueryParameter("limit", "30")
+            .build()
+        return parseArray(execute(authorizedRequest(url.toString(), session).build()))
+            .mapNotNull { it.asJsonObject.toParty() }
+    }
+
+    private suspend fun loadPartyInvites(session: ChatAuthSession, incoming: Boolean): List<PartyInvite> {
+        val column = if (incoming) "to_id" else "from_id"
+        val url = restUrl("chat_party_invites")
+            .addQueryParameter("select", "id,party_id,from_id,to_id,status,created_at")
+            .addQueryParameter(column, "eq.${session.userId}")
+            .addQueryParameter("status", "eq.pending")
+            .addQueryParameter("order", "created_at.desc")
+            .build()
+        val rows = parseArray(execute(authorizedRequest(url.toString(), session).build()))
+            .map { it.asJsonObject }
+        if (rows.isEmpty()) return emptyList()
+
+        val partyIds = rows.mapNotNull { it.string("party_id").takeIf(String::isNotBlank) }.distinct()
+        val parties = runCatching { loadParties(session, partyIds) }.getOrDefault(emptyList()).associateBy { it.id }
+        val profileIds = rows.mapNotNull { it.string("from_id").takeIf(String::isNotBlank) }.distinct()
+        val profiles = runCatching { loadProfiles(profileIds, session) }.getOrDefault(emptyList()).associateBy { it.id }
+
+        return rows.mapNotNull { row ->
+            val partyId = row.string("party_id")
+            val party = parties[partyId] ?: return@mapNotNull null
+            val fromProfile = profiles[row.string("from_id")]
+            PartyInvite(
+                id = row.string("id"),
+                partyId = partyId,
+                fromId = row.string("from_id"),
+                fromUsername = fromProfile?.username.orEmpty(),
+                fromDisplayName = fromProfile?.displayName ?: fromProfile?.username ?: "A friend",
+                partyTitle = party.title,
+                mcVersion = party.mcVersion,
+                loader = party.loader,
+                instanceName = party.instanceName,
+                maxMembers = party.maxMembers,
+                memberCount = party.memberCount,
+                expiresAtMillis = party.expiresAtMillis,
+                createdAtMillis = row.instantMillis("created_at") ?: 0L
+            )
+        }
+    }
+
+    suspend fun loadPartyMessages(session: ChatAuthSession, partyId: String): List<PartyMessage> {
+        val url = restUrl("chat_party_messages")
+            .addQueryParameter("select", PARTY_MESSAGE_SELECT)
+            .addQueryParameter("party_id", "eq.$partyId")
+            .addQueryParameter("order", "created_at.asc")
+            .addQueryParameter("limit", "200")
+            .build()
+        return parseArray(execute(authorizedRequest(url.toString(), session).build()))
+            .mapNotNull { it.asJsonObject.toPartyMessage() }
+    }
+
+    suspend fun sendPartyMessage(session: ChatAuthSession, partyId: String, bodyText: String): PartyMessage {
+        val body = JsonObject().apply {
+            addProperty("party_id", partyId)
+            addProperty("sender_id", session.userId)
+            addProperty("body", bodyText.trim())
+        }
+        val url = restUrl("chat_party_messages")
+            .addQueryParameter("select", PARTY_MESSAGE_SELECT)
+            .build()
+        val request = authorizedRequest(url.toString(), session)
+            .post(body.toString().jsonBody())
+            .header("Prefer", "return=representation")
+            .build()
+        return parseArray(execute(request)).firstOrNull()?.asJsonObject?.toPartyMessage()
+            ?: throw ChatApiException("Message was not saved.")
+    }
+
+    suspend fun deletePartyMessage(session: ChatAuthSession, messageId: String) {
+        val url = restUrl("chat_party_messages")
+            .addQueryParameter("id", "eq.$messageId")
+            .build()
+        execute(authorizedRequest(url.toString(), session).delete().build())
+    }
+
+    suspend fun createParty(session: ChatAuthSession, draft: PartyDraft): String {
+        val body = JsonObject().apply {
+            addProperty("p_title", draft.title.trim())
+            draft.versionId?.let { addProperty("p_version_id", it) }
+            draft.instanceName?.let { addProperty("p_instance_name", it) }
+            draft.mcVersion?.let { addProperty("p_mc_version", it) }
+            draft.loader?.let { addProperty("p_loader", it) }
+            draft.serverAddress?.takeIf { it.isNotBlank() }?.let { addProperty("p_server_address", it.trim()) }
+            addProperty("p_max_members", draft.maxMembers)
+            addProperty("p_is_public", draft.isPublic)
+        }
+        val response = partyRpc(session, "create_chat_party", body)
+        return runCatching { JsonParser.parseString(response).asString }.getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: throw ChatApiException("Party was not created.")
+    }
+
+    suspend fun joinPartyByCode(session: ChatAuthSession, code: String): String {
+        val body = JsonObject().apply { addProperty("p_code", code.trim().uppercase()) }
+        val response = partyRpc(session, "join_chat_party_by_code", body)
+        return runCatching { JsonParser.parseString(response).asString }.getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: throw ChatApiException("That party code is not valid anymore.")
+    }
+
+    suspend fun joinParty(session: ChatAuthSession, partyId: String) {
+        partyRpc(session, "join_chat_party", JsonObject().apply { addProperty("p_party_id", partyId) })
+    }
+
+    suspend fun leaveParty(session: ChatAuthSession, partyId: String) {
+        partyRpc(session, "leave_chat_party", JsonObject().apply { addProperty("p_party_id", partyId) })
+    }
+
+    suspend fun endParty(session: ChatAuthSession, partyId: String) {
+        partyRpc(session, "delete_chat_party", JsonObject().apply { addProperty("p_party_id", partyId) })
+    }
+
+    suspend fun extendParty(session: ChatAuthSession, partyId: String) {
+        partyRpc(session, "refresh_chat_party", JsonObject().apply { addProperty("p_party_id", partyId) })
+    }
+
+    suspend fun inviteToParty(session: ChatAuthSession, partyId: String, username: String) {
+        partyRpc(
+            session,
+            "invite_to_chat_party",
+            JsonObject().apply {
+                addProperty("p_party_id", partyId)
+                addProperty("p_username", username.removePrefix("@").trim().lowercase())
+            }
+        )
+    }
+
+    suspend fun respondToPartyInvite(session: ChatAuthSession, inviteId: String, accept: Boolean) {
+        partyRpc(
+            session,
+            "respond_chat_party_invite",
+            JsonObject().apply {
+                addProperty("p_invite_id", inviteId)
+                addProperty("p_accept", accept)
+            }
+        )
+    }
+
+    suspend fun kickPartyMember(session: ChatAuthSession, partyId: String, userId: String) {
+        partyRpc(
+            session,
+            "kick_chat_party_member",
+            JsonObject().apply {
+                addProperty("p_party_id", partyId)
+                addProperty("p_user_id", userId)
+            }
+        )
+    }
+
+    private suspend fun partyRpc(session: ChatAuthSession, name: String, payload: JsonObject): String =
+        execute(
+            authorizedRequest("${ChatBackendConfig.PROJECT_URL}/rest/v1/rpc/$name", session)
+                .post(payload.toString().jsonBody())
+                .build()
+        )
+
+    private fun JsonObject.toParty(): SocialParty? {
+        val id = string("id").takeIf { it.isNotBlank() } ?: return null
+        val members = get("chat_party_members")
+            ?.takeUnless { it.isJsonNull }
+            ?.takeIf { it.isJsonArray }
+            ?.asJsonArray
+            ?.mapNotNull { element ->
+                val row = runCatching { element.asJsonObject }.getOrNull() ?: return@mapNotNull null
+                val userId = row.string("user_id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val profile = row.objectOrNull("chat_profiles")
+                PartyMember(
+                    userId = userId,
+                    username = profile?.string("username") ?: userId.take(8),
+                    displayName = profile?.string("display_name")?.takeIf { it.isNotBlank() }
+                        ?: profile?.string("username") ?: "Player",
+                    isHost = row.get("is_host")?.takeUnless { it.isJsonNull }?.asBoolean ?: false,
+                    lastActiveAtMillis = profile?.instantMillis("last_active_at"),
+                    joinedAtMillis = row.instantMillis("joined_at") ?: 0L
+                )
+            }
+            .orEmpty()
+            .sortedBy { if (it.isHost) 0L else it.joinedAtMillis.coerceAtLeast(1L) }
+
+        return SocialParty(
+            id = id,
+            hostId = string("host_id"),
+            title = string("title", "Party"),
+            versionId = string("version_id").takeIf { it.isNotBlank() },
+            instanceName = string("instance_name").takeIf { it.isNotBlank() },
+            mcVersion = string("mc_version").takeIf { it.isNotBlank() },
+            loader = string("loader").takeIf { it.isNotBlank() },
+            modpackSource = string("modpack_source").takeIf { it.isNotBlank() },
+            modpackId = string("modpack_id").takeIf { it.isNotBlank() },
+            modpackIconUrl = string("modpack_icon_url").takeIf { it.isNotBlank() },
+            serverAddress = string("server_address").takeIf { it.isNotBlank() },
+            maxMembers = long("max_members", 4L).toInt(),
+            isPublic = get("is_public")?.takeUnless { it.isJsonNull }?.asBoolean ?: false,
+            inviteCode = string("invite_code"),
+            createdAtMillis = instantMillis("created_at") ?: 0L,
+            expiresAtMillis = instantMillis("expires_at") ?: 0L,
+            members = members
+        )
+    }
+
+    private fun JsonObject.toPartyMessage(): PartyMessage? {
+        val id = string("id").takeIf { it.isNotBlank() } ?: return null
+        val profile = objectOrNull("chat_profiles")
+        return PartyMessage(
+            id = id,
+            partyId = string("party_id"),
+            senderId = string("sender_id"),
+            senderName = profile?.string("display_name")?.takeIf { it.isNotBlank() }
+                ?: profile?.string("username") ?: "Player",
+            senderUsername = profile?.string("username").orEmpty(),
+            body = string("body"),
+            createdAtMillis = instantMillis("created_at") ?: System.currentTimeMillis()
+        )
+    }
+
     fun subscribe(
         session: ChatAuthSession,
         conversationId: String?,
@@ -388,7 +680,9 @@ internal class SupabaseChatRepository {
         call.timeout().timeout(25, TimeUnit.SECONDS)
         call.execute().use { response ->
             val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) throw ChatApiException(response.errorDescription(body))
+            if (!response.isSuccessful) {
+                throw ChatApiException(response.errorDescription(body), response.code, body.take(600))
+            }
             body
         }
     }
@@ -403,16 +697,30 @@ internal class SupabaseChatRepository {
     private fun authBase() = "${ChatBackendConfig.PROJECT_URL}/auth/v1"
 
     private fun sessionFrom(root: JsonObject, fallbackUserId: String? = null): ChatAuthSession {
-        val userId = root.objectOrNull("user")?.string("id") ?: fallbackUserId
-            ?: throw ChatApiException("Supabase did not return a chat user ID.")
         val accessToken = root.string("access_token")
         if (accessToken.isBlank()) throw ChatApiException("Supabase did not return an access token.")
+        // The JWT subject is what row-level security actually checks, so prefer it over the
+        // user object in the response: a mismatch there used to make every write fail with a
+        // policy error while the app still thought it had a valid session.
+        val userId = userIdFromJwt(accessToken)
+            ?: root.objectOrNull("user")?.string("id")?.takeIf(String::isNotBlank)
+            ?: fallbackUserId
+            ?: throw ChatApiException("Supabase did not return a chat user ID.")
         return ChatAuthSession(
             userId = userId,
             accessToken = accessToken,
             refreshToken = root.string("refresh_token"),
             expiresAtMillis = System.currentTimeMillis() + root.long("expires_in", 3600) * 1000L
         )
+    }
+
+    /** Reads the `sub` claim of a Supabase access token; null when the token is malformed. */
+    private fun userIdFromJwt(token: String): String? {
+        val payload = token.split('.').getOrNull(1) ?: return null
+        return runCatching {
+            val decoded = java.util.Base64.getUrlDecoder().decode(payload).toString(Charsets.UTF_8)
+            JsonParser.parseString(decoded).asJsonObject.string("sub").takeIf { it.isNotBlank() }
+        }.getOrNull()
     }
 
     private fun parseObject(body: String): JsonObject = try {
@@ -623,7 +931,17 @@ internal class SupabaseChatRepository {
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         const val SESSION_REFRESH_MARGIN_MS = 60_000L
         const val MAX_RECONNECT_DELAY_MS = 30_000L
+        const val PARTY_SELECT =
+            "id,host_id,title,version_id,instance_name,mc_version,loader,modpack_source,modpack_id," +
+                "modpack_icon_url,server_address,max_members,is_public,invite_code,created_at,expires_at," +
+                "chat_party_members(user_id,is_host,joined_at,chat_profiles(username,display_name,last_active_at))"
+        const val PARTY_MESSAGE_SELECT =
+            "id,party_id,sender_id,body,created_at,chat_profiles(username,display_name)"
     }
 }
 
-internal class ChatApiException(message: String) : IOException(message)
+internal class ChatApiException(
+    message: String,
+    val statusCode: Int = 0,
+    val responseBody: String = ""
+) : IOException(message)

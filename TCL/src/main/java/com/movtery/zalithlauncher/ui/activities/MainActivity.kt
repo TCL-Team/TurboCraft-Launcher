@@ -25,10 +25,15 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -46,7 +51,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.movtery.zalithlauncher.R
 import com.movtery.zalithlauncher.chat.EXTRA_OPEN_CHAT
@@ -65,16 +69,22 @@ import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.VersionsManager
 import com.movtery.zalithlauncher.ui.activities.EXTRA_LAUNCH_VERSION
 import com.movtery.zalithlauncher.ui.activities.EXTRA_OPEN_LOG
+import com.movtery.zalithlauncher.discord.DiscordPresenceManager
+import com.movtery.zalithlauncher.game.account.AccountsManager
 import com.movtery.zalithlauncher.notification.NotificationManager
 import com.movtery.zalithlauncher.path.PathManager
 import com.movtery.zalithlauncher.path.URL_SUPPORT
 import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.ui.AndroidStringText
 import com.movtery.zalithlauncher.ui.androidText
+import com.movtery.guide.GuideHost
+import com.movtery.petlib.PetGazeRouter
 import com.movtery.zalithlauncher.ui.base.BaseAppCompatActivity
 import com.movtery.zalithlauncher.ui.base.ObserveFullScreenSetting
 import com.movtery.zalithlauncher.ui.buildAppendedText
 import com.movtery.zalithlauncher.ui.components.SimpleAlertDialog
+import com.movtery.zalithlauncher.ui.guide.NextTipLabel
+import com.movtery.zalithlauncher.ui.guide.rememberAppGuides
 import com.movtery.zalithlauncher.ui.screens.NestedNavKey
 import com.movtery.zalithlauncher.ui.screens.NormalNavKey
 import com.movtery.zalithlauncher.ui.screens.content.elements.Background
@@ -82,6 +92,7 @@ import com.movtery.zalithlauncher.ui.screens.content.elements.LaunchGameOperatio
 import com.movtery.zalithlauncher.ui.screens.content.navigateToLogView
 import com.movtery.zalithlauncher.ui.screens.content.navigateToWeb
 import com.movtery.zalithlauncher.ui.screens.main.MainScreen
+import com.movtery.zalithlauncher.ui.screens.welcome.WelcomeScreen
 import com.movtery.zalithlauncher.ui.screens.main.crashlogs.LogShareMenu
 import com.movtery.zalithlauncher.ui.screens.main.crashlogs.LogShareMenuOperation
 import com.movtery.zalithlauncher.ui.screens.main.crashlogs.ShareLinkOperation
@@ -215,6 +226,9 @@ class MainActivity : BaseAppCompatActivity() {
         //初始化通知管理（创建渠道）
         NotificationManager.initManager(this)
 
+        //Discord 状态展示（Rich Presence）
+        DiscordPresenceManager.start(this)
+
         //检查更新
         if (!isImporting && launcherUpgradeViewModel.operation == LauncherUpgradeOperation.None) {
             lifecycleScope.launch {
@@ -339,30 +353,48 @@ class MainActivity : BaseAppCompatActivity() {
                 festivals = festivals
             ) {
                 ObserveFullScreenSetting(AllSettings.launcherFullScreen.state)
-                Box {
-                    Background(
-                        modifier = Modifier.fillMaxSize(),
-                        viewModel = backgroundViewModel
-                    )
 
-                    CompositionLocalProvider(
-                        LocalHomePageViewModel provides homePageViewModel
+                //把当前选中的版本同步到 Discord Rich Presence 卡片
+                val discordVersion by VersionsManager.currentVersion.collectAsStateWithLifecycle()
+                LaunchedEffect(discordVersion) {
+                    DiscordPresenceManager.updateVersion(discordVersion?.getVersionName().orEmpty())
+                }
+
+                //每次打开启动器都先展示欢迎页；外部导入（分享文件 / 快捷方式指定版本）时跳过
+                var welcomeDone by remember { mutableStateOf(false) }
+                val showWelcome = !isImporting && intent.getStringExtra(EXTRA_LAUNCH_VERSION).isNullOrEmpty()
+                //新手引导画布：承载主界面的引导流，并渲染遮罩、镂空与引导内容
+                val guides = rememberAppGuides(eventViewModel)
+                Box {
+                    GuideHost(
+                        guides.mainScreen,
+                        modifier = Modifier.fillMaxSize(),
+                        nextTip = { NextTipLabel(it) }
                     ) {
-                        MainScreen(
-                            screenBackStackModel = screenBackStackModel,
-                            eventViewModel = eventViewModel,
-                            modpackImportViewModel = modpackImportViewModel,
-                            submitError = {
-                                errorViewModel.showError(it)
-                            }
+                        Background(
+                            modifier = Modifier.fillMaxSize(),
+                            viewModel = backgroundViewModel
+                        )
+
+                        CompositionLocalProvider(
+                            LocalHomePageViewModel provides homePageViewModel
+                        ) {
+                            MainScreen(
+                                screenBackStackModel = screenBackStackModel,
+                                eventViewModel = eventViewModel,
+                                modpackImportViewModel = modpackImportViewModel,
+                                submitError = {
+                                    errorViewModel.showError(it)
+                                }
+                            )
+                        }
+
+                        //节日彩蛋效果层
+                        FestivalEffects(
+                            modifier = Modifier.fillMaxSize(),
+                            festivals = festivals
                         )
                     }
-
-                    //节日彩蛋效果层
-                    FestivalEffects(
-                        modifier = Modifier.fillMaxSize(),
-                        festivals = festivals
-                    )
 
                     //启动游戏操作流程
                     LaunchGameOperation(
@@ -519,8 +551,35 @@ class MainActivity : BaseAppCompatActivity() {
                 )
 
                 PlayerNoticeDialog()
+
+                //欢迎页：每次打开启动器先展示，之后淡出显示主界面
+                AnimatedVisibility(
+                    visible = !welcomeDone && showWelcome,
+                    enter = EnterTransition.None,
+                    exit = fadeOut(animationSpec = tween(durationMillis = 450))
+                ) {
+                    val currentAccount by AccountsManager.currentAccountFlow.collectAsStateWithLifecycle()
+                    WelcomeScreen(
+                        userName = currentAccount?.username,
+                        buttonText = stringResource(R.string.welcome_enter),
+                        onEnter = { welcomeDone = true }
+                    )
+                }
             }
         }
+    }
+
+    /**
+     * 把真实鼠标事件转给玩家模型预览，让模型视线跟随光标
+     */
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean {
+        PetGazeRouter.onGenericMotionEvent(ev)
+        return super.dispatchGenericMotionEvent(ev)
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        PetGazeRouter.onTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -861,6 +920,9 @@ class MainActivity : BaseAppCompatActivity() {
     }
 
     override fun onDestroy() {
+        if (isFinishing) {
+            DiscordPresenceManager.stop()
+        }
         fmEventRegistrar?.stop()
         fmEventRegistrar = null
         super.onDestroy()

@@ -19,6 +19,7 @@ public class TouchCharInput extends androidx.appcompat.widget.AppCompatEditText 
     private static WeakReference<TouchCharInput> sActiveInput = new WeakReference<>(null);
 
     public static final String TEXT_FILLER = "                              ";
+    private static final int FILLER_LENGTH = TEXT_FILLER.length();
     public TouchCharInput(@NonNull Context context) {
         this(context, null);
     }
@@ -115,12 +116,19 @@ public class TouchCharInput extends androidx.appcompat.widget.AppCompatEditText 
         if (mIsDoingInternalChanges)
             return;
         if (mListener != null) {
-            for (int i = 0; i < lengthBefore; ++i) {
-                mListener.onBackspace();
+            // TEXT_FILLER 只是为了给输入法一个稳定的插入位置，它本身不代表游戏内的文本：
+            // 落在填充区内的增删不能同步给游戏，否则游戏文本会比输入栏多/少若干空格
+            final int filler = FILLER_LENGTH;
+            for (int i = start; i < start + lengthBefore; ++i) {
+                if (i >= filler) {
+                    mListener.onBackspace();
+                }
             }
 
             for (int i = start, count = 0; count < lengthAfter; ++i) {
-                mListener.onSend(text.charAt(i));
+                if (i >= filler) {
+                    mListener.onSend(text.charAt(i));
+                }
                 ++count;
             }
         }

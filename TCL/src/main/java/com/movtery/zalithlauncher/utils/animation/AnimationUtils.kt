@@ -30,11 +30,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.movtery.zalithlauncher.setting.AllSettings
 
+
 /**
  * 获取动画的持续时长
  */
 fun getAnimateSpeed(): Int = calculateAnimationTime(
-    AllSettings.launcherAnimateSpeed.state,
+    AllSettings.launcherAnimateSpeedLevel.state,
     1500,
     0.1f
 )
@@ -44,17 +45,16 @@ fun getAnimateSpeed(): Int = calculateAnimationTime(
  */
 fun getAdjustedDelayMillis(baseDelayMillis: Int): Int {
     if (baseDelayMillis == 0) return 0
-    val adjustedAnimationTime = calculateAnimationTime(
-        AllSettings.launcherAnimateSpeed.state,
+    return calculateAnimationTime(
+        AllSettings.launcherAnimateSpeedLevel.state,
         baseDelayMillis
     )
-    return adjustedAnimationTime
 }
 
 /**
  * 页面切换动画是否关闭
  */
-fun isSwapAnimateClosed() = AllSettings.launcherSwapAnimateType.state == TransitionAnimationType.CLOSE
+fun isSwapAnimateClosed(): Boolean = SwapTimeline.isSwapClosed()
 
 fun <E> getAnimateTween(
     delayMillis: Int = 0
@@ -71,36 +71,15 @@ fun <E> getAnimateTween(
     delayMillis = delayMillis
 )
 
-fun <E> getAnimateTweenBounce(
-    delayMillis: Int = 0
-): FiniteAnimationSpec<E> = getAnimateTweenBounce(
-    durationMillis = getAnimateSpeed(),
-    delayMillis = delayMillis
-)
-
-fun <E> getAnimateTweenBounce(
-    durationMillis: Int,
+/**
+ * 获取进场动画
+ */
+fun <E> getEnterTween(
     delayMillis: Int = 0
 ): FiniteAnimationSpec<E> = tween(
-    durationMillis = durationMillis,
-    delayMillis = delayMillis,
-    easing = BounceEasing
-)
-
-fun <E> getAnimateTweenJellyBounce(
-    delayMillis: Int = 0
-): FiniteAnimationSpec<E> = getAnimateTweenJellyBounce(
     durationMillis = getAnimateSpeed(),
-    delayMillis = delayMillis
-)
-
-fun <E> getAnimateTweenJellyBounce(
-    durationMillis: Int,
-    delayMillis: Int = 0
-): FiniteAnimationSpec<E> = tween(
-    durationMillis = durationMillis,
     delayMillis = delayMillis,
-    easing = JellyBounce
+    easing = EnterTranslateEasing
 )
 
 /**
@@ -111,13 +90,8 @@ fun <E> getSwapAnimateTween(
     delayMillis: Int = 0
 ): FiniteAnimationSpec<E> {
     val adjustedDelayMillis = getAdjustedDelayMillis(delayMillis)
-    return if (swapIn) {
-        when (AllSettings.launcherSwapAnimateType.state) {
-            TransitionAnimationType.CLOSE -> snap()
-            TransitionAnimationType.BOUNCE -> getAnimateTweenBounce(adjustedDelayMillis)
-            TransitionAnimationType.JELLY_BOUNCE -> getAnimateTweenJellyBounce(adjustedDelayMillis)
-            else -> getAnimateTween(adjustedDelayMillis)
-        }
+    return if (!swapIn || isSwapAnimateClosed()) {
+        snap()
     } else {
         getAnimateTween(adjustedDelayMillis)
     }
@@ -125,7 +99,6 @@ fun <E> getSwapAnimateTween(
 
 /**
  * 计算动画的幅度（计算targetValue）
- * 以5为基准，5对应targetValue本身
  *
  * 幅度0，大小为 targetValue * 0.5
  * 幅度5，大小为 targetValue * 1.0
@@ -156,7 +129,7 @@ fun getTargetValueByAmplitude(
 fun swapAnimateDpAsState(
     targetValue: Dp,
     swapIn: Boolean,
-    amplitude: Int = AllSettings.launcherAnimateExtent.state,
+    amplitude: Int = 5,
     isHorizontal: Boolean = false,
     delayMillis: Int = 0
 ): State<Dp> {
@@ -177,7 +150,7 @@ fun swapAnimateDpAsState(
 fun swapAnimateDpAsState(
     targetValue: Dp,
     swapIn: Boolean,
-    amplitude: Int = AllSettings.launcherAnimateExtent.state,
+    amplitude: Int = 5,
     isHorizontal: Boolean = false,
     animationSpec: AnimationSpec<Dp>
 ): State<Dp> {
@@ -198,7 +171,6 @@ fun swapAnimateDpAsState(
 /**
  * 计算根据倍速调整后的时间（毫秒）
  * @param minFactor 最快时相对于 baseTime 的缩放比例（0.25 = 最快时是 1/4 时间）
- * @return 根据倍速调整后的时间
  */
 fun calculateAnimationTime(speed: Int, baseTime: Int, minFactor: Float = 0.25f): Int {
     val factor = 1f - (speed / 10f) * (1f - minFactor)

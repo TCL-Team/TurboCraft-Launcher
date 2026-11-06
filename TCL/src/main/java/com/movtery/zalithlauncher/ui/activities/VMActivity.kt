@@ -1,6 +1,6 @@
 /*
  * Zalith Launcher 2
- * Copyright (C) 2025 MovTery <movtery228@qq.com> and contributors
+ * Copyright (C) 2025-2026 MovTery <movtery228@qq.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +24,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
+import android.graphics.Bitmap
 import android.graphics.SurfaceTexture
 import android.hardware.display.DisplayManager
 import android.os.Build
@@ -33,8 +34,8 @@ import android.view.Display
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.Surface
-import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.SurfaceHolder
 import android.view.TextureView
 import android.view.TextureView.SurfaceTextureListener
 import android.view.View
@@ -46,24 +47,45 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.annotation.Keep
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.PopupProperties
+import androidx.core.graphics.createBitmap
 import androidx.core.graphics.drawable.toDrawable
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
@@ -100,6 +122,7 @@ import com.movtery.zalithlauncher.game.version.installed.PlayTimeRepository
 import com.movtery.zalithlauncher.game.recorder.GameSurfaceRegistry
 import com.movtery.zalithlauncher.game.renderer.Renderers
 import com.movtery.zalithlauncher.game.sdl.SdlBridge
+import com.movtery.zalithlauncher.game.sdl.SdlTextSender
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.setting.enums.ResolutionRule
@@ -108,6 +131,8 @@ import com.movtery.zalithlauncher.ui.base.BaseAppCompatActivity
 import com.movtery.zalithlauncher.ui.base.ObserveFullScreenSetting
 import com.movtery.zalithlauncher.ui.components.rememberBoxSize
 import com.movtery.zalithlauncher.ui.control.input.HidableInputLayout
+import com.movtery.zalithlauncher.ui.control.input.InputMagnifier
+import com.movtery.zalithlauncher.ui.control.input.InputMagnifierState
 import com.movtery.zalithlauncher.ui.control.input.TextInputMode
 import com.movtery.zalithlauncher.ui.screens.game.elements.OpenFolderLayer
 import com.movtery.zalithlauncher.ui.screens.game.elements.OpenFolderOperation
@@ -137,6 +162,7 @@ import java.io.File
 import java.io.IOException
 import kotlin.time.Duration.Companion.milliseconds
 import android.graphics.Color as NativeColor
+import android.view.WindowInsets as AndroidWindowInsets
 
 
 private const val INTENT_RUN_GAME = "BUNDLE_RUN_GAME"
@@ -299,7 +325,36 @@ class VMViewModel : ViewModel() {
     /**
      * 当前输入法开启状态
      */
-    var textInputMode by mutableStateOf(TextInputMode.DISABLE)
+    private var _textInputMode by mutableStateOf(TextInputMode.DISABLE)
+    var textInputMode: TextInputMode
+        get() = _textInputMode
+        set(value) {
+            val previous = _textInputMode
+            _textInputMode = value
+            if (previous == value) return
+            onTextInputModeChanged(value)
+        }
+
+    /**
+     * 游戏输入（含文本）是否需要经 SDL 通道提交
+     */
+    private val sdlInputRouting: Boolean
+        get() = SdlBridge.isTextInputRoutedToSdl()
+
+    /**
+     * 输入栏开关时同步 SDL 文本输入通道
+     * SDL 渲染路径（MC 26.3+）的游戏不再走 GLFW 字符回调，
+     * 启动器输入栏接管前必须代开 native 文本通道，否则键入的字符会被静默丢弃
+     */
+    private fun onTextInputModeChanged(mode: TextInputMode) {
+        if (mode == TextInputMode.ENABLE) {
+            if (sdlInputRouting) SdlTextSender.acquireTextInput()
+        } else {
+            SdlTextSender.releaseTextInput()
+        }
+    }
+
+    val inputMagnifierState = InputMagnifierState()
 
     fun disableInputMode() {
         if (textInputMode == TextInputMode.ENABLE) textInputMode = TextInputMode.DISABLE
@@ -311,7 +366,19 @@ class VMViewModel : ViewModel() {
      */
     private fun String.sendText() {
         forEach { char ->
-            sender.sendChar(char)
+            sendChar(char)
+        }
+    }
+
+    /**
+     * 发送单个字符
+     * SDL 渲染路径只接受 SDL 文本输入事件，经 GLFW 桥提交的字符不会进入游戏
+     */
+    fun sendChar(character: Char) {
+        if (sdlInputRouting) {
+            SdlTextSender.sendChar(character)
+        } else {
+            sender.sendChar(character)
         }
     }
 
@@ -320,11 +387,19 @@ class VMViewModel : ViewModel() {
     }
 
     fun sendBackspace() {
-        sender.sendBackspace()
+        if (sdlInputRouting) {
+            SdlTextSender.sendBackspace()
+        } else {
+            sender.sendBackspace()
+        }
     }
 
     fun sendEnder() {
-        sender.sendEnter()
+        if (sdlInputRouting) {
+            SdlTextSender.sendEnter()
+        } else {
+            sender.sendEnter()
+        }
     }
 
     /**
@@ -344,11 +419,32 @@ class VMViewModel : ViewModel() {
             KeyEvent.KEYCODE_TAB -> sender.sendTab()
 
             else -> {
-                //输入法产生的字符类按键事件不能转发给游戏
                 val isSoftKeyboard = (keyEvent.flags and KeyEvent.FLAG_SOFT_KEYBOARD) != 0
-                if (!isSoftKeyboard) sender.sendOther(keyEvent)
+                val isTextInput = SDLActivity.isTextInputEvent(keyEvent)
+                when {
+                    shouldConsumeSdlTextInput(keyEvent) -> sendChar(keyEvent.unicodeChar.toChar())
+                    !isSoftKeyboard && !isTextInput -> sender.sendOther(keyEvent)
+                }
             }
         }
+    }
+
+    /**
+     * SDL 渲染路径没有输入代理的文本回调，物理字符键需直接发送文本并消费按键事件
+     */
+    fun shouldConsumeSdlTextInput(keyEvent: KeyEvent): Boolean {
+        return SdlBridge.sdlEnabled && SdlBridge.isSdlRenderActive() &&
+                (keyEvent.flags and KeyEvent.FLAG_SOFT_KEYBOARD) == 0 &&
+                SDLActivity.isTextInputEvent(keyEvent)
+    }
+
+    /**
+     * IME 可能清除后续按键的 Meta 状态，Ctrl 本身必须直接同步到 SDL
+     */
+    fun shouldConsumeSdlModifierKey(keyEvent: KeyEvent): Boolean {
+        return SdlBridge.sdlEnabled && SdlBridge.isSdlRenderActive() &&
+                (keyEvent.keyCode == KeyEvent.KEYCODE_CTRL_LEFT ||
+                        keyEvent.keyCode == KeyEvent.KEYCODE_CTRL_RIGHT)
     }
 
     /**
@@ -384,12 +480,40 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
 
     private var applySizeToSurface: ((width: Int, height: Int) -> Unit)? = null
 
+    /** View used to locate the layout hosting SDL's text input bridge. */
+    private var gameTextureView: TextureView? = null
+
+    private var magnifierBitmap: Bitmap? = null
+    private var magnifierFrame by mutableStateOf<ImageBitmap?>(null)
+    private var magnifierFrameVersion by mutableLongStateOf(0L)
+
     private inline fun <T> withHandler(block: AbstractHandler.() -> T): T {
         return vmViewModel.session.handler.block()
     }
 
     private inline fun <T> withLauncher(block: Launcher.() -> T): T {
         return vmViewModel.session.launcher.block()
+    }
+
+    private fun captureMagnifierFrame() {
+        if (!vmViewModel.inputMagnifierState.isVisible) return
+        val textureView = gameTextureView ?: return
+        val width = textureView.width
+        val height = textureView.height
+        if (!textureView.isAvailable || width <= 0 || height <= 0) return
+
+        val bitmap = magnifierBitmap
+            ?.takeIf { it.width == width && it.height == height }
+            ?: createBitmap(width, height).also {
+                magnifierBitmap = it
+                magnifierFrame = it.asImageBitmap()
+            }
+        val captured = runCatching {
+            textureView.getBitmap(bitmap)
+        }.getOrNull() ?: return
+
+        if (magnifierFrame == null) magnifierFrame = captured.asImageBitmap()
+        magnifierFrameVersion++
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -658,6 +782,7 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
         lastWindowSize = newSize
 
         applySizeToSurface?.invoke(newSize.width, newSize.height)
+        gameTextureView?.surfaceTexture?.setDefaultBufferSize(newSize.width, newSize.height)
         ZLBridgeStates.onWindowChange()
         CallbackBridge.sendUpdateWindowSize(newSize.width, newSize.height)
         if (SdlBridge.sdlEnabled) {
@@ -671,6 +796,8 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
     }
 
     override fun onDestroy() {
+        // 退出前还原启动器代开的 SDL 文本输入通道
+        SdlTextSender.releaseTextInput()
         GameRecorder.stopAndSave(applicationContext)
         GameSurfaceRegistry.unregister()
         getSystemService(DisplayManager::class.java)?.unregisterDisplayListener(displayListener)
@@ -703,12 +830,19 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
             return true
         }
         if (vmViewModel.textInputMode == TextInputMode.ENABLE) {
+            if (vmViewModel.shouldConsumeSdlModifierKey(event)) {
+                vmViewModel.handleSpecialKey(event)
+                return true
+            }
             if (isPressed && !vmViewModel.keyCanHandle(event)) {
                 return super.dispatchKeyEvent(event)
             }
 
             if (isPressed) {
                 vmViewModel.handleSpecialKey(event)
+            }
+            if (vmViewModel.shouldConsumeSdlTextInput(event)) {
+                return true
             }
 
             if (event.keyCode == KeyEvent.KEYCODE_TAB) {
@@ -837,8 +971,12 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
     }
 
     private fun clearSurfaceFrameRate() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            gameSurface?.clearFrameRate()
+        gameSurface?.let { surface ->
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                surface.clearFrameRate()
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                surface.setFrameRate(0f, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT)
+            }
         }
     }
 
@@ -853,6 +991,10 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
         }
         if (vmViewModel.isRunning) {
             ZLBridge.setupBridgeWindow(nativeSurface)
+            // surface 重建后新 SurfaceTexture 的渲染 buffer 回落视图尺寸，须重新恢复渲染状态；
+            // 复用分支若不重置销毁标记，后续尺寸回调会被持续阻塞，错位状态将无法自愈
+            withHandler { mIsSurfaceDestroyed = false }
+            requestRefreshWindowSize(screenSize = referenceScreenSize(fallback = IntSize(width, height)))
             return
         }
         vmViewModel.isRunning = true
@@ -890,6 +1032,7 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
     }
 
     override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+        captureMagnifierFrame()
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
@@ -1006,6 +1149,7 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
                             surfaceTextureListener = this@VMActivity
                         }.also { texture ->
                             gameSurfaceView = texture
+                            gameTextureView = texture
                             applySizeToSurface = { width, height ->
                                 texture.surfaceTexture?.setDefaultBufferSize(width, height)
                             }
@@ -1013,7 +1157,7 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
                     }
                     GameSurfaceRegistry.register(view)
                     view.setOnApplyWindowInsetsListener { v, insets ->
-                        if (SdlBridge.sdlEnabled && android.os.Build.VERSION.SDK_INT >= 30) {
+                        if (SdlBridge.sdlEnabled && Build.VERSION.SDK_INT >= 30) {
                             SDLActivity.notifyImeVisibilityChanged(
                                 insets.isVisible(android.view.WindowInsets.Type.ime())
                             )
@@ -1025,6 +1169,102 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener, SurfaceHolde
             )
 
             content()
+
+            InputMagnifier(
+                inputEnabled = vmViewModel.textInputMode == TextInputMode.ENABLE,
+                state = vmViewModel.inputMagnifierState,
+                frame = { magnifierFrame },
+                frameVersion = { magnifierFrameVersion },
+                floatingContent = {
+                    InputMagnifierContent(
+                        modifier = Modifier
+                            .padding(all = 8.dp)
+                            .align(Alignment.TopEnd),
+                        onClose = { vmViewModel.inputMagnifierState.close() }
+                    )
+                }
+            )
+            LaunchedEffect(vmViewModel.inputMagnifierState.isVisible) {
+                if (vmViewModel.inputMagnifierState.isVisible) captureMagnifierFrame()
+            }
+        }
+    }
+}
+
+@Composable
+private fun InputMagnifierContent(
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    androidx.compose.material3.Surface(
+        modifier = modifier,
+        shape = MaterialTheme.shapes.medium,
+        color = Color.Black.copy(alpha = 0.65f),
+        contentColor = Color.White
+    ) {
+        Row {
+            Box {
+                IconButton(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .focusProperties { canFocus = false },
+                    onClick = { menuExpanded = true }
+                ) {
+                    Icon(
+                        modifier = Modifier.size(18.dp),
+                        painter = painterResource(R.drawable.ic_more_vert),
+                        contentDescription = stringResource(R.string.generic_more)
+                    )
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                    shape = MaterialTheme.shapes.large,
+                    properties = PopupProperties(focusable = false)
+                ) {
+                    DropdownMenuItem(
+                        modifier = Modifier.focusProperties { canFocus = false },
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.game_menu_option_ime_magnifier_auto_show)
+                                )
+                                Checkbox(
+                                    modifier = Modifier.focusProperties { canFocus = false },
+                                    checked = AllSettings.imeMagnifierAutoShow.state,
+                                    onCheckedChange = {
+                                        AllSettings.imeMagnifierAutoShow.save(
+                                            !AllSettings.imeMagnifierAutoShow.state
+                                        )
+                                    }
+                                )
+                            }
+                        },
+                        onClick = {
+                            AllSettings.imeMagnifierAutoShow.save(
+                                !AllSettings.imeMagnifierAutoShow.state
+                            )
+                        }
+                    )
+                }
+            }
+            IconButton(
+                modifier = Modifier
+                    .size(40.dp)
+                    .focusProperties { canFocus = false },
+                onClick = onClose,
+            ) {
+                Icon(
+                    modifier = Modifier.size(18.dp),
+                    painter = painterResource(R.drawable.ic_close),
+                    contentDescription = stringResource(R.string.generic_close)
+                )
+            }
         }
     }
 }
